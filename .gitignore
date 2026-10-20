@@ -1,0 +1,15 @@
+node_modules/
+
+# real config holds secrets — keep only the example in git
+sbot.config.json
+.sbot/
+
+*.log
+.DS_Store
+
+# build artifacts (npm pack output — see docs/RELEASE.md)
+*.tgz
+
+# Claude Code: personal/local settings and notes (never commit)
+.claude/
+CLAUDE.local.md

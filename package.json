@@ -1,0 +1,65 @@
+{
+  "name": "sintbot",
+  "version": "1.0.0",
+  "description": "Drive headless Claude Code (or Codex) from Feishu / Slack / WeCom group chats — one group, one project, swappable model brain. A standalone daemon, not a Claude Code plugin.",
+  "bin": {
+    "sbot": "bin/sbot.js",
+    "sintbot": "bin/sbot.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "assets/",
+    "CHANGELOG.json",
+    "CHANGELOG.en.json",
+    "sbot.config.example.json",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "docs/slack-app-manifest.yaml"
+  ],
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node bin/sbot.js",
+    "test": "node --test",
+    "prepublishOnly": "npm test",
+    "test:redact": "node --test tests/unit/redact.test.js",
+    "test:store": "node --test tests/unit/store.test.js",
+    "test:config": "node --test tests/unit/config.test.js",
+    "test:engine": "node --test tests/unit/engine.test.js",
+    "test:agent": "node --test tests/unit/agent.test.js",
+    "test:health": "node --test tests/unit/health.test.js",
+    "test:visionproxy": "node --test tests/unit/visionproxy.test.js"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "feishu",
+    "lark",
+    "slack",
+    "wecom",
+    "group-chat",
+    "chatops",
+    "ai-agent",
+    "deepseek",
+    "daemon"
+  ],
+  "author": "WaterTian",
+  "license": "MIT",
+  "homepage": "https://sintbot.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WaterTian/sintbot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/WaterTian/sintbot/issues"
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.68.0",
+    "ws": "^8.21.3"
+  }
+}

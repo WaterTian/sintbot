@@ -1,0 +1,437 @@
+// claudecode AgentRunner — the heart of sbot.
+//
+// Drives the `claude` CLI in headless streaming-JSON mode over stdio pipes:
+//
+//   claude -p "<prompt>" --output-format stream-json --verbose
+//          [--model M] [--resume SID] [--permission-mode MODE] [--add-dir DIR]
+//
+// The backing MODEL is swapped purely via env vars (ANTHROPIC_BASE_URL /
+// ANTHROPIC_AUTH_TOKEN / ANTHROPIC_MODEL), so the same Claude Code agent
+// harness can run on Claude, GLM, DeepSeek, or any Anthropic-compatible
+// endpoint. This is M0's whole thesis: keep the agent, swap the brain.
+//
+// Spawn-per-turn (one subprocess per turn, session continuity via --resume).
+// See DESIGN.md §1 (process model) / §4.1 (permissions).
+
+const { spawn } = require('node:child_process')
+const { ensureProxy, proxyBaseFor } = require('./visionproxy')
+
+// Always-on 群项目基础能力: auto-allowed regardless of preset (even read-only) so the
+// self-knowledge manifest's advertised base skills actually run. Both CLIs fence to the
+// group's own chat ($SBOT_CHAT_ID); feishu also fences paths to cwd. Additive; deny wins.
+const BASE_SKILL_ALLOWS = ['Bash(sbot feishu *)', 'Bash(sbot wecom *)', 'Bash(sbot cron *)', 'Bash(sbot imagen *)', 'Bash(sbot design *)', 'Bash(sbot preview *)']
+// Windows executable resolution (npm .cmd shim vs native .exe) is shared with the
+// codex runner — see winexec.js for the why (ENOENT on .cmd, never the POSIX shim).
+const { IS_WIN, resolveSpawn } = require('./winexec')
+const { classifyTransient } = require('./transienterr') // 瞬时错(过载 / 限流)判据,与 codex runner 共用
+const { classifyQuota } = require('./quotaerr') // 额度 / 账号类判据(切备用模型的依据),与 codex runner 共用
+
+// Build the child env from a resolved provider. `baseUrlOverride` (when given)
+// replaces provider.baseUrl for ANTHROPIC_BASE_URL — used to point `claude` at
+// the local vision strip-proxy for text-only providers. The auth
+// token is unchanged: the proxy forwards it verbatim to the real upstream.
+function buildEnv(provider = {}, baseUrlOverride, extraEnv) {
+  const env = { ...process.env }
+
+  // The spawn env is defined ENTIRELY by the provider:
+  // clear inherited ANTHROPIC_* first, so a base/token/model exported in the
+  // operator's shell can't silently reroute a provider that doesn't set them
+  // (e.g. logged-in claude hitting a GLM base). ANTHROPIC_API_KEY passes
+  // through — direct API-key auth for the keyless provider is legitimate.
+  // provider.env (applied last) can still set any of these deliberately.
+  delete env.ANTHROPIC_BASE_URL
+  delete env.ANTHROPIC_AUTH_TOKEN
+  delete env.ANTHROPIC_MODEL
+
+  const base = baseUrlOverride || provider.baseUrl
+  if (base) env.ANTHROPIC_BASE_URL = base
+  if (provider.apiKey) {
+    // Use the auth token (Bearer) against the custom base; blank the api key so
+    // the CLI doesn't try to validate it against api.anthropic.com.
+    env.ANTHROPIC_AUTH_TOKEN = provider.apiKey
+    delete env.ANTHROPIC_API_KEY
+  }
+  if (provider.model) env.ANTHROPIC_MODEL = provider.model
+
+  // If sbot itself is ever launched under a Claude Code session, this prevents
+  // the child from thinking it's a nested session.
+  delete env.CLAUDECODE
+
+  if (provider.env) Object.assign(env, provider.env)
+  // Engine-injected non-provider context (e.g. SBOT_CHAT_ID for the feishu base skill).
+  // Applied last but namespaced (SBOT_*), so it never collides with provider ANTHROPIC_* env.
+  if (extraEnv) Object.assign(env, extraEnv)
+  return env
+}
+
+// Map a raw `claude` stream-json line to a normalized AgentEvent (interfaces.js).
+function normalizeEvent(ev) {
+  switch (ev.type) {
+    case 'system': {
+      const r = { type: 'system', subtype: ev.subtype, sessionId: ev.session_id }
+      // 压缩事件带的量(v0.11.93,2.1.260 真机核对):会话文件里是 `compactMetadata.preTokens`,SDK 输出层
+      // 叫 `compact_metadata.pre_tokens` —— 二进制里两种拼法都在,两种都认。引擎拿它报「此前上下文约 X」:
+      // 此前用上一条 assistant 的 usage 顶替,而读进来的工具结果还没进任何 usage,真机少报 5 倍
+      // (报 3.6 万,实际 187836)。没有就不编数,引擎自会退回旧口径。
+      const meta = ev.compact_metadata || ev.compactMetadata
+      if (meta && typeof meta === 'object') {
+        const pre = Number(meta.pre_tokens != null ? meta.pre_tokens : meta.preTokens)
+        const post = Number(meta.post_tokens != null ? meta.post_tokens : meta.postTokens)
+        if (pre > 0) r.preTokens = pre
+        if (post > 0) r.postTokens = post
+      }
+      return r
+    }
+
+    case 'assistant': {
+      const blocks = (ev.message && ev.message.content) || []
+      return {
+        type: 'assistant',
+        text: blocks.filter((b) => b.type === 'text').map((b) => b.text).join(''),
+        thinking: blocks.filter((b) => b.type === 'thinking').map((b) => b.thinking).join(''),
+        tools: blocks.filter((b) => b.type === 'tool_use').map((b) => ({ name: b.name, input: b.input })),
+        sessionId: ev.session_id,
+      }
+    }
+
+    case 'user': {
+      const blocks = (ev.message && ev.message.content) || []
+      return {
+        type: 'tool_result',
+        results: blocks.filter((b) => b.type === 'tool_result'),
+        sessionId: ev.session_id,
+      }
+    }
+
+    case 'result': {
+      // ⚠ 出错时 CLI 的原因多半**不在 result 里**而在 errors[](error_during_execution / error_max_turns 的真实
+      //   形状,2026-09-08 审查从 2.1.260 二进制核对);API 过载(529)那种则是 subtype success + is_error +
+      //   result 带「API Error: 529 …」。两种都得让账本与瞬时错判据看见 —— 只看 result,前一种原因永远是空。
+      const errs = ev.is_error && Array.isArray(ev.errors)
+        ? ev.errors.map((x) => (typeof x === 'string' ? x : (x && x.message) || JSON.stringify(x))).filter(Boolean)
+        : []
+      const text = ev.result != null && ev.result !== '' ? ev.result : (errs.length ? errs.join('; ') : ev.result)
+      const r = {
+        type: 'result',
+        subtype: ev.subtype,
+        text,
+        isError: ev.is_error,
+        usage: ev.usage,
+        sessionId: ev.session_id,
+      }
+      // 瞬时错(服务端过载 / 限流)给群面一句人话;text 仍是原话,留给账本(判据在 transienterr,两 runner 共用)
+      if (ev.is_error) { const t = classifyTransient(text); if (t) r.transient = t }
+      // 额度 / 账号类(用完了 · 账号被停 · 登录态刷新失败)标 quota:引擎据此自动切到备用模型(判据在 agent/quotaerr,两 runner 共用)
+      if (ev.is_error) { const q = classifyQuota(text); if (q) r.quota = q }
+      // 续接的会话在 CLI 那边已经没了(典型:Claude Code 默认清掉 30 天没动过的会话记录)。引擎据此换新会话重做,
+      // 否则这个群之后每条消息都带着同一个死 id 去续接、条条报错,直到有人 /new。
+      if (ev.is_error && /No conversation found with session ID/i.test(String(text || ''))) r.sessionGone = true
+      return r
+    }
+
+    default:
+      return { type: ev.type, raw: ev }
+  }
+}
+
+/**
+ * Run a single agent turn.
+ * @param {import('../core/interfaces').RunTurnOptions} opts
+ * @returns {Promise<import('../core/interfaces').RunTurnResult>}
+ */
+function runTurn({
+  bin = 'claude',
+  prompt,
+  provider = {},
+  model,
+  workdir,
+  sessionId,
+  permissionMode,
+  autocompactTokens,
+  allowedTools,
+  disallowedTools,
+  plugins,
+  extraEnv,
+  appendSystemPrompt,
+  onEvent,
+  signal,
+  log = () => {}, // daemon logger — 与 codex runner 同一个口子(engine 两边都传 this.log)
+  spawnFn = spawn, // 可注入,供单测驱动 spawn/解析环路(与 codexcode 同一形状)
+  softStopGraceMs = 10000,
+  closeGraceMs = 3000, // short: the grace starts AFTER the answer, so we're only waiting for
+  // the OS to close a possibly-clinging pipe (MCP browser children / cmd.exe shim). Claude
+  // persists its session continuously, so killing ~3s post-answer is safe → the group frees
+  // fast, no long "finalizing". (Codex needs a clean exit for its rollout, so it stays on the
+  // engine's slower hard-release backstop.)
+} = {}) {
+  return new Promise((resolve, reject) => {
+    if (!prompt) return reject(new Error('runTurn: prompt required'))
+
+    // CLI 能力探测必须先于 spawn(见 supportsFlag)。结果按 bin 缓存 ⇒ 只有进程内第一轮真探一次
+    // (`--help` 毫秒级);不需要压缩的群连探都不探。
+    let autocompactSupported = null
+    const ready = autocompactTokens > 0
+      ? supportsFlag(bin, '--autocompact').then((v) => { autocompactSupported = v })
+      : Promise.resolve()
+    // ⚠ **必须 .catch(reject)**:launch 里有文件 IO(写 mcp 配置),同步抛出是可能的。
+    // 改动前它在 Promise executor 里同步调用,抛了由构造器接住 → reject;挪进 .then 之后
+    // 没有 catch 就变成 unhandled rejection,**返回的 Promise 永不 settle** ⇒ 群里那一轮
+    // 挂到 20s 硬释放才收场,而且看不出原因。
+    ready.then(() => {
+      // Text-only provider (vision:false) + a real upstream ⇒ route claude through
+      // the local strip-proxy so image inputs get downgraded instead of 400ing the
+      // turn. The proxy holds no secrets; auth flows through untouched.
+      if (provider.vision === false && provider.baseUrl) {
+        ensureProxy(onEvent ? (m) => { try { onEvent({ type: 'log', message: m }) } catch {} } : undefined)
+          .then((port) => launch(proxyBaseFor(port, provider.baseUrl)))
+          .catch(reject)
+      } else {
+        launch()
+      }
+    // ⚠ 这个 catch **没有测试覆盖**:试过用坏 workdir 逼 launch 同步抛,但 writeMcpConfigFile
+    // 写的是 ~/.sbot/mcp/ 不是 workdir,构造不出来。它是防御性兜底 —— 挪进 .then 之后,任何
+    // 同步抛都会变成 unhandled rejection 让 Promise 永不 settle(改动前在 executor 里由构造器
+    // 接住)。代价一行,收益是「这条路径不可能挂起」。别因为没测试就删掉。
+    }).catch(reject)
+    return
+
+    // The actual spawn — deferred behind a thunk so the vision strip-proxy (async
+    // to start) can resolve a base-URL override first. Closes over resolve/reject.
+    function launch(baseUrlOverride) {
+      // Prompt travels via stdin (see spawn below), so it's absent from argv here.
+      const args = ['-p', '--output-format', 'stream-json', '--verbose']
+      const m = model || provider.model
+      if (m) args.push('--model', m)
+      if (sessionId) args.push('--resume', sessionId)
+      if (permissionMode && permissionMode !== 'default') args.push('--permission-mode', permissionMode)
+      // 长会话上下文上限:超过即让 CLI 原地压缩(--autocompact)。不传 ⇒ CLI 只在模型窗口边缘
+      // 才压 —— 多天群会话实测涨到 96 万 token 都没压过一次。
+      // ⚠ 旗子先经能力探测(见 supportsFlag):老 CLI 不认它,传了**每轮必崩**。探不出来也不传 ——
+      // 降级(压缩不生效)好过整群跑不动。但**降级必须出声**:静默失效正是最难查的那类(教训 26),
+      // 所以这里打日志、doctor 另有一行如实标。
+      if (autocompactTokens > 0) {
+        if (autocompactSupported === true) args.push('--autocompact', String(autocompactTokens))
+        else if (onEvent) {
+          try {
+            onEvent({ type: 'log', message: autocompactSupported === false
+              ? 'claude CLI 不认 --autocompact(版本偏低)⇒ 长会话自动压缩已停用;升级 claude 即可恢复'
+              : 'claude CLI 能力探测失败 ⇒ 长会话自动压缩本轮未启用' })
+          } catch {}
+        }
+      }
+      // Per-group plugins: a group with a plugins config gets strict MCP
+      // takeover — only project-level servers + explicitly enabled global servers load
+      // (--strict-mcp-config; fail-closed like the rest of the permission stack).
+      // Enabled plugins auto-allow their tools (mcp__name__* / Skill(name)) at runtime,
+      // merged here without touching the group's saved allow list; deny still wins.
+      // Groups without a plugins config keep the traditional self-loading — zero regression.
+      // Config travels as a file, not inline JSON argv (Windows cmd.exe shim mangles quotes).
+      if (plugins && workdir) {
+        const { buildMcpConfig, pluginAllowRules, writeMcpConfigFile } = require('../plugins')
+        // 传 log:跳过死 MCP 的那一行要走 daemon 带时间戳的 logger(v0.11.61 口径),不能退成裸 stderr
+        const mcpCfg = buildMcpConfig(workdir, plugins.mcp || [], undefined, { log })
+        args.push('--mcp-config', writeMcpConfigFile(workdir, mcpCfg), '--strict-mcp-config')
+        const extra = pluginAllowRules(mcpCfg, plugins.skills || [])
+        if (extra.length) allowedTools = [...(allowedTools || []), ...extra]
+      }
+      // Base skills (always-on, 群项目基础能力): auto-allow the platform skills + `sbot cron` … so a
+      // read-only/whitelist group's agent can still use the skills its manifest advertises.
+      // (Codex ignores this — no allow/deny; its shell needs danger-full-access instead.)
+      allowedTools = [...(allowedTools || []), ...BASE_SKILL_ALLOWS]
+      // Policy-driven headless permission (DESIGN §4.1): a confined allow/deny list
+      // + `--permission-mode dontAsk` means out-of-policy tools auto-deny and never
+      // hang. Enforced by the CLI harness, so it's identical across model backends.
+      if (allowedTools && allowedTools.length) args.push('--allowedTools', allowedTools.join(','))
+      if (disallowedTools && disallowedTools.length) args.push('--disallowedTools', disallowedTools.join(','))
+      // Extra system prompt (engine injects the NO_REPLY/sender-tag contract).
+      // Travels as argv: keep callers' text ASCII-safe so
+      // the Windows cmd.exe shim path can't mangle it (user prompt stays on stdin).
+      if (appendSystemPrompt) args.push('--append-system-prompt', appendSystemPrompt)
+      // Directory scope: cwd = the project's own workdir, and the ONLY --add-dir is that
+      // same workdir — never an external path. So file tools (Read/Edit/Write/Grep/Glob)
+      // stay confined to the project directory. (Bash isn't OS-jailed by the CLI — its
+      // reach is bounded by the per-project allow list, not by a directory sandbox.)
+      if (workdir) args.push('--add-dir', workdir)
+
+      const { file, spawnArgs } = resolveSpawn(bin, args)
+      const child = spawnFn(file, spawnArgs, {
+        env: buildEnv(provider, baseUrlOverride, extraEnv),
+        cwd: workdir || process.cwd(),
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+
+      // Feed the prompt over stdin instead of as an argv element: cross-platform,
+      // and it removes ALL Windows argv/cmd.exe escaping risk for arbitrary chat
+      // text (quotes, &, |, %, newlines). Close stdin so `claude -p` starts.
+      child.stdin.on('error', () => { /* child may exit before the write drains */ })
+      child.stdin.end(prompt)
+
+      let capturedSessionId = sessionId || null
+      let lastResult = null
+      let lastMsgUsage = null // 最后一条 assistant 消息的逐请求 usage —— 当前上下文规模的直接来源
+      let buf = ''
+      let stderr = ''
+
+      // /stop and the wall-clock cap abort via this signal: SIGTERM, then SIGKILL
+      // after a grace window if the child hasn't exited (two-stage).
+      let aborted = false
+      let killTimer = null
+      let closeTimer = null
+      let settled = false
+      // Resolution is guarded (exactly once) because a close-grace timer can force the
+      // turn to settle before the 'close' event fires — otherwise a lingering pipe would
+      // wedge the per-group lock forever (never-hang invariant).
+      const finish = (fn) => { if (settled) return; settled = true; if (killTimer) clearTimeout(killTimer); if (closeTimer) clearTimeout(closeTimer); if (signal) signal.removeEventListener('abort', onAbort); fn() }
+      const killTree = () => {
+        if (IS_WIN && child.pid) { try { spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true }) } catch {}; return }
+        try { child.kill('SIGKILL') } catch { /* already gone */ }
+      }
+      // Force-resolve if 'close' doesn't arrive within closeGraceMs of the trigger (the
+      // final result, or an abort). On Windows the cmd.exe shim / spawned MCP servers can
+      // hold the stdout pipe open long past claude's own exit, so 'close' may lag or never
+      // fire. Safe: claude persists its session continuously, so a post-answer kill loses
+      // no resumable state (unlike codex's clean-exit rollout).
+      // ⚠ 这行日志是「下一轮空轮」的**紧前一枚指纹**(2026-09-05 真机三次全中,必须留)。
+      // 答案已经到了、进程却在宽限期内不肯退,最常见的原因是本轮起过后台命令吊着它;这里强杀
+      // ⇒ 那个后台任务没有留下收尾记录 ⇒ 下一次 `--resume` 时 CLI 会先把一条「上一轮的后台
+      // 任务没有结果」的系统提示排进队列、**排在我们的 prompt 前面**,那一轮于是零 API 调用、
+      // 零产出退出(engine 记 empty 并静默重试一次)。
+      // ⭐ 判据的分辨力在**对照**上,不在这一行本身:当天走这条路的三轮后面全跟着一次 empty,
+      //   而自然退出的轮次(如 09-05 03:19 那轮,答案后 202ms 就 close)后面一次都没有。
+      //   只看 empty 那一行永远查不出来 —— 因为原因发生在上一轮。
+      // ⚠ 中止(/stop、撤回、墙钟)走的也是这条路,但那是**预期内**的杀:不打日志,否则每次
+      //   /stop 都留一行看起来像故障的话,真正的那条就被淹了。
+      const armCloseGrace = () => {
+        if (closeTimer || settled || closeGraceMs <= 0) return
+        closeTimer = setTimeout(() => {
+          if (!aborted) log(`claude 答案已到但 ${closeGraceMs}ms 内没退出 ⇒ 强制收尾;本轮若起过后台命令(run_in_background),它会被一起收掉,下一轮可能空转一次`)
+          killTree()
+          finish(() => resolve({ sessionId: capturedSessionId, result: lastResult, code: null, aborted }))
+        }, closeGraceMs)
+      }
+      const onAbort = () => {
+        aborted = true
+        if (IS_WIN && child.pid) {
+          // Windows has no POSIX signals, and killing the cmd.exe shim would orphan
+          // the real claude process underneath. taskkill /T /F ends the whole tree.
+          try { spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true }) } catch {}
+        } else {
+          try { child.kill('SIGTERM') } catch { /* already gone */ }
+          killTimer = setTimeout(() => { try { child.kill('SIGKILL') } catch {} }, softStopGraceMs)
+        }
+        armCloseGrace() // even after a kill, 'close' can hang on a clinging pipe — bound it
+      }
+      if (signal) {
+        if (signal.aborted) onAbort()
+        else signal.addEventListener('abort', onAbort, { once: true })
+      }
+
+      child.stdout.on('data', (chunk) => {
+        buf += chunk.toString('utf8')
+        let nl
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim()
+          buf = buf.slice(nl + 1)
+          if (!line) continue
+          let raw
+          try { raw = JSON.parse(line) } catch { continue } // skip non-JSON noise
+          const ev = normalizeEvent(raw)
+          if (ev.sessionId) capturedSessionId = ev.sessionId
+          if (ev.type === 'assistant' && raw.message && raw.message.usage) {
+            lastMsgUsage = raw.message.usage
+            // 逐请求上下文随事件上报:engine 拿它跟踪「此刻会话驮着多大」,压缩通知里报数用
+            ev.contextTokens = (lastMsgUsage.input_tokens || 0) + (lastMsgUsage.cache_read_input_tokens || 0) + (lastMsgUsage.cache_creation_input_tokens || 0)
+          }
+          if (ev.type === 'result') {
+            // 当前上下文规模 = 最后一次 API 请求的输入侧总量(未命中 + 缓存读 + 缓存写)。
+            // result.usage 是整轮跨请求聚合、不能当上下文用;逐请求数在 assistant 事件的
+            // message.usage 里(2.1.222 真机核对),兜底走 usage.iterations 末元素(同一形状)。
+            const last = lastMsgUsage || (ev.usage && Array.isArray(ev.usage.iterations) ? ev.usage.iterations[ev.usage.iterations.length - 1] : null)
+            if (last) ev.contextTokens = (last.input_tokens || 0) + (last.cache_read_input_tokens || 0) + (last.cache_creation_input_tokens || 0)
+            lastResult = ev; armCloseGrace() // answer in → bound the wait for 'close'
+          }
+          if (onEvent) { try { onEvent(ev) } catch { /* renderer must not kill the turn */ } }
+        }
+      })
+
+      child.stderr.on('data', (c) => { stderr += c.toString('utf8') })
+
+      child.on('error', (err) => finish(() => {
+        if (err.code === 'ENOENT') {
+          return reject(new Error(`cannot find agent binary '${bin}' on PATH — is Claude Code installed?`))
+        }
+        reject(err)
+      }))
+
+      child.on('close', (code) => finish(() => {
+        if (code !== 0 && !lastResult && !aborted) {
+          return reject(new Error(`claude exited ${code}: ${stderr.trim().slice(0, 800) || '(no stderr)'}`))
+        }
+        resolve({ sessionId: capturedSessionId, result: lastResult, code, aborted })
+      }))
+    }
+  })
+}
+
+// Probe `claude --version` for startup checks / doctor (FR3.4, FR10.5).
+// ── CLI 能力探测(2026-08-19)─────────────────────────────────────────────────
+// ⚠ **判据是「`--help` 里有没有这个旗子」,不是版本号比大小。** 我们只知道 2.1.207 没有
+// `--autocompact`、2.1.222 有,**引入版本的确切边界并不知道** —— 猜边界两头都会错:猜高了
+// 本来能压缩的机器被白白降级,猜低了照样每轮崩。直接问 CLI 自己支持什么,不用推。
+//
+// 由来:v0.11.17 起 `autocompactTokens>0` 就无条件传这个旗子,而生产机当时装的是 2.1.207 ⇒
+// 凡走 claude runner 的 provider **每轮必崩**(`unknown option '--autocompact'`)。潜伏 4 天才
+// 暴露,因为那个群一直跑 codex(codex 走的是 `-c model_auto_compact_token_limit`,另一条路)。
+// 当时只升了机器上的 CLI,代码层没治 —— 任何 claude 版本偏低的机器装上都会复现。
+//
+// 缓存的是 **Promise 不是结果**:同一 bin 的并发轮次共用一次探测,进程内只 spawn 一次。
+// ⚠ 缓存**带 TTL**,不是一次定终身:2026-08-13 那次事故的止血手法正是「升级机器上的 claude,
+// daemon 全程不重启」。若永久缓存,升级完 daemon 仍拿着旧答案不传旗子,而 doctor(另一个进程)
+// 会说「可用」—— 两个消费者读不同来源、一个长期正确掩护另一个长期失效,正是教训 26 的形状。
+// 成功结论缓存 10 分钟(装好的二进制不会自己变),探测失败只缓存 60 秒(多半是暂态,早点重试)。
+const _flagCache = new Map()
+const FLAG_TTL_OK_MS = 10 * 60 * 1000
+const FLAG_TTL_ERR_MS = 60 * 1000
+function supportsFlag(bin, flag, now = Date.now()) {
+  const key = String(bin) + ' ' + flag
+  const hit = _flagCache.get(key)
+  if (hit && now < hit.until) return hit.p
+  const p = new Promise((resolve) => {
+    let out = ''
+    let done = false
+    const finish = (v) => { if (!done) { done = true; resolve(v) } }
+    let child
+    try {
+      const { file, spawnArgs } = resolveSpawn(bin, ['--help'])
+      child = spawn(file, spawnArgs, { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+    } catch { return finish(null) }
+    child.stdout.on('data', (c) => { out += c.toString('utf8') })
+    child.on('error', () => finish(null))
+    // 探不出来(spawn 失败 / 非零退出)⇒ null = 「不知道」,与「确定不支持」分开:调用方对两者
+    // 都不传旗子(降级好过每轮崩),但 doctor 要能把它们说成两件事。
+    child.on('close', (code) => finish(code === 0 ? out.includes(flag) : null))
+    // 兜底:`--help` 正常是毫秒级,卡住多半是 shim 出了问题 —— 别让它拖住第一轮。
+    setTimeout(() => { try { child.kill() } catch {} ; finish(null) }, 5000).unref?.()
+  })
+  // 先按失败 TTL 占位(并发调用共用同一个 Promise),拿到结论再按结论续期。
+  _flagCache.set(key, { until: now + FLAG_TTL_ERR_MS, p })
+  p.then((v) => {
+    const cur = _flagCache.get(key)
+    if (cur && cur.p === p) _flagCache.set(key, { until: now + (v === null ? FLAG_TTL_ERR_MS : FLAG_TTL_OK_MS), p })
+  })
+  return p
+}
+
+function probeVersion(bin = 'claude') {
+  return new Promise((resolve) => {
+    let out = ''
+    const { file, spawnArgs } = resolveSpawn(bin, ['--version'])
+    const child = spawn(file, spawnArgs, { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+    child.stdout.on('data', (c) => { out += c.toString('utf8') })
+    child.on('error', (e) => resolve({ ok: false, error: e.code === 'ENOENT' ? `'${bin}' not found on PATH` : e.message }))
+    child.on('close', (code) => resolve(code === 0 ? { ok: true, version: out.trim() } : { ok: false, error: `'${bin} --version' exited ${code}` }))
+  })
+}
+
+module.exports = { runTurn, buildEnv, normalizeEvent, probeVersion, supportsFlag, BASE_SKILL_ALLOWS }

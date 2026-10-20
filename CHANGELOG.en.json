@@ -1,0 +1,36 @@
+[
+  {
+    "version": "1.0.0",
+    "name": "Open-source release: SintBot is public under the MIT license, published on npm as sintbot",
+    "items": [
+      {
+        "t": "Open source",
+        "d": "The whole project — source, docs and tests — is public under the MIT license; install it from npm as the sintbot package."
+      },
+      {
+        "t": "Three chat platforms at once",
+        "d": "Feishu, Slack and WeCom can all be online together, one project per group; the platform is inferred from the group id's shape, or named explicitly in the binding."
+      },
+      {
+        "t": "A setup wizard for the whole path",
+        "d": "The setup wizard checks the environment first (Node, Claude Code, Codex), then walks through models, the bot's name, chat platforms (with credential prechecks for Feishu and Slack), the projects root and a first group; the config is saved under your home directory, readable only by you."
+      },
+      {
+        "t": "Works without a Claude subscription",
+        "d": "The setup wizard first checks whether this machine is logged in to Claude or Codex; if neither, it recommends DeepSeek, runs a trial turn as soon as you paste the API key, and says plainly whether a failure is a wrong key, an empty balance or a network problem. Zhipu and MiniMax can use either their mainland-China or international site; in mainland China it recommends Feishu and only asks about a proxy when Claude or ChatGPT is in use."
+      },
+      {
+        "t": "One-line install",
+        "d": "On macOS / Linux one command does it all: checks for and installs Node 22+, installs sintbot, runs the setup wizard and optionally sets it up as a service; the wizard offers to install Claude Code when it is missing, and switches to a mirror when the official npm registry is unreachable."
+      },
+      {
+        "t": "One command to run as a service",
+        "d": "Runs as a launchd agent on macOS or a systemd user service on Linux: restarted on crash, started at login; there are commands to check status, restart, read logs and uninstall."
+      },
+      {
+        "t": "Default name: SintBot",
+        "d": "The bot introduces itself as SintBot and upgrade notices use that name; change brand in the config to call it something else."
+      }
+    ]
+  }
+]
