@@ -29,6 +29,8 @@ git tag v$(node -p "require('./package.json').version") && git push --tags
 npm publish
 ```
 
+`main` 与 `v*` 标签受仓库规则集保护:不能删除、不能强推,标签推上去就不能再移动。所以先等 CI 全绿再打标签;标签打错了只能发下一个版本号。
+
 改过根目录的 `install.sh` 的话,发布后把它原样拷到官网仓库 [sintbot-site](https://github.com/WaterTian/sintbot-site) 根目录并推送(`https://sintbot.com/install.sh` 是那份副本)。
 
 ## 部署到在跑的机器
