@@ -18,10 +18,11 @@ curl -fsSL https://sintbot.com/install.sh | bash
 2. **npm 源**:你配过 npm 源就照用;还是官方源时先试连一下,连不上(国内常见)本次改用国内镜像 `registry.npmmirror.com`。
 3. **装 sintbot**:`npm i -g sintbot`。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
 4. **配置向导** `sintbot setup`:第一步检查 Claude Code,没装会问要不要现在装(见下一节);之后是地区、模型(当场试跑一轮)、聊天平台、项目根目录、第一个群。**先按 [platforms/](./platforms/) 建好机器人、拉进群**,向导里才有凭据可填。
-5. **常驻服务**:问要不要 `sintbot service install`(崩溃自动拉起、登录后自启)。
+5. **常驻服务**:问要不要 `sintbot service install`(崩溃自动拉起、登录后自启)。选不装的话,结尾会告诉你怎么把守护进程跑起来:前台跑 `sintbot start --ui`,或之后再 `sintbot service install`。
 
 - 想先看看它会做什么:`curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`(只打印,不执行);脚本源码就是仓库根目录的 [install.sh](../../install.sh)。
 - 没有可交互的终端时(如 CI),向导和常驻服务这两步会跳过,只装包。
+- 脚本的输出语言跟着系统:`LANG` 以 `zh` 开头就是中文,否则英文;想指定就设 `SINTBOT_LANG=zh` 或 `en`,例如 `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=zh bash`。
 - Windows 不支持一键安装,按下面手动来。
 
 ## Claude Code:安装与登录

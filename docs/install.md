@@ -20,10 +20,11 @@ The script runs the steps below in order. Each step checks first and skips work 
 2. **npm registry.** If you have configured a registry, the script uses it. If you are on the official registry, it first tests the connection. If the official registry is unreachable (common in mainland China), it uses the `registry.npmmirror.com` mirror for this run.
 3. **sintbot.** It runs `npm i -g sintbot`. If the global npm directory is not writable, it does not fall back to `sudo`; it prints the commands that move the global directory into your home folder.
 4. **Setup wizard**, `sintbot setup`. The first step checks for Claude Code and offers to install it if it is missing (see the next section). Then the wizard asks about your region, sets up a model with a live trial turn, and configures the chat platform, the projects folder and the first group. **Create the bot and add it to a group first** (see [platforms/](./platforms/)) so you have credentials to paste.
-5. **Service.** It asks whether to run `sintbot service install`, which restarts the daemon on crash and starts it at login.
+5. **Service.** It asks whether to run `sintbot service install`, which restarts the daemon on crash and starts it at login. If you say no, the script ends by showing how to start the daemon: `sintbot start --ui` in the foreground, or `sintbot service install` later.
 
 - To see what the script would do without changing anything, run `curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`. The script source is [install.sh](../install.sh) at the root of the repository.
 - Without an interactive terminal (for example in CI), the wizard and service steps are skipped and only the package is installed.
+- The script prints English unless your locale is Chinese (`LANG` starting with `zh`); set `SINTBOT_LANG=en` or `SINTBOT_LANG=zh` to choose, for example `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=en bash`. The setup wizard itself is in Chinese for now; [the section below](#2-configure-sintbot-setup) explains each question.
 - The one-line install does not support Windows; follow the manual steps below.
 
 ## Claude Code: install and sign in
