@@ -133,7 +133,7 @@ No. If the wizard finds no Claude or Codex login, it recommends DeepSeek and run
 <details>
 <summary><b>Can I use it in mainland China?</b></summary>
 
-Yes. Use Feishu as the chat platform and DeepSeek (or the mainland sites of Zhipu GLM, MiniMax or Volcano Ark) as the model: they connect directly, with no proxy. A proxy is needed only for Claude, ChatGPT or Slack.
+Yes. Use Feishu as the chat platform and DeepSeek (or the mainland sites of Zhipu GLM or MiniMax) as the model: they connect directly, with no proxy. A proxy is needed only for Claude, ChatGPT or Slack.
 </details>
 
 <details>
