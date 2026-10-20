@@ -58,11 +58,43 @@ test('health: permissionMode !== dontAsk warns', async () => {
   assert.equal(h.rows.find((r) => r.label === 'permissionMode').status, 'warn')
 })
 
-test('health: provider with baseUrl but no apiKey warns; with key is ok', async () => {
-  const warn = await check({ ...base(), providers: { glm: { baseUrl: 'https://x' } } })
-  assert.equal(warn.rows.find((r) => r.label === 'provider:glm').status, 'warn')
-  const ok = await check({ ...base(), providers: { glm: { baseUrl: 'https://x', apiKey: 'k' } } })
-  assert.equal(ok.rows.find((r) => r.label === 'provider:glm').status, 'ok')
+test('health: key 型模型三态 —— 没 key warn;有 key 未验证 warn;验证通过 ok;验证失败在用 fail、没人用 warn;换 key 回到未验证', async () => {
+  const verify = require('../../src/core/verify')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sbot-health-v-'))
+  const file = path.join(home, '.sbot', 'verify.json')
+  const row = async (cfg) => (await checkHealth(cfg, { home })).rows.find((r) => r.label === 'provider:glm')
+  assert.equal((await row({ ...base(), providers: { glm: { baseUrl: 'https://x' } } })).status, 'warn')
+  const glm = { baseUrl: 'https://x', apiKey: 'k' }
+  let r = await row({ ...base(), providers: { glm } })
+  assert.equal(r.status, 'warn'); assert.match(r.detail, /还没验证/)
+  verify.record(verify.providerFp(glm), true, '', { file })
+  r = await row({ ...base(), providers: { glm } })
+  assert.equal(r.status, 'ok'); assert.match(r.detail, /能用/)
+  verify.record(verify.providerFp(glm), false, 'key 不对', { file })
+  r = await row({ ...base(), providers: { glm } })
+  assert.equal(r.status, 'warn', '没人用:只提醒'); assert.match(r.detail, /上次验证失败.*key 不对/)
+  r = await row({ ...base(), defaultProvider: 'glm', providers: { glm } })
+  assert.equal(r.status, 'fail', '默认模型:报错')
+  r = await row({ ...base(), defaultProvider: 'glm', providers: { glm: { ...glm, apiKey: 'k2' } } })
+  assert.equal(r.status, 'warn'); assert.match(r.detail, /还没验证/)
+})
+
+test('health: 飞书 / Slack 行看最近一次预检 —— 失败 fail,通过与未预检都是 ok 但说法不同', async () => {
+  const verify = require('../../src/core/verify')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sbot-health-p-'))
+  const file = path.join(home, '.sbot', 'verify.json')
+  const feishu = { appId: 'cli_a', appSecret: 's' }
+  const slack = { botToken: 'xoxb-1', appToken: 'xapp-1' }
+  const rows = async () => (await checkHealth({ ...base(), feishu, slack }, { home })).rows
+  let rs = await rows()
+  assert.match(rs.find((r) => r.label === 'feishu').detail, /还没预检/)
+  assert.match(rs.find((r) => r.label === 'slack').detail, /还没预检/)
+  verify.recordPrecheck('feishu', feishu, [{ key: 'bot', status: 'fail', label: '凭证 / bot 身份', detail: 'appSecret 不对' }], { file })
+  verify.recordPrecheck('slack', slack, [{ key: 'auth', status: 'ok' }, { key: 'socket', status: 'ok' }], { file })
+  rs = await rows()
+  const fe = rs.find((r) => r.label === 'feishu'); const sl = rs.find((r) => r.label === 'slack')
+  assert.equal(fe.status, 'fail'); assert.match(fe.detail, /上次预检失败.*appSecret 不对/)
+  assert.equal(sl.status, 'ok'); assert.match(sl.detail, /能用/)
 })
 
 test('health: non-loopback provider gets NO router probe row', async () => {

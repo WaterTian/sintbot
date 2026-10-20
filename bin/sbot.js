@@ -36,6 +36,7 @@ const { Engine, SLASH_COMMANDS } = require('../src/core/engine')
 const { normalizeCron, normalizeAt, describeTask, collectCrons } = require('../src/core/cron')
 const { createCronFire } = require('../src/core/cronfire')
 const { createScheduler } = require('../src/core/scheduler')
+const verify = require('../src/core/verify') // 凭据最近一次验证的记录(试跑 / 预检 / 真实轮次写,doctor 读)
 const { createCliPlatform } = require('../src/platform/cli')
 const { createWecomPlatform } = require('../src/platform/wecom') // 企业微信智能机器人长连接(配了 wecom 块就接它;docs/WECOM.md)
 const { createMultiPlatform } = require('../src/platform/multi') // 多平台路由器:飞书 + 企微同时接,按群分发(双平台并存)
@@ -576,7 +577,7 @@ async function cmdStart(rest) {
   // ⚠ 必须在 onAlert 定义之后再建(const 的 TDZ,同上一条教训);⚠ 告警本身也走 platform.send ⇒ 断的若正是告警群
   //    所在平台,这条告警必然发不出(createSink 的 catch 只记日志),是预期 —— 它报的是「另一个平台断了」。
   const connWatch = opsalert.createConnWatch({ onAlert, log })
-  const engine = new Engine(cfg, { runner, store, log, ledger, usageProbe, quotaStatus, issues, onAlert, version: require('../package.json').version, onActivity: (ev) => {
+  const engine = new Engine(cfg, { runner, store, log, ledger, usageProbe, quotaStatus, issues, onAlert, verifyTurn: verify.recordTurn, version: require('../package.json').version, onActivity: (ev) => {
     if (ui) ui.pushEvent('turn', ev)
     // 轮结算后查额度(fire-and-forget,绝不拖慢结算)
     if (ev && ev.kind === 'done' && ev.chatId) checkQuotaAlert(ev.chatId)
@@ -1103,11 +1104,11 @@ async function cmdStart(rest) {
 
 // Render the shared health check to the terminal (data comes from src/health.js,
 // so `doctor` and the console stay in sync). Returns counts; never exits.
-async function runDoctor(cfg) {
+async function runDoctor(cfg, { summary = true } = {}) {
   const { rows, fails, warns } = await checkHealth(cfg)
   const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗') }
   for (const r of rows) process.stdout.write(`${mark[r.status]} ${r.label.padEnd(22)} ${gray(r.detail)}\n`)
-  process.stdout.write(dim(`\n${fails} 失败 · ${warns} 警告\n`))
+  if (summary) process.stdout.write(dim(`\n${fails} 失败 · ${warns} 警告\n`))
   return { fails, warns }
 }
 
@@ -1115,19 +1116,25 @@ async function runDoctor(cfg) {
 // network calls, so kept OUT of the shared checkHealth(控制台**不**调 checkHealth,它自己在 buildState 里算一套更短的健康行;doctor 行只上 operator 终端); they
 // run only on the explicit doctor/setup path. Shares feishuPrecheck with the console
 // (same ✓/✗ rows). No-op unless plaintext creds are present.
-async function printFeishuPrecheck(cfg) {
+// 分两步:runFeishuPrecheck 先跑(结果记进凭据验证记录,体检里的「feishu」行就是这次的结论),
+// printFeishuPrecheck 在体检行之后列明细。失败数并进 doctor 的汇总;「bot 身份」那项已由 feishu 行计过,不重复算。
+async function runFeishuPrecheck(cfg) {
   const fe = cfg.feishu
-  if (!fe || !fe.appId || !fe.appSecret || String(fe.appId).startsWith('env:') || String(fe.appSecret).startsWith('env:')) return 0
-  process.stdout.write('\n' + cyan('飞书应用预检') + dim(' — 用配置里的凭据调一次飞书接口(不建长连接),核对 bot 身份 / 权限') + '\n')
-  const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗'), skip: gray('○') }
-  let fails = 0
+  if (!fe || !fe.appId || !fe.appSecret || String(fe.appId).startsWith('env:') || String(fe.appSecret).startsWith('env:')) return null
   try {
     const r = await feishuPrecheck(feishuClient(fe.appId, fe.appSecret), { appId: fe.appId })
-    for (const c of r.checks) process.stdout.write(`${mark[c.status] || '?'} ${c.label.padEnd(30)} ${gray((c.detail || '').slice(0, 90))}\n`)
-    fails = r.checks.filter((c) => c.status === 'fail').length
-  } catch (e) { process.stdout.write(red('✗ ') + '预检失败: ' + gray((e && e.message) || String(e)) + '\n'); fails = 1 }
-  if (fails) process.stdout.write(dim(`预检 ${fails} 项失败(不在上面的体检汇总里;退出码照样算)`) + '\n')
-  return fails
+    verify.recordPrecheck('feishu', fe, r.checks)
+    return { checks: r.checks }
+  } catch (e) { return { error: (e && e.message) || String(e) } }
+}
+function printFeishuPrecheck(pre) {
+  if (!pre) return { fails: 0, warns: 0 }
+  process.stdout.write('\n' + cyan('飞书应用预检') + dim(' — 用配置里的凭据调一次飞书接口(不建长连接),核对 bot 身份 / 权限') + '\n')
+  if (pre.error) { process.stdout.write(red('✗ ') + '预检失败: ' + gray(pre.error) + '\n'); return { fails: 1, warns: 0 } }
+  const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗'), skip: gray('○') }
+  for (const c of pre.checks) process.stdout.write(`${mark[c.status] || '?'} ${c.label.padEnd(30)} ${gray((c.detail || '').slice(0, 90))}\n`)
+  const rest = pre.checks.filter((c) => c.key !== 'bot')
+  return { fails: rest.filter((c) => c.status === 'fail').length, warns: rest.filter((c) => c.status === 'warn').length }
 }
 
 // setup helper — resolve an admin from ou_ openId / email / mobile and add it.
@@ -1145,11 +1152,14 @@ async function cmdDoctor(rest) {
   const { values } = parseArgs({ args: rest, allowPositionals: true, options: { config: { type: 'string' }, 'kill-leftovers': { type: 'boolean' } } })
   let cfg
   try { cfg = loadConfig(values.config) } catch (e) { return die(e.message) }
-  const { fails } = await runDoctor(cfg)
-  const precheckFails = await printFeishuPrecheck(cfg)
+  const pre = await runFeishuPrecheck(cfg)
+  const h = await runDoctor(cfg, { summary: false })
+  const p = printFeishuPrecheck(pre)
+  const fails = h.fails + p.fails
+  process.stdout.write(dim(`\n${fails} 失败 · ${h.warns + p.warns} 警告${pre ? '(含飞书预检)' : ''}\n`))
   printPreviewStatus()
   await printLeftovers(!!values['kill-leftovers'])
-  if (fails || precheckFails) process.exit(1)
+  if (fails) process.exit(1)
 }
 
 // doctor 尾巴(二):遗留进程(src/leftover.js)—— agent 轮次结束后仍在跑的后台 shell。健康行只给一句
@@ -1400,8 +1410,11 @@ async function cmdSetup(rest) {
         })
         const text = (result && result.text) || ''
         if (aborted || ac.signal.aborted) return { ok: false, text: `timeout:${Math.round((Date.now() - t0) / 1000)} 秒内没有回复`, ms: Date.now() - t0 }
-        return { ok: !!text && !(result && result.isError), text: text || '没有返回内容', ms: Date.now() - t0 }
+        const ok = !!text && !(result && result.isError)
+        verify.recordTurn(provider, ok, text) // doctor / 控制台据此报「能用」或「key 不对」
+        return { ok, text: text || '没有返回内容', ms: Date.now() - t0 }
       } catch (e) {
+        verify.recordTurn(provider, false, (e && e.message) || String(e))
         return { ok: false, text: (e && e.message) || String(e), ms: Date.now() - t0 }
       } finally { clearTimeout(timer) }
     }
@@ -1584,6 +1597,7 @@ async function cmdSetup(rest) {
         const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗'), skip: gray('○') }
         try {
           const r = await feishuPrecheck(feishuClient(raw.feishu.appId, raw.feishu.appSecret), { appId: raw.feishu.appId })
+          verify.recordPrecheck('feishu', raw.feishu, r.checks)
           if (r.botOpenId) { raw.feishu.botOpenId = r.botOpenId; process.stdout.write(cyan('  ✓ ') + `botOpenId = ${r.botOpenId}\n`) }
           if (r.identity && r.identity.appName) process.stdout.write(cyan('  ✓ ') + `应用 = ${r.identity.appName}${r.identity.activateText ? ` (${r.identity.activateText})` : ''}\n`)
           for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 70))}\n`)
@@ -1635,6 +1649,7 @@ async function cmdSetup(rest) {
         const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗') }
         try {
           const r = await require('../src/platform/slack').slackPrecheck(raw.slack.botToken, raw.slack.appToken)
+          verify.recordPrecheck('slack', raw.slack, r.checks)
           if (r.botUserId) raw.slack.botUserId = r.botUserId
           if (r.identity) raw.slack.identity = r.identity
           for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 80))}\n`)

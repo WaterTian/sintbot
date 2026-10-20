@@ -4617,3 +4617,18 @@ test('engine: 新开的会话(没有续接)报这个错 ⇒ 不当成「记录�
   assert.equal(calls.length, 1)
   assert.ok(!p.replies.some((r) => /记录已过期/.test(r)))
 })
+
+// 1.0.3:真实轮次的成败交给凭据验证记录(verifyTurn),doctor / 控制台概览据此报「能用 / key 不对」。
+// 叫停的轮不算证据;出错轮把原话交过去,由记录那侧判是不是认证问题。
+test('engine: verifyTurn —— ok 轮报成功、出错轮带原话报失败、叫停的轮不报', async () => {
+  const calls = []
+  const verifyTurn = (p, ok, text) => calls.push({ ok, text, hasProvider: !!p })
+  const run = async (result, aborted = false) => {
+    const eng = new Engine(baseCfg(), { runner: okRunner(async () => ({ sessionId: 's', aborted, result })), store: mkStore(), verifyTurn })
+    await eng.handleMessage(mkMsg('x'), mkPlatform()); await tick()
+  }
+  await run({ text: '好的' })
+  await run({ isError: true, text: 'API Error: 401 authentication_error' })
+  await run({ text: '' }, true)
+  assert.deepEqual(calls, [{ ok: true, text: '好的', hasProvider: true }, { ok: false, text: 'API Error: 401 authentication_error', hasProvider: true }])
+})

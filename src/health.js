@@ -10,6 +10,7 @@ const codex = require('./agent/codexcode')
 const claudestatus = require('./agent/claudestatus')
 const codexstatus = require('./agent/codexstatus')
 const projectsroot = require('./projectsroot')
+const verify = require('./core/verify') // 凭据最近一次验证的记录:模型 key、飞书、Slack 行据此区分「配了」与「能用」
 const leftover = require('./leftover') // 遗留进程:agent 轮次结束后仍在跑的后台 shell(v0.11.108)
 
 // A provider whose baseUrl is loopback depends on a locally-run translation router
@@ -142,6 +143,13 @@ async function checkHealth(cfg, opts = {}) {
   const codexLogin = () => codexLoginP || (codexLoginP = (opts.codexLogin || (() => codexstatus.cachedLoginStatus('codex')))().catch(() => null))
   const codexLoggedOut = async () => { const s = await codexLogin(); return !!(s && s.ok && s.loggedIn === false) }
 
+  // 有没有人在用:默认模型、有群选它、或是谁的备用。没人用的模型出了问题只提醒不报错
+  // (只用 DeepSeek 的新手,配置里留着别的预设,不该让体检一上来就是红的)
+  const inUse = (name) => name === cfg.defaultProvider
+    || Object.values(cfg.groups || {}).some((g) => g && g.provider === name)
+    || Object.values(cfg.providers).some((q) => q && !q.hidden && q.fallback === name)
+  const verifyFile = opts.verifyFile || (opts.home ? path.join(opts.home, '.sbot', 'verify.json') : undefined)
+  const lookup = (fp) => verify.lookup(fp, verifyFile ? { file: verifyFile } : undefined)
   for (const [name, p] of Object.entries(cfg.providers)) {
     if (p.hidden) continue  // operator 主动撤下 — 不进健康检查(与 UI 隐藏一致)
     // 额度自动切换的备用模型(v0.11.107):写错名字 / 指到隐藏的 / 指到自己,运行时只是静默不切 —— 这里把它说出来
@@ -155,7 +163,12 @@ async function checkHealth(cfg, opts = {}) {
       else add('ok', `fallback:${name}`, `额度用完 / 账号不可用时自动切到 ${to}`)
     }
     if (p.baseUrl) {
-      add(p.apiKey ? 'ok' : 'warn', `provider:${name}`, p.apiKey ? '已配 key' : '没配 apiKey')
+      // 配了 key 不等于能用:看最近一次验证(向导试跑、控制台测试、真实轮次都会记;换了 key 就回到「未验证」)
+      const v = p.apiKey ? lookup(verify.providerFp(p)) : null
+      if (!p.apiKey) add('warn', `provider:${name}`, '没配 apiKey')
+      else if (v && v.ok) add('ok', `provider:${name}`, `能用(${verify.when(v.at)} 验证通过)`)
+      else if (v) add(inUse(name) ? 'fail' : 'warn', `provider:${name}`, `上次验证失败(${verify.when(v.at)}):${v.reason || 'key 不对'}`)
+      else add('warn', `provider:${name}`, `已配 key,还没验证 — 控制台「模型」页点测试,或 sintbot agent run --provider ${name} "你好"`)
       // Router-backed provider (loopback base = local translation router for GPT/非-Anthropic):
       // probe it so doctor reports the router being down, rather than the turn hanging (NFR2).
       const lb = loopbackTarget(p.baseUrl)
@@ -180,10 +193,7 @@ async function checkHealth(cfg, opts = {}) {
       // 新手,配置里留着这一行,不该让体检一上来就是红的。opts.claudeLogin 仅测试注入。
       const s = await (opts.claudeLogin ? opts.claudeLogin() : claudestatus.cachedLoginStatus(cfg.agent.bin))
       const d = claudestatus.describeLogin(s)
-      const inUse = name === cfg.defaultProvider
-        || Object.values(cfg.groups || {}).some((g) => g && g.provider === name)
-        || Object.values(cfg.providers).some((q) => q && !q.hidden && q.fallback === name)
-      if (d.level === 'fail' && !inUse) add('warn', `provider:${name}`, '未登录 — 目前没有群在用;要用 Claude 订阅时在这台机器上跑 claude auth login')
+      if (d.level === 'fail' && !inUse(name)) add('warn', `provider:${name}`, '未登录 — 目前没有群在用;要用 Claude 订阅时在这台机器上跑 claude auth login')
       else add(d.level, `provider:${name}`, d.text)
     }
   }
@@ -260,7 +270,10 @@ async function checkHealth(cfg, opts = {}) {
   if (cfg.feishu) {
     const hasId = !!cfg.feishu.appId, hasSecret = !!cfg.feishu.appSecret
     if (hasId && hasSecret) {
-      add('ok', 'feishu', '飞书应用已配(appId + appSecret)')
+      // 凭据能不能用看最近一次预检(向导、控制台、doctor 现场都会记;换了凭据就回到「未预检」)
+      const v = lookup(verify.feishuFp(cfg.feishu))
+      if (v && !v.ok) add('fail', 'feishu', `上次预检失败(${verify.when(v.at)}):${v.reason}`)
+      else add('ok', 'feishu', v ? `飞书应用能用(${verify.when(v.at)} 预检通过)` : '飞书应用已配(appId + appSecret),还没预检')
       if (!cfg.feishu.botOpenId) add('warn', 'feishu.botOpenId', (cfg.feishu.onlyWhenMentioned
         ? '没填 — 开着「只在 @ 时回复」却认不出哪个 @ 是机器人,群里一条都不会回'
         : '没填 — 分不清 @机器人 和 @别人,群里 @ 别人的消息也会接') + ';重跑 sbot setup 选飞书预检可自动填')
@@ -297,7 +310,9 @@ async function checkHealth(cfg, opts = {}) {
   // Slack 块:写了就报,与企微同口径(env: 引用解析成空串也算缺)
   if (cfg.slack) {
     const sl = cfg.slack
-    if (plat.slack) add('ok', 'slack', 'Slack 应用已配(Socket Mode 长连接,免公网)' + (sl.identity && sl.identity.botName ? ` · ${sl.identity.botName}` : ''))
+    const v = plat.slack ? lookup(verify.slackFp(sl)) : null
+    if (v && !v.ok) add('fail', 'slack', `上次预检失败(${verify.when(v.at)}):${v.reason}`)
+    else if (plat.slack) add('ok', 'slack', (v ? `Slack 应用能用(${verify.when(v.at)} 预检通过)` : 'Slack 应用已配(Socket Mode 长连接,免公网),还没预检') + (sl.identity && sl.identity.botName ? ` · ${sl.identity.botName}` : ''))
     else add('fail', 'slack', (sl.botToken ? '缺 slack.appToken' : sl.appToken ? '缺 slack.botToken' : '缺 slack.botToken 与 appToken') + '(env: 引用的环境变量为空也算缺)')
   }
   // 群级 platform:没写的已在 loadConfig 里按 id 形态推断(内存态),这里如实报推断了几个、哪些判不出(两个平台都配

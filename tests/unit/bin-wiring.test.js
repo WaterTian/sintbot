@@ -32,6 +32,8 @@ function scan() {
       if (alias) rec.aliases.add(alias)
       byTarget.set(target, rec)
     }
+    // 同名导出可能出自两个模块(projectsroot 与 platform/wecom 都导出 expandHome):从别的模块解构过就不算「没解构」
+    const importedAnywhere = new Set([...byTarget.values()].flatMap((r) => [...r.imported]))
     for (const [target, rec] of byTarget) {
       let exported
       try { exported = new Set(Object.keys(require(path.resolve(path.dirname(file), target)))) } catch (e) { problems.push(`${rel}: require('${target}') 加载失败:${e.message}`); continue }
@@ -41,7 +43,7 @@ function scan() {
         // 「调用了没导入」:模块的某个导出在本文件里以裸名被调用,却不在解构里 ⇒ 运行到那行才 ReferenceError。
         // 本文件自己定义的同名函数不算(`function name(` / `const name =`)。
         for (const e of exported) {
-          if (rec.imported.has(e)) continue
+          if (rec.imported.has(e) || importedAnywhere.has(e)) continue
           const selfDefined = new RegExp(`(?:function\\s+${e}\\s*\\(|(?:const|let|var)\\s+${e}\\s*=)`).test(src)
           if (!selfDefined && new RegExp(`(?<![\\w.$])${e}\\s*\\(`).test(src)) problems.push(`${rel}: 调用了 ${target} 的 ${e} 但没解构(运行时 ReferenceError)`)
         }

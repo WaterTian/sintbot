@@ -10,6 +10,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { loadConfig, applyProxyEnv, deriveNoProxy, DEFAULTS, resolveSecret } = require('../config')
+const verify = require('../core/verify') // 凭据最近一次验证的记录:模型测试 / 平台预检写,概览读
 const projectsroot = require('../projectsroot') // 项目根目录围栏:目录浏览 / 保存绑定 / 风格提炼三处同一份判据
 const { atomicWriteJSON } = require('../core/store')
 const { normalizeCron, normalizeAt, describeTask, expandAt } = require('../core/cron') // 定时任务:校验 + 人类可读描述(循环/一次性)+ 一次性简写展开
@@ -206,8 +207,10 @@ function bindNoticeText(workdir, platform = 'feishu', cmd = '/help') {
   return `✅ 本群已绑定项目「${path.basename(String(workdir || '')) || '(未命名)'}」\n${platform === 'wecom' ? '@我 派单(只有 @ 我的消息我才收得到)' : '直接发消息或 @我 派单'};${cmd} 查看命令`
 }
 
-function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, control = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null } = {}) {
+function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, control = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null, verifyFile = null } = {}) {
   // wecomExec:企业微信命令行工具的执行器注入(只为可测;生产走默认 execFile)
+  // verifyFile:凭据验证记录的落点注入(只为可测;生产 = ~/.sbot/verify.json)
+  const vopts = verifyFile ? { file: verifyFile } : undefined
   const WECOM_NO_API = '企业微信这边机器人没有建群 / 解散 / 拉人的接口 —— 请在企业微信里建群、把机器人加进群并 @ 它一次,然后回到这里选择那个群'
   // 某个群属于哪个平台:**与 daemon 路由器用同一个函数**(config.chatPlatform,在配置文件原文上判:群写了 platform 就认 ·
   // id 形态 · 只配了一个平台就是它),这里只多一步「判不出按飞书」—— 两处各写一份必漂移,所以不重写。
@@ -389,7 +392,19 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
     const v = await probeCached(cfg.agent.bin)
     const hasCodex = providers.some((p) => !p.hidden && p.runner === 'codex')
     const cv = hasCodex ? await probeCodexCached() : null
-    const usableProv = providers.filter((p) => !p.hidden && p.configured).length
+    // 「可用模型」= 能用的,不只是配了的(1.0.3;此前没登录的 Claude 订阅、试跑失败的 key 都算在内)。
+    // key 型看最近一次验证:失败的不算,还没验证的先算上;Claude 订阅与 codex 看本机登录态,探不出来(没装 / 超时)不扣。
+    // 两个登录探测都带缓存(claude 60s · codex 60s),概览每分钟刷新也不会多 spawn。
+    const live = providers.filter((p) => !p.hidden && p.configured)
+    const subLogin = live.some((p) => !p.baseUrl && p.runner !== 'codex') ? await claudestatus.cachedLoginStatus(cfg.agent.bin).catch(() => null) : null
+    const cxLogin = live.some((p) => p.runner === 'codex') ? await codexstatus.cachedLoginStatus('codex').catch(() => null) : null
+    const loggedOut = (st) => !!(st && st.ok && st.loggedIn === false)
+    const unusable = (p) => {
+      if (p.baseUrl) { const v = verify.lookup(verify.providerFp(cfg.providers[p.name] || {}), vopts); return !!(v && !v.ok) }
+      return loggedOut(p.runner === 'codex' ? cxLogin : subLogin)
+    }
+    const badProv = live.filter(unusable).map((p) => p.name)
+    const usableProv = live.length - badProv.length
     const usableGroups = groups.filter((g) => g.exists).length
     // 各平台连接健康度(仅 daemon 运行时有):路由器出 { feishu: 快照, wecom: 快照 } 字典 → 概览一行一个平台 + 完整块给前端。
     const conn = getConnHealth ? getConnHealth() : null
@@ -397,9 +412,16 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
     const rows = [
       { status: v.ok ? 'ok' : 'fail', label: 'Claude CLI', detail: v.ok ? v.version : v.error },
       ...(cv ? [{ status: cv.ok ? 'ok' : 'fail', label: 'Codex CLI', detail: cv.ok ? `${cv.version} · GPT 订阅` : cv.error }] : []),
-      { status: usableProv ? 'ok' : 'fail', label: '可用模型', detail: usableProv ? `${usableProv} 个已配置${hasCodex ? '(含 Codex)' : ''}` : '无可用模型 — 去「模型 · 库」页添加/配置' },
+      { status: !usableProv ? 'fail' : badProv.length ? 'warn' : 'ok', label: '可用模型',
+        detail: (usableProv ? `${usableProv} 个能用${hasCodex ? '(含 Codex)' : ''}` : '无可用模型 — 去「模型 · 库」页添加 / 测试')
+          + (badProv.length ? `;${badProv.join('、')} 没登录或验证失败` : '') },
       { status: usableGroups ? 'ok' : 'warn', label: '可用群 / 项目', detail: usableGroups ? `${usableGroups} 个已绑定` : '无绑定群/项目 — 去「群·项目」页创建' },
       ...connRows,
+      // 平台凭据:最近一次预检失败才出一行(通过 / 没预检过不占地方;daemon 在跑时上面的连接行已经说明了连没连上)
+      ...[['feishu', '飞书凭据', verify.feishuFp(cfg.feishu)], ['slack', 'Slack 凭据', verify.slackFp(cfg.slack)]].flatMap(([, label, fp]) => {
+        const v = fp ? verify.lookup(fp, vopts) : null
+        return v && !v.ok ? [{ status: 'fail', label, detail: `上次预检失败:${v.reason} — 去「设置」页改凭据后再预检` }] : []
+      }),
     ]
     const health = { rows, fails: rows.filter((r) => r.status === 'fail').length, warns: rows.filter((r) => r.status === 'warn').length }
     const feishu = raw.feishu ? {
@@ -570,8 +592,11 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         permissionMode: cfg.agent.permissionMode,
         signal: ac.signal, // a one-line self-intro — needs no tools, so no allow list
       })
-      return { ok: !(result && result.isError), model: provider.model, reply: (result && result.text) || '(no text)', ms: Date.now() - t0 }
+      const ok = !(result && result.isError)
+      verify.recordTurn(provider, ok, (result && result.text) || '', vopts) // doctor / 概览据此报「能用」或「key 不对」
+      return { ok, model: provider.model, reply: (result && result.text) || '(no text)', ms: Date.now() - t0 }
     } catch (e) {
+      verify.recordTurn(provider, false, (e && e.message) || String(e), vopts)
       return { ok: false, error: (e && e.message) || String(e), ms: Date.now() - t0 }
     } finally { clearTimeout(timer) }
   }
@@ -1030,6 +1055,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         if (!bt || !at) return sendJSON(res, 400, { error: '先填 xoxb- 与 xapp- 两个 token(env: 引用要求该变量在 daemon 环境里存在)' })
         try {
           const r = await slackPrecheck(bt, at)
+          verify.recordPrecheck('slack', { botToken: bt, appToken: at }, r.checks, vopts)
           if (r.identity) { raw.slack.identity = r.identity; if (r.botUserId) raw.slack.botUserId = r.botUserId; writeRaw(raw) }
           return sendJSON(res, 200, r)
         } catch (e) { return sendJSON(res, 502, { error: (e && e.message) || String(e) }) }
@@ -1071,6 +1097,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         if (!fe.appId || !fe.appSecret || isEnvRef(fe.appId) || isEnvRef(fe.appSecret)) return sendJSON(res, 400, { error: '先填 appId/appSecret(明文)' })
         try {
           const r = await feishuPrecheck(feishuClient(fe.appId, fe.appSecret), { appId: fe.appId })
+          verify.recordPrecheck('feishu', fe, r.checks, vopts)
           let dirty = false
           if (r.botOpenId && r.botOpenId !== raw.feishu.botOpenId) { raw.feishu.botOpenId = r.botOpenId; dirty = true }
           if (r.identity) { raw.feishu.identity = identityCache(r.identity); dirty = true }

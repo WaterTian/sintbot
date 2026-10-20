@@ -38,7 +38,7 @@ function rawReq(port, { method = 'GET', path: reqPath = '/', headers = {}, body 
 // Boot a server on a valid config, hand the extracted page token to the test body.
 async function withServer(configJson, fn) {
   const cfgPath = tmpConfig(configJson)
-  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), configPath: cfgPath, log: () => {} })
+  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), verifyFile: path.join(path.dirname(cfgPath), 'verify.json'), configPath: cfgPath, log: () => {} })
   const port = await listen(ui)
   const page = await rawReq(port, { path: '/' })
   const m = page.body.match(/TOKEN='([0-9a-f]{32})'/)

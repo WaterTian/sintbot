@@ -562,7 +562,7 @@ class Engine {
    *   store        — StateStore
    *   defaultGroup — fallback { workdir, provider?, model? } for unmapped chatIds (dev/CLI)
    */
-  constructor(cfg, { runner, store, log = () => {}, defaultGroup = null, onActivity = () => {}, ledger = null, usageProbe = null, quotaStatus = null, uiUrl = null, uiLocalUrl = null, repoInfo = null, codexMcp = null, hasImagen = null, projectMcp = null, styleDocs = null, projectMemory = null, setProvider = null, issues = null, version = '', onAlert = null } = {}) {
+  constructor(cfg, { runner, store, log = () => {}, defaultGroup = null, onActivity = () => {}, ledger = null, usageProbe = null, quotaStatus = null, uiUrl = null, uiLocalUrl = null, repoInfo = null, codexMcp = null, hasImagen = null, projectMcp = null, styleDocs = null, projectMemory = null, setProvider = null, issues = null, version = '', onAlert = null, verifyTurn = null } = {}) {
     this.cfg = cfg
     this.runner = runner
     this.store = store
@@ -602,6 +602,8 @@ class Engine {
     // bin 接线发到 alerts.chatId。core 只吐事件不发消息;钩子抛了只记日志,绝不影响轮次。
     this.onAlert = onAlert
     this.ledger = ledger // optional { append(rec) } — persisted per-turn usage
+    // optional (provider, ok, text) => void —— 真实轮次的成败交给凭据验证记录(src/core/verify.js),doctor / 控制台概览据此报「能用 / key 不对」
+    this.verifyTurn = verifyTurn
     // 群内反馈本(/issue,src/core/issues.js)。注入式:core 不碰 fs,也不认「本机文件在哪」——
     // 与 ledger 同一条纪律。null ⇒ 该命令如实回「暂时不可用」(CLI 试跑就是这条路)。
     this.issues = issues
@@ -2451,6 +2453,10 @@ class Engine {
       else if ((status === 'ok' || status === 'no-reply') && this.store.clearTainted) this.store.clearTainted(msg.chatId)
       // 成功跑完一轮是「这个模型能用」最硬的证据:清掉它的「没额度 / 不可用」标(账号类的标否则只能等探针或人来清)
       if ((status === 'ok' || status === 'no-reply') && this.store.clearExhausted) this.store.clearExhausted(name)
+      // 同一条证据也交给凭据验证记录;出错轮把原话交过去,由它判是不是认证 / 账户问题(网络、超时不算)
+      if (this.verifyTurn && !aborted && (status === 'ok' || status === 'no-reply' || status === 'error')) {
+        try { this.verifyTurn(provider, status !== 'error', String(finalText || '')) } catch { /* 只是体检参考,不能影响轮次收尾 */ }
+      }
       const outcome = {
         status,
         provider: name,
