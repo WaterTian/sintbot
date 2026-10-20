@@ -28,10 +28,10 @@ Each turn runs the official **Claude Code** or **Codex** CLI headless, so tools,
 
 ```mermaid
 flowchart LR
-  G["Group chat<br/>Feishu · Slack · WeCom"] -- "@SintBot" --> D["SintBot daemon<br/>on your machine"]
-  D -- "headless turn" --> R["Claude Code / Codex<br/>in the project directory"]
-  R --> M["Model<br/>Claude · GPT · DeepSeek · GLM · MiniMax · …"]
-  D -. "progress & result" .-> G
+  G["Group chat<br/>Feishu · Slack · WeCom"] -- "@SintBot" --> D["SintBot<br/>your machine"]
+  D -- "turn" --> R["Claude Code / Codex<br/>in the project"]
+  R --> M["Model<br/>chosen per group"]
+  D -. "progress" .-> G
 ```
 
 - **One group, one project.** Each group gets its own project directory, session, queue, permissions and scheduled tasks.

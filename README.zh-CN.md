@@ -28,10 +28,10 @@ SintBot 是一个跑在你自己机器上的守护进程,把能写代码的 AI �
 
 ```mermaid
 flowchart LR
-  G["聊天群<br/>飞书 · Slack · 企业微信"] -- "@SintBot" --> D["SintBot 守护进程<br/>你的机器"]
-  D -- "无头运行一轮" --> R["Claude Code / Codex<br/>在项目目录里"]
-  R --> M["模型<br/>Claude · GPT · DeepSeek · GLM · MiniMax · …"]
-  D -. "进度与结果回群" .-> G
+  G["聊天群<br/>飞书 · Slack · 企业微信"] -- "@SintBot" --> D["SintBot<br/>你的机器"]
+  D -- "一轮" --> R["Claude Code / Codex<br/>在项目目录里"]
+  R --> M["模型<br/>按群选"]
+  D -. "进度" .-> G
 ```
 
 - **一群一项目。** 每个群各有自己的项目目录、会话、排队、权限和定时任务。
