@@ -1,48 +1,58 @@
-# 企业微信
+# WeCom
 
-走「智能机器人 · API 模式 · 长连接」,不需要公网地址,企业不需要认证。
+English · [简体中文](../zh-CN/platforms/wecom.md)
 
-> 现状:企业微信是三个平台里最新接入的,真实环境里用得最少。用着不对请[提 issue](https://github.com/WaterTian/sintbot/issues)。
+SintBot connects as a WeCom smart bot in API mode over a long connection. No public address is needed, and the organization does not need to be verified.
 
-## 建机器人
+> **Status:** WeCom is the newest of the three platforms and has seen the least real-world use. If something does not work, please [open an issue](https://github.com/WaterTian/sintbot/issues).
 
-1. **注册企业**(免费,不需要营业执照):未认证企业上限 200 人,内部群和智能机器人都能用。
-2. **建机器人**(只能在电脑端):「工作台 → 智能机器人 → 创建机器人 → 手动创建 → API 模式」,或管理后台「安全与管理 → 管理工具 → 智能机器人」。
-   - 使用方式选「多人使用」;
-   - API 配置页选**「使用长连接」**,记下 **Bot ID** 与 **Secret**。
-3. **拉进群**:群菜单里添加机器人。⚠ 通讯录成员列表里搜不到它,要在顶部搜索名字,或从「工作台 → 智能机器人」进;用「微信插件」登录企微的成员看不到智能机器人,要装企业微信 App 本体。
-4. **官方命令行工具**(推荐):显示发送者姓名、拉群历史、让机器人在群里发图发文件都靠它。
+The WeCom client and admin console are in Chinese; the menu names are given in Chinese with English translations.
+
+## Create the bot
+
+1. **Register an organization.** Registration is free and needs no business license. An unverified organization can have up to 200 members, and internal groups and smart bots both work.
+2. **Create the bot** (desktop client only). Either go to 工作台 → 智能机器人 → 创建机器人 → 手动创建 → API 模式 (Workbench → Smart bots → Create bot → Create manually → API mode), or use the admin console: 安全与管理 → 管理工具 → 智能机器人 (Security & management → Management tools → Smart bots).
+   - For usage, choose 多人使用 (used by multiple people).
+   - On the API configuration page, choose **使用长连接 (use long connection)**, and note the **Bot ID** and **Secret**.
+3. **Add it to a group** from the group menu.
+   - ⚠ The bot does not appear in the contacts member list. Search for its name in the top search bar, or open it from 工作台 → 智能机器人.
+   - Members who sign in to WeCom through the WeChat plugin cannot see smart bots; they need the full WeCom app.
+4. **Install the official CLI** (recommended). It is needed to show senders' names, read group history, and let the bot post images and files in the group.
    ```bash
    npm i -g @wecom/cli
-   wecom-cli auth init --manual       # 填同一对 Bot ID / Secret
+   wecom-cli auth init --manual       # enter the same Bot ID / Secret
    ```
-   不装也能用,只是群里显示 userid,机器人不能发图和文件。
+   Without it the bot still works, but the group shows userids and the bot cannot post images or files.
 
-## 接入 SintBot
+## Connect SintBot
 
 ```bash
-sbot setup     # 选 wecom,填 Bot ID / Secret,以及机器人在企微里的名字(用来剥掉正文里的 @)
+sintbot setup     # choose wecom, enter the Bot ID / Secret and the bot's name in WeCom (used to strip the @ from message text)
 ```
 
-或在控制台「设置 → 企业微信机器人」里填(含预检:凭据、命令行工具、工具授权的是不是同一个机器人)。
+Or fill it in on the console under Settings → WeCom bot. The console's precheck covers the credentials, the CLI, and whether the CLI is authorized for the same bot.
 
 ```jsonc
 "wecom": {
   "botId": "aib…",
   "secret": "env:WECOM_BOT_SECRET",
-  "botName": "SintBot",            // 剥正文里的「@SintBot」
-  "names": { "zhangsan": "张三" }   // 可选:userid → 显示名的手工映射
+  "botName": "SintBot",            // strips "@SintBot" from message text
+  "names": { "zhangsan": "张三" }   // optional: manual userid → display name mapping
 }
 ```
 
-**绑群**:群 ID 在控制台「群 · 项目」里能选到(列的是机器人被 @ 过的群);新群先在群里 @ 机器人说一句话。
+**Binding a group:** pick the group ID in the console under Groups & projects. The list shows groups where the bot has been @-mentioned, so in a new group, @ the bot once first.
 
-## 行为与限制
+## Behavior and limits
 
-- **只回 @ 机器人的消息**:长连接只推送 @ 机器人的消息,这是平台的设计。「不 @ 也回复」可以开(轮询群历史 + 规则 / 便宜模型门控),但**默认关**:它会碰到官方使用规则,超过 10 人的企业接口还未开放。细节见 [WECOM.md](../WECOM.md)。
-- **主动推送**(定时任务、升级播报)要求这个会话之前有人给机器人发过消息。
-- **一台机器一个机器人**:两台机器填同一对 Bot ID / Secret,新连上的会把旧的顶掉;10 分钟内被顶两次,SintBot 就不再重连(防止两边无限互踢),重启后恢复。
-- **没有**撤回事件(撤回即停不可用)、画板、表情回应;markdown 不渲染表格与跨行代码块,回复会自动改写成能渲染的格式。
-- 流式回复每条最长 10 分钟,更长的回复会自动接成下一条。
+- **It only replies when @-mentioned.** By the platform's design, the long connection only delivers messages that @ the bot.
+  - Replying without an @ can be turned on (by polling group history, gated by rules or a cheap model), but it is **off by default**.
+  - It runs into the official usage rules, and the API it needs is not yet open to organizations with more than 10 members.
+  - Details: [WECOM.md](../WECOM.md) (in Chinese).
+- **Proactive messages** (scheduled tasks, upgrade notices) require someone to have messaged the bot in that conversation before.
+- **One bot per machine.** If two machines use the same Bot ID / Secret, the newer connection replaces the older one. After being replaced twice within 10 minutes, SintBot stops reconnecting, so the two machines do not keep kicking each other off; a restart brings it back.
+- **Not available:** recall events (so recalling a message does not stop its turn), whiteboards and emoji reactions.
+- **Markdown limits:** tables and multi-line code blocks do not render, so replies are rewritten automatically into a format that does.
+- **Long replies:** each streaming reply can last up to 10 minutes; a longer reply continues in a new message automatically.
 
-完整的接入事实、配置项与边界见 [WECOM.md](../WECOM.md)。
+Full integration details, configuration and limits: [WECOM.md](../WECOM.md) (in Chinese).

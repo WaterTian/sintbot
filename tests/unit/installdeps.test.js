@@ -1,5 +1,5 @@
 // installdeps — 安装向导替新用户装 claude / codex 时的选源与参数。npm 调用全部注入假的 run,
-// 不联网、不真装;真装在新机器上手动验(docs/install.md「一键安装」)。
+// 不联网、不真装;真装在新机器上手动验(docs/zh-CN/install.md「一键安装」)。
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')

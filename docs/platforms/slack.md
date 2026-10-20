@@ -1,53 +1,59 @@
 # Slack
 
-走 Socket Mode 长连接,不需要公网地址;免费版 workspace 可用。
+English · [简体中文](../zh-CN/platforms/slack.md)
 
-> 现状:`!status`、原生 Stop 与线程里的「停止 / 跳过 / 状态」按钮有单元测试,但还没在真实工作区里被真人用过。用着不对请[提 issue](https://github.com/WaterTian/sintbot/issues)。
+SintBot connects over Socket Mode, so no public address is needed, and it works on free Slack workspaces.
 
-## 建 App
+> **Status:** `!status`, the native Stop button and the Stop / Skip / Status buttons in threads have unit tests but have not yet been used by real people in a real workspace. If something does not work, please [open an issue](https://github.com/WaterTian/sintbot/issues).
 
-1. [api.slack.com/apps](https://api.slack.com/apps) → **Create New App → From a manifest** → 选 workspace → 粘贴 [`docs/slack-app-manifest.yaml`](../slack-app-manifest.yaml)(npm 安装的在 `$(npm root -g)/sintbot/docs/slack-app-manifest.yaml`)。`display_information.name` 可以改成你想要的名字。
-2. **Basic Information → App-Level Tokens → Generate**,勾 `connections:write`,得到 `xapp-…`。
-3. **OAuth & Permissions → Install to Workspace**,得到 Bot Token `xoxb-…`。
-4. 把机器人请进频道:在频道里发 `/invite @你的机器人名`。**不请进去就收不到任何消息。**
+## Create the app
 
-⚠ 一台机器一个 App。Socket Mode 的多条连接是**随机分发**、不是广播,两台机器共用一个 App 会让消息随机落到其中一台。
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App → From a manifest**, choose the workspace and paste [`docs/slack-app-manifest.yaml`](../slack-app-manifest.yaml). For an npm install, the file is at `$(npm root -g)/sintbot/docs/slack-app-manifest.yaml`. You can change `display_information.name` to any name you like.
+2. Go to **Basic Information → App-Level Tokens → Generate**, check `connections:write`, and copy the `xapp-…` token.
+3. Go to **OAuth & Permissions → Install to Workspace** and copy the Bot Token, `xoxb-…`.
+4. Invite the bot to a channel by sending `/invite @your-bot-name` there. **Until it is invited, it receives no messages at all.**
 
-⚠ 改过 manifest 之后要在 App Manifest 页保存,并 **Reinstall to Workspace**。
+⚠ **One app per machine.** Socket Mode **distributes messages across connections at random** rather than broadcasting them, so if two machines share one app, each message lands on one of them at random.
 
-## 接入 SintBot
+⚠ After changing the manifest, save it on the App Manifest page and **Reinstall to Workspace**.
+
+## Connect SintBot
 
 ```bash
-sbot setup     # 选 slack,填 xoxb- 与 xapp-;预检会核对凭据、权限、Socket Mode 与已加入的频道
+sintbot setup     # choose slack, enter the xoxb- and xapp- tokens; the precheck verifies the tokens, scopes, Socket Mode and the channels the bot has joined
 ```
 
-或在控制台「设置 → Slack 应用」里填。绑群时选 Slack 频道(只列出机器人已加入的)。
+Or fill it in on the console under Settings → Slack app. When binding a group, pick a Slack channel; only channels the bot has joined are listed.
 
 ```jsonc
 "slack": {
   "botToken": "env:SLACK_BOT_TOKEN",     // xoxb-…
   "appToken": "env:SLACK_APP_TOKEN",     // xapp-…
-  "onlyWhenMentioned": true,             // true = 频道里只回 @ 机器人的消息(setup 写 true);不写 = 频道里每条都回。私信永远回
-  "replyInThread": true,                 // 回复挂在线程里(不写 = true)
-  "commandAlias": "!",                   // 群内命令前缀,见下(不写 = !)
-  "umbrellaCommand": "/sint"             // manifest 里注册的总入口斜杠命令(不写 = /sint)
+  "onlyWhenMentioned": true,             // true = in channels, reply only to messages that @ the bot (setup writes true); omitted = reply to every message. Direct messages always get a reply
+  "replyInThread": true,                 // reply in a thread (default true)
+  "commandAlias": "!",                   // in-chat command prefix, see below (default !)
+  "umbrellaCommand": "/sint"             // the umbrella slash command registered in the manifest (default /sint)
 }
 ```
 
-需要代理才能连 Slack 的机器:配置里的 `proxy` 块对 Slack 的 REST 与 WebSocket 同样生效。
+On machines that need a proxy to reach Slack, the config's `proxy` block applies to both Slack's REST API and its WebSocket.
 
-## 在 Slack 里用
+## Using it in Slack
 
-- **群内命令用 `!` 开头**:`!stop` · `!skip` · `!new` · `!status` · `!help` · `!model <名字>` · `!hud` · `!issue <一句话>`。Slack 会自己吃掉 `/` 开头的输入,`/status` 根本到不了机器人。
-- 频道里也可以用总入口 `/sint stop`(有自动补全)。注册的斜杠命令在**线程里调不出来**,所以线程里只能用 `!`。
-- 进度:收到即打 ⏳ → 线程里一条进度消息随执行刷新,并显示 Slack 原生的「Working…」状态与 **Stop** 按钮 → 答案单独发出 → ✅。
-- 线程里的「状态」等按钮,与 `!status` 等价。
-- App Home 页签讲怎么用;命令表按频道不同,用 `!help` 看。
+- **Start in-chat commands with `!`:** `!stop` · `!skip` · `!new` · `!status` · `!help` · `!model <name>` · `!hud` · `!issue <one sentence>`. Slack consumes input that starts with `/`, so `/status` never reaches the bot.
+- **The umbrella command.** In a channel you can also use `/sint stop`, with autocomplete. Registered slash commands **cannot be invoked inside a thread**, so in threads only `!` works.
+- **Progress:**
+  1. ⏳ as soon as the message arrives;
+  2. a progress message in the thread that refreshes as the work runs, alongside Slack's native "Working…" status and a **Stop** button;
+  3. the answer, posted separately;
+  4. ✅.
+- **Buttons.** The Status and other buttons in the thread are equivalent to `!status` and friends.
+- **Help.** The App Home tab explains how to use the bot. The command list differs by channel; use `!help` to see it.
 
-## 现在还不支持
+## Not supported yet
 
-- 群内收发文件(上传还没接):机器人生成的文件会告诉你项目里的路径。
-- 画板(飞书专有)与表情回应以外的反馈方式。
-- 公开频道里的流式消息(Slack 只在私信里支持),所以进度靠编辑消息实现。
+- Sending and receiving files in the channel (uploads are not wired up yet). For files the bot generates, it tells you their path in the project.
+- Whiteboards (Feishu only), and any form of feedback other than emoji reactions.
+- Streaming messages in public channels (Slack supports them only in direct messages), so progress is shown by editing a message.
 
-实现细节与踩坑记录见 [SLACK.md](../SLACK.md)。
+Implementation details and lessons learned: [SLACK.md](../SLACK.md) (in Chinese).

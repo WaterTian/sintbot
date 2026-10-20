@@ -29,7 +29,7 @@ sbot 侧**零特殊逻辑**:`gpt` provider 的 `baseUrl` 指向本机代理,和�
 
 | 要求 | 检查 | 说明 |
 |---|---|---|
-| sbot 已能跑 | `sbot doctor` 里 `claude` 那行 ✓ | 先照 [install.md](./install.md) 把基础跑绿 |
+| sbot 已能跑 | `sbot doctor` 里 `claude` 那行 ✓ | 先照 [install.md](./zh-CN/install.md) 把基础跑绿 |
 | Node ≥ 22 | `node -v` | SintBot 本身就要 |
 | OpenAI **平台** API key | 有 `sk-...` | platform.openai.com 签发、**按 token 付费**;放 CCR 配置里,别放 sbot |
 
@@ -166,7 +166,7 @@ sbot agent run --provider gpt "用一句话自我介绍,并说出你的模型名
 
 - **代理日志是第一现场:** CCR 前台窗口 / 日志会打印每次请求的翻译结果,tool-call、reasoning、流式出问题
   都在这里看。sbot 侧只看到「这一轮失败」,细节在代理。
-- **中文乱码 / 连接问题:** 参考 [install.md](./install.md) 的 Windows 与代理两节。
+- **中文乱码 / 连接问题:** 参考 [install.md](./zh-CN/install.md) 的 Windows 与代理两节。
 - **别把代理挂到系统代理后面:** 本机 `127.0.0.1` 应在 `NO_PROXY` 里(sbot `setup` 自动含 loopback),
   否则请求会被 HTTP 代理再绕一圈。
 

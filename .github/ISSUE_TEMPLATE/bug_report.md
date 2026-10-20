@@ -1,30 +1,30 @@
 ---
-name: 问题反馈 / Bug report
-about: 用着不对、和文档说的不一样 / Something doesn't work or doesn't match the docs
+name: Bug report / 问题反馈
+about: Something doesn't work or doesn't match the docs / 用着不对、和文档说的不一样
 labels: bug
 ---
 
-**发生了什么 / What happened**
+**What happened / 发生了什么**
 
 
-**期望的结果 / What you expected**
+**What you expected / 期望的结果**
 
 
-**复现步骤 / Steps to reproduce**
+**Steps to reproduce / 复现步骤**
 1.
 2.
 
-**环境 / Environment**
+**Environment / 环境**
 - `sintbot --version`:
-- 系统 / OS(macOS / Linux / Windows + 版本):
-- 聊天平台 / Chat platform(飞书 Lark / Slack / 企业微信 WeCom):
-- 模型 / Model(claude / codex / 其他端点 other endpoint):
+- OS / 系统 (macOS / Linux / Windows + version):
+- Chat platform / 聊天平台 (Feishu / Slack / WeCom):
+- Model / 模型 (claude / codex / other endpoint):
 
-**`sbot doctor` 输出 / output**
+**`sintbot doctor` output / 输出**
 ```
-(贴在这里,先遮掉密钥 / paste here, mask secrets first)
+(paste here, mask secrets first / 贴在这里,先遮掉密钥)
 ```
 
-**相关日志 / Relevant logs**(`sbot service logs -n 200`,先遮掉密钥 / mask secrets first)
+**Relevant logs / 相关日志** (`sintbot service logs -n 200`, mask secrets first / 先遮掉密钥)
 ```
 ```

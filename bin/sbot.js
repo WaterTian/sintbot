@@ -1328,7 +1328,7 @@ async function cmdSetup(rest) {
         process.stdout.write(`  ${yellow('!')} 装好了,但当前 PATH 里找不到 ${binName} —— 把 ${dir} 加进 PATH,重开终端再跑一次 sbot setup\n`)
         return null
       }
-      process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,做法见 docs/install.md「一键安装」\n`)
+      process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,做法见 docs/zh-CN/install.md「一键安装」\n`)
       return null
     }
     const claudeName = (raw.agent && raw.agent.bin) || 'claude'
@@ -1559,7 +1559,7 @@ async function cmdSetup(rest) {
     if (platIn !== 'none' && !plats.length) process.stdout.write(red('  没认出平台名(feishu / slack / wecom),先跳过 —— 之后可重跑 setup 或去控制台配') + '\n')
 
     if (plats.includes('feishu')) {
-      process.stdout.write(gray('  飞书:开放平台建「企业自建应用」→ 加机器人能力 → 事件订阅选长连接;权限清单见 docs/platforms/feishu.md') + '\n')
+      process.stdout.write(gray('  飞书:开放平台建「企业自建应用」→ 加机器人能力 → 事件订阅选长连接;权限清单见 docs/zh-CN/platforms/feishu.md') + '\n')
       raw.feishu = raw.feishu || { onlyWhenMentioned: false }
       // 从示例新建:示例里的 env: 占位不是用户的值 —— 当作没填,免得默认值显示成 env:FEISHU_APP_ID、还提示「留空=保持不变」
       if (seeded) for (const k of ['appId', 'appSecret']) if (String(raw.feishu[k] || '').startsWith('env:')) raw.feishu[k] = ''
@@ -1638,7 +1638,7 @@ async function cmdSetup(rest) {
     }
 
     if (plats.includes('wecom')) {
-      process.stdout.write(gray('  企业微信:管理后台「智能机器人 → 新建 → API 模式 → 使用长连接」拿 Bot ID 与 Secret(docs/platforms/wecom.md)') + '\n')
+      process.stdout.write(gray('  企业微信:管理后台「智能机器人 → 新建 → API 模式 → 使用长连接」拿 Bot ID 与 Secret(docs/zh-CN/platforms/wecom.md)') + '\n')
       raw.wecom = raw.wecom || {}
       raw.wecom.botId = await ask('企业微信 Bot ID', realCreds(raw.wecom.botId) ? raw.wecom.botId : '')
       raw.wecom.secret = (await askKey(`企业微信 Secret${raw.wecom.secret ? '(留空=保持不变)' : ''}`)) || raw.wecom.secret || ''

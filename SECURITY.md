@@ -1,18 +1,26 @@
-# 安全策略
+# Security policy
 
-## 报告漏洞
+English · [简体中文](./SECURITY.zh-CN.md)
 
-请**不要**在公开 issue 里报安全问题。用 GitHub 的 [私密漏洞报告](https://github.com/WaterTian/sintbot/security/advisories/new),或发邮件到 support@sintbot.com。
+## Reporting a vulnerability
 
-请附上:影响的版本、复现步骤、你判断的影响面。我们会尽快回复。
+Please **do not** report security issues in public issues. Use GitHub's [private vulnerability reporting](https://github.com/WaterTian/sintbot/security/advisories/new), or email support@sintbot.com.
 
-## 范围
+Please include:
 
-特别关心的几类:
+- the affected version
+- steps to reproduce
+- the impact as you assess it
 
-- 群消息或网页内容绕过群的权限档位执行命令(不含「完全访问」档位本来就允许的事);
-- 控制台鉴权绕过(局域网密码、公网飞书登录、一次性接管链接);
-- 出站消息泄漏配置里的密钥;
-- 符号链接等手段绕出项目根目录。
+We will reply as soon as we can.
 
-SintBot 的权限模型与已知边界(例如 Bash 没有操作系统级的目录隔离)见 [docs/security.md](./docs/security.md)。
+## Scope
+
+We are especially interested in:
+
+- group messages or web content that execute commands beyond the group's permission level (excluding what "full access" already allows);
+- bypasses of console authentication: the LAN password, public Feishu sign-in, or single-use takeover links;
+- outgoing messages that leak secrets from the config;
+- escaping the projects folder through symlinks or similar tricks.
+
+For SintBot's permission model and its known limits (for example, Bash has no OS-level directory isolation), see [docs/security.md](./docs/security.md).

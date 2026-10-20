@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.0.1",
+    "name": "English docs by default",
+    "items": [
+      {
+        "t": "English docs by default",
+        "d": "The README and the guides for install, models, configuration, security, features and the three chat platforms now have English versions, used by default. The Chinese versions are in README.zh-CN.md and docs/zh-CN/, and the setup wizard and the one-line installer link to them."
+      }
+    ]
+  },
+  {
     "version": "1.0.0",
     "name": "Open-source release: SintBot is public under the MIT license, published on npm as sintbot",
     "items": [

@@ -41,7 +41,7 @@ flowchart LR
 
 ## Quick start
 
-**1. Create a bot and add it to a group.** Step-by-step guides (currently in Chinese): [Feishu](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [WeCom](./docs/platforms/wecom.md).
+**1. Create a bot and add it to a group.** Step-by-step guides: [Feishu](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [WeCom](./docs/platforms/wecom.md).
 
 **2. Install** on macOS or Linux:
 
@@ -114,7 +114,7 @@ Configuration lives in `~/.sbot/config.json`. See [docs/config.md](./docs/config
 | **WeCom** | The newest integration, with the least real-world use. |
 | **Slack** | The native Stop button, `!status` and the thread buttons are covered by tests but have had little real-world use. |
 
-"Feishu" here means the China edition (open.feishu.cn); the international Lark has not been tested. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese, and most docs are in Chinese for now. The console has an English mode.
+"Feishu" here means the China edition (open.feishu.cn); the international Lark has not been tested. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese; the console has an English mode.
 
 ## Security
 
@@ -156,14 +156,14 @@ Both are free and MIT-licensed. [cc-bot](https://github.com/WaterTian/cc-bot) is
 
 ## Documentation
 
-These guides are currently in Chinese.
+The feature deep dives marked "(zh)" are in Chinese for now; each English doc links to its Chinese version.
 
 | Topic | Docs |
 |---|---|
 | Getting started | [Install](./docs/install.md) · [Models](./docs/models.md) · [Configuration](./docs/config.md) · [Security](./docs/security.md) · [Features](./docs/features.md) |
 | Chat platforms | [Feishu](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [WeCom](./docs/platforms/wecom.md) |
-| Features | [Whiteboard](./docs/BOARD.md) · [Previews](./docs/PREVIEW.md) · [Browser](./docs/BROWSER.md) · [Icons](./docs/ICONS.md) · [Codex runner](./docs/CODEX-RUNNER.md) · [Public console access](./docs/PUBLIC-ACCESS.md) |
-| Project | [Architecture (DESIGN.md)](./DESIGN.md) · [Contributing](./CONTRIBUTING.md) · [Changelog](./CHANGELOG.en.json) |
+| Features | [Whiteboard](./docs/BOARD.md) (zh) · [Previews](./docs/PREVIEW.md) (zh) · [Browser](./docs/BROWSER.md) (zh) · [Icons](./docs/ICONS.md) (zh) · [Codex runner](./docs/CODEX-RUNNER.md) (zh) · [Public console access](./docs/PUBLIC-ACCESS.md) (zh) |
+| Project | [Architecture (DESIGN.md)](./DESIGN.md) (zh) · [Contributing](./CONTRIBUTING.md) · [Changelog](./CHANGELOG.en.json) |
 
 ## Feedback
 

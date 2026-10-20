@@ -1,6 +1,6 @@
 # Slack 适配器:机制与平台事实
 
-> 怎么建 App、怎么接入见 [platforms/slack.md](./platforms/slack.md);本文讲适配器怎么工作,以及写它时必须知道的 Slack 平台事实(均来自 [docs.slack.dev](https://docs.slack.dev) 官方文档,并在免费版 workspace 上实测过)。
+> 怎么建 App、怎么接入见 [platforms/slack.md](./zh-CN/platforms/slack.md);本文讲适配器怎么工作,以及写它时必须知道的 Slack 平台事实(均来自 [docs.slack.dev](https://docs.slack.dev) 官方文档,并在免费版 workspace 上实测过)。
 > 实现:`src/platform/slack.js`(适配器,零 Slack SDK)· `src/core/proxy.js`(出网代理)· `tests/unit/slack.test.js`。端到端自测:`node docs/slack-probe.js echo`(只跑适配器,不经引擎)。
 
 ## 形态

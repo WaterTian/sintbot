@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://sintbot.com/zh/">官网</a> ·
   <a href="./README.md">English</a> ·
-  <a href="./docs/install.md">安装说明</a> ·
+  <a href="./docs/zh-CN/install.md">安装说明</a> ·
   <a href="https://github.com/WaterTian/sintbot/releases">版本发布</a>
 </p>
 
@@ -41,7 +41,7 @@ flowchart LR
 
 ## 快速开始
 
-**1. 建好机器人,拉进一个群。** 分步说明:[飞书](./docs/platforms/feishu.md)(在中国大陆推荐)· [Slack](./docs/platforms/slack.md) · [企业微信](./docs/platforms/wecom.md)。
+**1. 建好机器人,拉进一个群。** 分步说明:[飞书](./docs/zh-CN/platforms/feishu.md)(在中国大陆推荐)· [Slack](./docs/zh-CN/platforms/slack.md) · [企业微信](./docs/zh-CN/platforms/wecom.md)。
 
 **2. 安装**(macOS / Linux):
 
@@ -79,7 +79,7 @@ sintbot service install   # 崩溃自动拉起、登录后自启
 
 - **聊天平台用飞书。**
 - **模型**:没有 Claude 订阅就用 DeepSeek(或智谱 / MiniMax / 火山方舟的中国大陆站),直连,不用代理。向导问「这台机器在中国大陆吗」时答「是」:只有用到 Claude / ChatGPT 才会问代理。
-- **开着全局代理(梯子)的话**,把模型域名设成直连。否则请求绕到境外再回来,又慢又可能触发风控,见 [install.md「代理」](./docs/install.md#代理)。
+- **开着全局代理(梯子)的话**,把模型域名设成直连。否则请求绕到境外再回来,又慢又可能触发风控,见 [install.md「代理」](./docs/zh-CN/install.md#代理)。
 - **npm 慢**:一键安装和向导会自动换 `registry.npmmirror.com`;手动装加 `--registry https://registry.npmmirror.com`。
 - **GitHub 打不开**:中文介绍和安装步骤在[官网](https://sintbot.com/zh/)上都有。
 
@@ -110,7 +110,7 @@ sintbot chat -C <项目目录>         # 不接聊天平台,在终端里模拟�
 sintbot help                      # 全部命令
 ```
 
-配置在 `~/.sbot/config.json`,字段说明见 [docs/config.md](./docs/config.md),带注释的完整示例见 [sbot.config.example.json](./sbot.config.example.json)。npm 包装出两个同义命令:`sintbot` 和 `sbot`。
+配置在 `~/.sbot/config.json`,字段说明见 [docs/config.md](./docs/zh-CN/config.md),带注释的完整示例见 [sbot.config.example.json](./sbot.config.example.json)。npm 包装出两个同义命令:`sintbot` 和 `sbot`。
 
 ## 验证现状
 
@@ -126,7 +126,7 @@ sintbot help                      # 全部命令
 
 ## 安全须知
 
-- 机器人能在绑定的项目目录里**执行命令**。权限按群设:默认只读;「完全访问」只给你信任的群。文件工具限制在项目目录内,命令行没有沙箱。详见 [docs/security.md](./docs/security.md)。
+- 机器人能在绑定的项目目录里**执行命令**。权限按群设:默认只读;「完全访问」只给你信任的群。文件工具限制在项目目录内,命令行没有沙箱。详见 [docs/security.md](./docs/zh-CN/security.md)。
 - 控制台默认只听本机。要给局域网用,先 `sintbot ui --set-password`。
 - **订阅条款**:用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款。团队使用请改用 API 计费或允许这种用法的账号类型,并自行确认合规。
 
@@ -166,10 +166,10 @@ sintbot help                      # 全部命令
 
 | 主题 | 文档 |
 |---|---|
-| 上手 | [安装](./docs/install.md) · [模型](./docs/models.md) · [配置](./docs/config.md) · [安全](./docs/security.md) · [功能详解](./docs/features.md) |
-| 聊天平台 | [飞书](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [企业微信](./docs/platforms/wecom.md) |
+| 上手 | [安装](./docs/zh-CN/install.md) · [模型](./docs/zh-CN/models.md) · [配置](./docs/zh-CN/config.md) · [安全](./docs/zh-CN/security.md) · [功能详解](./docs/zh-CN/features.md) |
+| 聊天平台 | [飞书](./docs/zh-CN/platforms/feishu.md) · [Slack](./docs/zh-CN/platforms/slack.md) · [企业微信](./docs/zh-CN/platforms/wecom.md) |
 | 功能 | [画板](./docs/BOARD.md) · [预览](./docs/PREVIEW.md) · [浏览器](./docs/BROWSER.md) · [图标](./docs/ICONS.md) · [Codex 后端](./docs/CODEX-RUNNER.md) · [控制台公网访问](./docs/PUBLIC-ACCESS.md) |
-| 项目 | [架构与设计(DESIGN.md)](./DESIGN.md) · [参与开发](./CONTRIBUTING.md) · [更新日志](./CHANGELOG.json) |
+| 项目 | [架构与设计(DESIGN.md)](./DESIGN.md) · [参与开发](./CONTRIBUTING.zh-CN.md) · [更新日志](./CHANGELOG.json) |
 
 ## 反馈
 
@@ -180,7 +180,7 @@ sintbot help                      # 全部命令
 - 聊天平台
 - `sintbot doctor` 的输出
 
-安全问题请通过 [GitHub 私密漏洞报告](https://github.com/WaterTian/sintbot/security/advisories/new)私下提交,别发公开 issue,详见 [SECURITY.md](./SECURITY.md)。
+安全问题请通过 [GitHub 私密漏洞报告](https://github.com/WaterTian/sintbot/security/advisories/new)私下提交,别发公开 issue,详见 [SECURITY.md](./SECURITY.zh-CN.md)。
 
 ## 许可
 

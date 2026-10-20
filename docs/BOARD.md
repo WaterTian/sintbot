@@ -57,7 +57,7 @@ agent 写 Mermaid(优先)或 PlantUML 源码,存在 `design/diagrams/*.mmd` 进�
 
 ## 开通(飞书开放平台)
 
-除 [platforms/feishu.md](./platforms/feishu.md) 的基础权限外,画布还要这 12 个 scope(都开**应用身份**那一档),开完要发版:
+除 [platforms/feishu.md](./zh-CN/platforms/feishu.md) 的基础权限外,画布还要这 12 个 scope(都开**应用身份**那一档),开完要发版:
 
 `docx:document:create` · `docx:document:write_only` · `docs:document.media:upload` · `board:whiteboard:node:read` · `board:whiteboard:node:create` · `board:whiteboard:node:delete` · `docs:permission.member:create` · `drive:drive.metadata:readonly` · `im:chat.tabs:write_only` · `docs:document.comment:read` · `docs:document.comment:update` · `docs:document.media:download`
 

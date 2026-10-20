@@ -30,7 +30,7 @@
 - `exec` 不认交互式的 `--ask-for-approval`,只能用 `-c approval_policy=never`;永不弹审批。
 - **续接不继承沙箱**:裸 `resume` 会掉回只读,所以每一轮都用 `-c sandbox_mode=` 重新给档。`thread_id` 在续接后不变。
 - 不用 `--ephemeral`(它不保存会话,就续接不了)。非 git 目录也要带 `--skip-git-repo-check`,否则报 "Not inside a trusted directory"。
-- `autocompactTokens`(见 [config.md](./config.md))对 codex 同样生效:会话超过阈值就让 codex 原地压缩。
+- `autocompactTokens`(见 [config.md](./zh-CN/config.md))对 codex 同样生效:会话超过阈值就让 codex 原地压缩。
 
 ## 权限:只有两档
 

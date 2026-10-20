@@ -1,52 +1,58 @@
-# 安全
+# Security
 
-SintBot 是一个**能在你机器上执行命令**的常驻进程,指挥它的是群里的人。先把这件事想清楚,再决定给哪个群什么权限。
+English · [简体中文](./zh-CN/security.md)
 
-## 威胁模型
+SintBot is a long-running process that **can execute commands on your machine**, and it takes orders from the people in a group. Think that through before you decide which group gets which permissions.
 
-- **群成员 ≈ 项目的操作者**。绑定群里任何能发消息的人,都能让机器人在那个项目目录里读写文件、跑命令(在权限允许的范围内)。只把项目绑给你信任的群。
-- **「完全访问」≈ 以你的系统用户身份执行任意命令**。它不只是项目目录:Bash 能碰到你的用户能碰到的一切(家目录、钥匙串里已解锁的东西、SSH key)。
-- 文件工具(Read / Edit / Write / Grep / Glob)被锁在项目目录内;**Bash 没有操作系统级的目录隔离**,边界靠每个项目的命令白名单。需要真隔离,请把 SintBot 跑在单独的系统用户、虚拟机或容器里。
-- 提示词注入:机器人会读群消息、网页、项目文件。被注入的内容可以诱导它在**已有权限之内**做事,所以权限档位才是真正的边界,不是提示词。
+## Threat model
 
-## 权限三层(全部按群设,没有全局默认)
+- **Group members are effectively operators of the project.** Anyone who can post in a bound group can make the bot read and write files and run commands in that project directory, within its permissions. Bind projects only to groups you trust.
+- **"Full access" means running arbitrary commands as your OS user.** It is not limited to the project directory: Bash can reach everything your user can, including your home directory, unlocked keychain items and SSH keys.
+- **Only the file tools are confined.** Read, Edit, Write, Grep and Glob are confined to the project directory. **Bash has no OS-level directory isolation**; its boundary is each project's command allow list. If you need real isolation, run SintBot under a separate OS user, in a VM or in a container.
+- **Prompt injection.** The bot reads group messages, web pages and project files. Injected content can steer it into doing things **within the permissions it already has**, so the permission level, not the prompt, is the real boundary.
 
-1. **执行模式** `groups[].permissionMode`:
-   - `dontAsk`(默认):白名单内的工具自动放行,其余自动拒绝,永不弹窗挂起;
-   - `bypassPermissions`:全部放行。
-   - codex 群对应「只读 ⇄ 完全访问」两档。
-2. **工具白名单 / 黑名单** `allowedTools` / `disallowedTools`:控制台有三档预设(只读 / 开发 / 全信任)。不写 = 只读。黑名单优先。
-3. **目录**:每一轮的工作目录 = 该群绑定的项目目录,不额外挂其他目录。控制台只允许绑定 `projectsRoots`(默认 `~/Projects`)之内的目录,判定走 realpath,符号链接绕不出去。
+## Three layers of permissions (all per group, no global default)
 
-机器人自带的基础能力(发消息、定时任务、生图、预览、风格档检查)在任何档位都放行;codex 只读档在沙箱里无法联网,这些能力要完全访问档才能用。
+1. **Execution mode**, `groups[].permissionMode`:
+   - `dontAsk` (default): tools on the allow list run automatically and everything else is refused, so a turn never hangs on an approval prompt;
+   - `bypassPermissions`: everything is allowed.
 
-## 凭据
+   Codex groups have two matching levels: read-only and full access.
+2. **Tool allow and deny lists**, `allowedTools` / `disallowedTools`. The console offers three presets: read-only, developer and full trust. With neither list set, the group is read-only. The deny list wins.
+3. **Directory.** Each turn runs in the group's bound project directory, with no other directories mounted. The console only lets you bind directories inside `projectsRoots` (default `~/Projects`). The check uses the real path, so symlinks cannot escape it.
 
-- 配置文件 `~/.sbot/config.json` 新建时权限为 600;密钥字段都可以写成 `"env:变量名"`,从环境变量读。
-- 出站消息自动脱敏:配置里的密钥按值遮盖,其余按形状遮盖(API key、token 等);手机号与邮箱默认也遮,可按群 `redactPii:false` 关掉。
-- spawn 出来的 `claude` / `codex` 子进程只拿到该 provider 需要的环境变量,shell 里导出的 `ANTHROPIC_*` 不会串到别的 provider。
+The bot's built-in abilities are allowed at every level: posting messages, scheduled tasks, image generation, previews and style-file checks. In Codex's read-only level, the sandbox has no network access, so these abilities need full access there.
 
-## 数据会发到哪里
+## Credentials
 
-SintBot 没有自己的服务器,也不收集任何数据。会离开这台机器的只有这些:
+- A new `~/.sbot/config.json` is created with permissions 600. Every secret field can be written as `"env:NAME"` to read it from the environment.
+- Outgoing messages are redacted automatically:
+  - secrets from the config are masked by value;
+  - other secrets are masked by shape (API keys, tokens and so on);
+  - phone numbers and emails are masked by default too; turn this off per group with `redactPii: false`.
+- A spawned `claude` / `codex` process only receives the environment variables its provider needs, so `ANTHROPIC_*` variables exported in your shell do not leak into another provider.
 
-- **模型服务商**:每一轮的提示词、群消息、模型读到的文件与命令输出,由 `claude` / `codex` 命令行发给你给这个群选的模型(Anthropic、OpenAI 或你配置的兼容端点)。这两个命令行自身的遥测等行为由它们的提供方决定。
-- **聊天平台**:收发的群消息、文件、卡片经飞书 / Slack / 企业微信。
-- **额度与余额查询**:控制台和 `/hud` 显示额度时,用本机已有的登录态或 API key 去问对应的服务商(Claude 订阅额度读本机 `claude` 的登录凭据,只读不刷新;DeepSeek / GLM / MiniMax 查余额)。
-- **控制台字体**:控制台页面会从 Google Fonts(`fonts.googleapis.com` / `fonts.gstatic.com`)加载字体,这是打开页面的那台浏览器发的请求;连不上时退回系统字体,功能不受影响。
+## Where data goes
 
-## 控制台
+SintBot has no server of its own and collects no data. Only the following leaves this machine:
 
-- 默认只监听 `127.0.0.1:4600`;本机访问自动带令牌。
-- 对局域网开放(`--ui-host 0.0.0.0`)之前必须先 `sbot ui --set-password`,否则拒绝启动。密码以 scrypt 存储,只换会话令牌。
-- 开到公网(可选,[PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md)):经 SSH 反向隧道 + 反代终结 HTTPS,公网上只认「用飞书账号登录」且只放行 `feishu.admins` 名单;密码登录接口在公网侧直接拒绝。
-- 控制台能改权限、绑群、看会话 —— 它的访问权等同于机器人的最高权限。
+- **Model providers.** Each turn's prompt, the group messages, and the files and command output the model reads are sent by the `claude` / `codex` CLI to the model you chose for that group: Anthropic, OpenAI or a compatible endpoint you configured. Telemetry and other behavior of those CLIs are up to their providers.
+- **Chat platforms.** Group messages, files and cards go through Feishu, Slack or WeCom.
+- **Quota and balance lookups.** When the console or `/hud` shows quota, it asks the provider using the logins or API keys already on this machine. Claude subscription quota reads the local `claude` credentials (read-only, never refreshed); DeepSeek, GLM and MiniMax are queried for their balance.
+- **Console fonts.** The console page loads fonts from Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`). The request comes from the browser that opens the page; if it fails, the page falls back to system fonts and works the same.
 
-## 其他会对外开口子的功能
+## The console
 
-- **群预览服务**(`sbot preview`):在局域网上开 HTTP 端口给群成员看原型,明文、无鉴权(URL 带随机前缀);默认只服务项目子目录,闲置自动回收。不需要时把 `preview.host` 设为 `127.0.0.1`。
-- **浏览器接管链接**:一次性、短时效(默认 10 分钟),拿到链接的人能操作机器人的浏览器。
+- **Listen address.** By default it listens only on `127.0.0.1:4600`, and local access carries a token automatically.
+- **LAN access.** Before opening it to the LAN (`--ui-host 0.0.0.0`), you must run `sintbot ui --set-password`; otherwise it refuses to start. The password is stored with scrypt and is only exchanged for a session token.
+- **Public access** (optional; see [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md), in Chinese) runs through an SSH reverse tunnel and a reverse proxy that terminates HTTPS. On the public side, only Feishu sign-in is accepted, and only for the people listed in `feishu.admins`; the password login endpoint is refused there outright.
+- **Treat console access as the bot's highest privilege.** The console can change permissions, bind groups and read sessions.
 
-## 报告漏洞
+## Other features that open a door
 
-见 [SECURITY.md](../SECURITY.md)。
+- **Group previews** (`sintbot preview`) open an HTTP port on the LAN so group members can see prototypes. It is plain HTTP without authentication; the URL has a random prefix. By default it only serves a subdirectory of the project and is reclaimed when idle. If you do not need it, set `preview.host` to `127.0.0.1`.
+- **Browser takeover links** are single-use and short-lived (10 minutes by default). Whoever has the link can operate the bot's browser.
+
+## Reporting a vulnerability
+
+See [SECURITY.md](../SECURITY.md).

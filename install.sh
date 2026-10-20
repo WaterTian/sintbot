@@ -7,7 +7,7 @@
 # 做的事:Node ≥ 22 → npm i -g sintbot → sintbot setup(向导里会问要不要装 Claude Code)
 #        →(可选)装成常驻服务。每一步先检查,已有就跳过;要动系统的先问。不用 sudo。
 # 国内网络:npm 官方源连不上时自动改用 npmmirror;你自己配过 npm 源就照用。
-# 源码与说明:https://github.com/WaterTian/sintbot(docs/install.md「一键安装」)
+# 源码与说明:https://github.com/WaterTian/sintbot(docs/zh-CN/install.md「一键安装」;英文 docs/install.md)
 #
 # 环境变量:SINTBOT_PKG 改装别的包规格(测试时指向本地 tgz),会跳过「正式版是否已发布」的检查。
 
@@ -39,7 +39,7 @@ main() {
   case "$(uname -s)" in
     Darwin) OS=mac ;;
     Linux)  OS=linux; say "! Linux 为实验性支持" ;;
-    *) say "✗ 只支持 macOS / Linux。Windows 请按 docs/install.md 手动安装。"; return 1 ;;
+    *) say "✗ 只支持 macOS / Linux。Windows 请按 docs/zh-CN/install.md 手动安装。"; return 1 ;;
   esac
 
   step_node
@@ -157,8 +157,8 @@ step_setup() {
     return
   fi
   say "  向导会依次检查 Claude Code(没装会问要不要装)、配模型(没有 Claude 订阅就推荐 DeepSeek,粘贴 key 当场试跑)、接聊天平台、绑第一个群。"
-  say "  先按 docs/platforms/ 建好机器人并拉进群,向导里才有凭据可填:"
-  say "  https://github.com/WaterTian/sintbot/tree/main/docs/platforms"
+  say "  先按 docs/zh-CN/platforms/ 建好机器人并拉进群,向导里才有凭据可填:"
+  say "  https://github.com/WaterTian/sintbot/tree/main/docs/zh-CN/platforms"
   run sintbot setup < "$TTY"
 }
 

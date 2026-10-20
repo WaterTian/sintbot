@@ -1,48 +1,54 @@
-# 参与开发
+# Contributing
 
-## 跑起来
+English · [简体中文](./CONTRIBUTING.zh-CN.md)
+
+## Getting it running
 
 ```bash
 git clone https://github.com/WaterTian/sintbot.git && cd sintbot
 npm install
-npm test                                   # 零依赖 node --test,CI 跑 Node 22 / 24 / 26
-node bin/sbot.js chat -C /path/to/project  # 不接聊天平台,终端里模拟群消息
-node bin/sbot.js agent run "say hi"        # 单轮无头试跑
+npm test                                   # zero-dependency node --test; CI runs Node 22 / 24 / 26
+node bin/sbot.js chat -C /path/to/project  # simulate group messages in the terminal, no chat platform needed
+node bin/sbot.js agent run "say hi"        # a single headless trial turn
 ```
 
-前置:Node ≥ 22,`claude` 在 PATH 上。
+Requirements: Node.js ≥ 22, with `claude` on the PATH.
 
-## 代码地图
+## Code map
 
 ```
-bin/sbot.js            CLI 入口与所有子命令的接线(setup / start / ui / service / feishu / cron …)
-src/core/              引擎:群 → 会话 / 锁 / 队列 / 去重 / slash 命令 / 自知清单 / 定时任务 / 脱敏 / 账本
-src/agent/             runner:claudecode.js(spawn claude)· codexcode.js(spawn codex)· 额度 / 登录态探测
-src/platform/          聊天平台适配器:feishu.js · slack.js · wecom.js · multi.js(多平台路由)
-src/ui/                控制台:server.js(http + SSE)· console.html(单文件前端)
-src/*.js               配置、体检、插件、设计风格档、预览、服务安装等
-tests/unit/            单测(一个模块一个文件)
+bin/sbot.js            CLI entry point and the wiring of every subcommand (setup / start / ui / service / feishu / cron …)
+src/core/              the engine: group → session / lock / queue / dedup / slash commands / self-briefing / scheduled tasks / redaction / ledger
+src/agent/             runners: claudecode.js (spawns claude) · codexcode.js (spawns codex) · quota and login probes
+src/platform/          chat platform adapters: feishu.js · slack.js · wecom.js · multi.js (multi-platform router)
+src/ui/                the console: server.js (http + SSE) · console.html (single-file front end)
+src/*.js               config, health checks, plugins, design style files, previews, service install and more
+tests/unit/            unit tests, one file per module
 ```
 
-架构与关键设计决策见 [DESIGN.md](./DESIGN.md);接口契约在 `src/core/interfaces.js`。
+Architecture and key design decisions: [DESIGN.md](./DESIGN.md) (in Chinese). Interface contracts live in `src/core/interfaces.js`.
 
-## 约定
+## Conventions
 
-- **core 不认具体平台和 agent 的名字**:`src/core/` 里不出现 "feishu" / "slack" / "claudecode",只认 `interfaces.js` 里的契约。新平台 = 新适配器 + 在 `bin/sbot.js` 里接线。
-- **用户面零工具名**:控制台与群消息里不出现 `sbot` 等命令名、也不出现机器内部路径(`~/.sbot/…`、安装目录)。群成员面前产品只有一个名字(`brand`)。注入给 agent 的自知清单里的命令名不受此限,那是执行指令,群成员看不见。新增用户可见文案前先问:这句话里的东西,群成员需要知道它叫什么吗?
-- **无头 = 永不挂起**:任何可能等交互输入的地方(审批、git 密码、host key 确认)都要有策略或超时兜底。
-- **不硬编码密钥**,示例里用 `"env:VAR"`。
-- **出货物里不点名其他同类产品**(README、文档、注释、package.json)。
-- 每个 `sbot <子命令>` 都要能答 `--help`,并出现在 `sbot help` 的清单里(`tests/unit/cli-help.test.js` 会检查)。
-- `bin/sbot.js` 顶部统一解构 require(`tests/unit/bin-wiring.test.js` 会检查调用与导出是否对得上);改了 bin 的接线,务必真起一次进程。
+- **The core does not know platform or agent names.** `src/core/` never mentions "feishu", "slack" or "claudecode"; it only knows the contracts in `interfaces.js`. A new platform means a new adapter plus wiring in `bin/sbot.js`.
+- **No tool names in front of users.**
+  - The console and group messages show no command names such as `sbot`, and no internal machine paths (`~/.sbot/…`, the install directory). In front of group members, the product has one name only (`brand`).
+  - Command names inside the agent's self-briefing are exempt: they are instructions to execute, and group members never see them.
+  - Before adding user-visible text, ask: do group members need to know what this thing is called?
+- **Headless means never hang.** Anything that might wait for interactive input, such as an approval, a git password or a host-key confirmation, must have a policy or a timeout as a fallback.
+- **Never hard-code secrets.** Use `"env:VAR"` in examples.
+- **Shipped material does not name other products in the same space.** This covers the README, docs, comments and package.json.
+- **CLI help.** Every `sbot <subcommand>` must answer `--help` and appear in the `sbot help` list; `tests/unit/cli-help.test.js` checks this.
+- **Bin wiring.** `bin/sbot.js` destructures its requires at the top, and `tests/unit/bin-wiring.test.js` checks that calls match exports. After changing the bin's wiring, always start the process for real once.
+- **Docs are bilingual.** English lives at the original path and Chinese under `docs/zh-CN/`; at the repo root, Chinese files use the `.zh-CN.md` suffix. When you change a doc that exists in both languages, update both. Some feature docs are still Chinese only.
 
-## 测试与验证
+## Testing and verification
 
-- 新逻辑尽量写成纯函数再单测;涉及网络的用注入的假实现,单测里不发真请求。
-- **否定结论要带对照组**:「页面上没有 X」「扫描没发现问题」这类断言,同时断言一个必然存在的东西,它为 0 就说明这次根本没扫到。
-- 改控制台交互:推之前用 headless Chrome 实际点一遍。
+- Write new logic as pure functions where possible and unit-test them. Anything that touches the network uses injected fakes; unit tests never make real requests.
+- **Negative results need a control.** An assertion such as "X is not on the page" or "the scan found no problems" must also assert something that is certainly there. If that comes out as 0, the scan never actually ran.
+- **Console changes:** before pushing, click through the change in headless Chrome.
 
-## 提交
+## Commits
 
-- 一个提交一件事;说明写清「为什么」。
-- 版本历史条目(`CHANGELOG.json` / `.en.json`)是写给群成员看的,见 [docs/RELEASE.md](./docs/RELEASE.md)。
+- One commit, one change; explain the "why" in the message.
+- Release-history entries (`CHANGELOG.json` / `.en.json`) are written for group members; see [docs/RELEASE.md](./docs/RELEASE.md) (in Chinese).

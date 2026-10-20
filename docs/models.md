@@ -1,59 +1,61 @@
-# 模型
+# Models
 
-每一轮,SintBot 都 spawn 一个官方命令行工具来干活。**用哪个模型 = 给它什么环境变量**:
+English · [简体中文](./zh-CN/models.md)
 
-- 跑 `claude` 时,设 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL`;
-- 跑 GPT 时,改 spawn `codex`。
+For every turn, SintBot spawns an official CLI to do the work, and **the model you get depends on the environment it is given**:
 
-工具、权限、MCP、skills 这套框架始终是 Claude Code(或 Codex)自己的。
+- for `claude`, SintBot sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_MODEL`;
+- for GPT, it spawns `codex` instead.
 
-模型在 `providers` 里定义,按群选(`groups[].provider`,不写用 `defaultProvider`);群里发 `/model <名字>` 当场切。
+The framework itself (tools, permissions, MCP, skills) is always Claude Code's or Codex's own.
 
-## 三步接上 DeepSeek 等模型
+Models are defined under `providers` and chosen per group (`groups[].provider`, falling back to `defaultProvider`). Send `/model <name>` in a group to switch on the spot.
 
-没有 Claude 订阅、也没有 ChatGPT 账号时,**推荐 DeepSeek**。SintBot 照样跑 `claude` 命令行,只是让它连这些厂商的 Anthropic 兼容接口,认证用各家的 API key,**不用登录 Claude 账号**。
+## Use DeepSeek or another API-key model in three steps
 
-1. **拿 API key**:到下表的平台注册、充值、创建 key。智谱和 MiniMax 分中国大陆站与国际站,两边的 key 互不通用。
-2. **填进 SintBot**,任选一种:
-   - `sbot setup`:没检测到 Claude / Codex 登录时会直接推荐 DeepSeek,粘贴 key 后当场试跑一轮;要用别家选「用别家」。默认模型自动设成跑通的那家。
-   - 控制台「模型 · 库 → 添加模型」选对应预设,填 key(国际站把端点改成下表那一列)。
-   - 环境变量:`export DEEPSEEK_API_KEY=…`(示例配置里写的是 `env:DEEPSEEK_API_KEY`)。装成常驻服务时,服务拿不到 shell 里的变量,要 `sbot service install --pass-env`,见 [install.md](./install.md)。
-3. **在群里切换**:发 `/model deepseek`,或在控制台给这个群选模型。
+With no Claude subscription and no ChatGPT account, we **recommend DeepSeek**. SintBot still runs the `claude` CLI but points it at the provider's Anthropic-compatible API. Authentication uses the provider's API key, and **no Claude login is needed**.
 
-| provider 名 | 在哪拿 key | 端点 `baseUrl` | 国际站端点 | 默认模型 | key 变量 |
+1. **Get an API key.** Sign up on the provider's platform in the table below, top up and create a key. Zhipu and MiniMax have separate mainland-China and international sites whose keys are not interchangeable.
+2. **Give it to SintBot**, in any of these ways:
+   - **`sintbot setup`.** When it finds no Claude or Codex login, it recommends DeepSeek and runs a trial turn as soon as you paste the key; choose "another provider" for the others. The default model is set to whichever one passed the trial.
+   - **The console.** Go to Models → Add model, pick the preset and enter the key. For an international site, change the endpoint to the one in the table.
+   - **An environment variable**, such as `export DEEPSEEK_API_KEY=…` (the example config reads `env:DEEPSEEK_API_KEY`). A service does not see your shell's variables, so use `sintbot service install --pass-env`; see [install.md](./install.md).
+3. **Switch in the group.** Send `/model deepseek`, or pick the model for that group in the console.
+
+| Provider | Where to get a key | Endpoint (`baseUrl`) | International endpoint | Default model | Key variable |
 |---|---|---|---|---|---|
-| `deepseek` | DeepSeek(platform.deepseek.com),按量 | `https://api.deepseek.com/anthropic` | (同一个) | `deepseek-v4-pro[1m]` | `DEEPSEEK_API_KEY` |
-| `glm` | 智谱(open.bigmodel.cn / 国际站 z.ai),按量或包月 | `https://open.bigmodel.cn/api/anthropic` | `https://api.z.ai/api/anthropic` | `glm-5.2[1m]`(纯文本) | `ZHIPU_API_KEY` |
-| `minimax` | MiniMax(platform.minimaxi.com / 国际站 platform.minimax.io),按量或包月 | `https://api.minimaxi.com/anthropic` | `https://api.minimax.io/anthropic` | `MiniMax-M3[1m]` | `MINIMAX_API_KEY` |
-| `volcano` | 火山方舟(console.volcengine.com/ark),包月 | `https://ark.cn-beijing.volces.com/api/coding` | (没有) | `glm-5.2[1m]`(纯文本) | `ARK_API_KEY` |
+| `deepseek` | DeepSeek (platform.deepseek.com), pay as you go | `https://api.deepseek.com/anthropic` | (same) | `deepseek-v4-pro[1m]` | `DEEPSEEK_API_KEY` |
+| `glm` | Zhipu (open.bigmodel.cn; international: z.ai), pay as you go or monthly | `https://open.bigmodel.cn/api/anthropic` | `https://api.z.ai/api/anthropic` | `glm-5.2[1m]` (text only) | `ZHIPU_API_KEY` |
+| `minimax` | MiniMax (platform.minimaxi.com; international: platform.minimax.io), pay as you go or monthly | `https://api.minimaxi.com/anthropic` | `https://api.minimax.io/anthropic` | `MiniMax-M3[1m]` | `MINIMAX_API_KEY` |
+| `volcano` | Volcano Ark (console.volcengine.com/ark), monthly | `https://ark.cn-beijing.volces.com/api/coding` | (none) | `glm-5.2[1m]` (text only) | `ARK_API_KEY` |
 
-- 模型名后的 `[1m]` 让 Claude Code 按 100 万 token 的上下文处理,发请求前会自动去掉。
-- 标「纯文本」的不能看图:图片会换成占位文字,不会让整轮失败(见下文 `vision`)。
-- 国际站端点已核实可访问,模型名按与中国大陆站相同配置,还没用国际站的 key 实测过。
-- Kimi 等不在预设里的:控制台「添加模型 → 自定义」,填端点、key 和模型名;[示例配置](../sbot.config.example.json)里有 Kimi 的模板(未验证)。
-- 在中国大陆用中国大陆站的端点要直连、不要走代理,见 [install.md「代理」](./install.md#代理)。
+- The `[1m]` suffix tells Claude Code to treat the model as having a one-million-token context. It is stripped before the request is sent.
+- Models marked "text only" cannot read images. Images are replaced with placeholder text, so the turn does not fail; see `vision` below.
+- The international endpoints have been checked to be reachable. They are configured with the same model names as the mainland sites but have not yet been tested with an international key.
+- For Kimi and other providers without a preset, go to Add model → Custom in the console and enter the endpoint, key and model name. The [example config](../sbot.config.example.json) has an unverified Kimi template.
+- In mainland China, the mainland-site endpoints should connect directly rather than through a proxy; see [Proxies in install.md](./install.md#proxies-mainland-china).
 
-### 没有 Claude 订阅 / ChatGPT 时能用什么
+### What works without a Claude subscription or ChatGPT
 
-| 功能 | 情况 |
+| Feature | Status |
 |---|---|
-| 群里派活、改代码、跑命令、定时任务、设计验收、预览、控制台 | 都能用:执行框架是 Claude Code,不用登录 |
-| 看图 | 看模型:标「纯文本」的看不了;DeepSeek 按官方兼容说明支持图片 |
-| 联网搜索 | 看服务商是否支持 Claude Code 的搜索工具:DeepSeek 按官方兼容说明支持,其他家以各自文档为准 |
-| GPT 群、生图 | 用不了:都要本机 Codex 的 ChatGPT 登录 |
-| 额度用完自动切换 | 默认的备用是 codex,没登录就不切 |
+| Handing out work in the group, code changes, shell commands, scheduled tasks, design checks, previews, the console | All work: the agent framework is Claude Code, which needs no login |
+| Reading images | Depends on the model: "text only" models cannot. DeepSeek supports images according to its official compatibility notes |
+| Web search | Depends on whether the provider supports Claude Code's search tool. DeepSeek does according to its official compatibility notes; for other providers, check their documentation |
+| GPT groups, image generation | Not available: both need a ChatGPT login in Codex on this machine |
+| Automatic fallback when a quota runs out | The default fallback is Codex; without a Codex login, there is no switch |
 
-## 三类 provider
+## The three kinds of provider
 
-### 1. Claude(本机登录)
+### 1. Claude (local login)
 
 ```jsonc
 "claude": { "toolQuality": "high", "fallback": "codex" }
 ```
 
-不写 `baseUrl` / `apiKey` = 用本机 `claude` 的登录态(先在终端跑一次 `claude` 登录)。不写 `model` = 跟随 CLI 的默认模型;要钉某个型号,在控制台「模型」页选。守护进程环境里有 `ANTHROPIC_API_KEY` 时,CLI 会直接用它。
+With no `baseUrl` or `apiKey`, the provider uses the local `claude` login (run `claude` once in a terminal to sign in). With no `model`, it follows the CLI's default model; to pin a model, pick it on the console's Models page. If the daemon's environment has `ANTHROPIC_API_KEY`, the CLI uses it directly.
 
-### 2. Anthropic 兼容端点(DeepSeek / MiniMax / 火山 / Kimi / GLM …)
+### 2. Anthropic-compatible endpoints (DeepSeek, MiniMax, Volcano, Kimi, GLM …)
 
 ```jsonc
 "deepseek": {
@@ -65,32 +67,37 @@
 }
 ```
 
-- 跑的仍是 `claude` 二进制,认证走各家的 API key,**不需要登录 Claude 账号**。
-- `env` 叠加在 spawn 环境之上,放各家的调优项(快慢模型分工、关遥测等)。Kimi 等不在预设里的端点,在控制台「模型 · 库 → 添加模型 → 自定义」填端点、key 和模型名。[sbot.config.example.json](../sbot.config.example.json) 里有几家已验证过的端点与调优参数,`sbot setup` 从那里起步。
-- **纯文本模型**(不能看图)标 `"vision": false`:图片输入会经本地代理换成占位文字,避免整轮因 `400` 失败。不确定就别标。
+- It still runs the `claude` binary, authenticating with the provider's API key; **no Claude login is needed**.
+- `env` is layered on top of the spawn environment and carries each provider's tuning, such as the fast/slow model split or turning off telemetry. [sbot.config.example.json](../sbot.config.example.json) has endpoints and tuning for several verified providers, and `sintbot setup` starts from it.
+- For an endpoint without a preset, such as Kimi, use Models → Add model → Custom in the console and enter the endpoint, key and model name.
+- Mark **text-only models** (those that cannot read images) with `"vision": false`. Image input then goes through a local proxy that swaps it for placeholder text, so the turn does not fail with a `400`. If you are not sure, leave it unset.
 
-### 3. GPT(经 Codex CLI)
+### 3. GPT (via the Codex CLI)
 
 ```jsonc
 "codex": { "runner": "codex", "reasoningEffort": "medium" }
 ```
 
-`runner: "codex"` ⇒ spawn `codex exec`。认证是本机的 `codex login`(ChatGPT 订阅),配置里不放 key。**用 ChatGPT 订阅就选这个。** 示例配置里另有一个隐藏的 `gpt` 模板,是给有 OpenAI **平台 API key** 的人准备的(要另装本机翻译代理,见 [GPT-ROUTER.md](./GPT-ROUTER.md)),setup 不会问它。权限只有「只读 ⇄ 完全访问」两档。机制见 [CODEX-RUNNER.md](./CODEX-RUNNER.md)。
+`runner: "codex"` makes SintBot spawn `codex exec`. Authentication is the machine's `codex login` (a ChatGPT subscription), so no key goes in the config. **Choose this if you have a ChatGPT subscription.**
 
-## 其他字段
+- Permissions have only two levels: read-only and full access.
+- The example config also has a hidden `gpt` template for people with an OpenAI **platform API key**. It needs a local translation router (see [GPT-ROUTER.md](./GPT-ROUTER.md), in Chinese), and setup does not ask about it.
+- How it works: [CODEX-RUNNER.md](./CODEX-RUNNER.md) (in Chinese).
 
-| 字段 | 含义 |
+## Other fields
+
+| Field | Meaning |
 |---|---|
-| `toolQuality` | `high` / `medium`:提示这个模型做复杂改码任务靠不靠谱(控制台展示用) |
-| `hidden` | `true` = 不出现在控制台与 `/model` 里,配置保留 |
-| `fallback` | 额度用到 95% 或撞上限 / 账号不可用时,下一轮起自动切到这个 provider;窗口重置或探测恢复后切回。群里有人手动 `/model` 过就不再自动切 |
-| `reasoningEffort` | codex 专用:推理强度 |
+| `toolQuality` | `high` / `medium`: a hint, shown in the console, of how reliable the model is for complex code changes |
+| `hidden` | `true` hides the provider from the console and `/model`; the config is kept |
+| `fallback` | When this provider's quota reaches 95%, hits its limit or the account becomes unusable, turns switch to the named provider from the next turn on. They switch back when the window resets or a probe succeeds. If someone in the group has switched with `/model`, there is no automatic switch |
+| `reasoningEffort` | Codex only: reasoning effort |
 
-## 额度与告警
+## Quotas and alerts
 
-- Claude 订阅 5 小时窗口用到 90% 以上、Codex 7 天窗口用到 95% 以上,群里会提醒一次;`/hud` 随时看。
-- 配了 `alerts.chatId`(一个**不绑项目**的群)的话,账号异常、额度用完、自动切换都会发到这个群。
+- The group is warned once when a Claude subscription's 5-hour window passes 90%, or Codex's 7-day window passes 95%. `/hud` shows quota at any time.
+- If `alerts.chatId` is set to a group **not bound to a project**, account problems, exhausted quotas and automatic switches are reported there.
 
-## 订阅条款
+## Subscription terms
 
-用个人订阅(Claude Pro/Max、ChatGPT Plus/Pro)的登录态服务多人群聊,可能不符合提供方的条款。团队使用请选用允许这种用法的账号类型或 API 计费,并自行确认合规。
+Serving a multi-user group from a personal subscription login (Claude Pro/Max, ChatGPT Plus/Pro) may conflict with the provider's terms. For team use, choose an account type that permits it or API billing, and confirm compliance yourself.

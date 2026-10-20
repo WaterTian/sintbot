@@ -1,7 +1,7 @@
 // `sbot service` —— 把 `sbot start` 装成常驻服务:崩溃自动拉起、登录(或开机)自启。
 //
 // 平台:macOS = launchd LaunchAgent(GUI 域,随用户登录起)· Linux = systemd --user。
-// Windows 不自动装:服务化要第三方托管器(NSSM / pm2),这里只打印现成命令(docs/install.md)。
+// Windows 不自动装:服务化要第三方托管器(NSSM / pm2),这里只打印现成命令(docs/zh-CN/install.md)。
 //
 // 结构:单元文件全由纯函数生成(可单测、`--dry-run` 原样打印);真正动系统的只有 install /
 // uninstall / restart / status 里那几行 launchctl / systemctl,出错如实报、不吞。
@@ -152,7 +152,7 @@ function render(platform, spec) {
 function windowsHint(spec) {
   const cmd = [spec.nodeBin, ...spec.args].map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')
   return [
-    'Windows 上请用托管器把下面这条命令装成服务(任选其一,详见 docs/install.md):',
+    'Windows 上请用托管器把下面这条命令装成服务(任选其一,详见 docs/zh-CN/install.md):',
     '',
     `  命令:${cmd}`,
     '',

@@ -1,179 +1,190 @@
-# 安装
+# Install
 
-新用户用[一键安装](#一键安装)最省事;手动装就是三步:装包 → `sbot setup` → `sbot service install`。下面按平台补充细节。
+English · [简体中文](./zh-CN/install.md)
 
-## 一键安装
+The [one-line install](#one-line-install) is the easiest path for new users. A manual install takes three steps: install the package, run `sintbot setup`, then run `sintbot service install`. The sections below add platform-specific details.
 
-macOS / Linux(Linux 为实验性支持):
+The package installs two equivalent commands, `sintbot` and `sbot`.
+
+## One-line install
+
+On macOS and Linux (Linux support is experimental):
 
 ```bash
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-脚本依次做这些事,每一步先检查、已经有的跳过,要改系统的先问你(回车 = 同意):
+The script runs the steps below in order. Each step checks first and skips work that is already done, and anything that changes your system asks first (Enter means yes).
 
-1. **Node 22+**:没有或版本太旧时,Mac 上有 Homebrew 就用它装 / 升级;没有 Homebrew(或在 Linux 上)会给出 [nodejs.org](https://nodejs.org) 的下载地址后停下,装好 Node 再运行一次脚本。
-2. **npm 源**:你配过 npm 源就照用;还是官方源时先试连一下,连不上(国内常见)本次改用国内镜像 `registry.npmmirror.com`。
-3. **装 sintbot**:`npm i -g sintbot`。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
-4. **配置向导** `sintbot setup`:第一步检查 Claude Code,没装会问要不要现在装(见下一节);之后是地区、模型(当场试跑一轮)、聊天平台、项目根目录、第一个群。**先按 [platforms/](./platforms/) 建好机器人、拉进群**,向导里才有凭据可填。
-5. **常驻服务**:问要不要 `sintbot service install`(崩溃自动拉起、登录后自启)。
+1. **Node.js 22+.** If Node is missing or too old, the script installs or upgrades it with Homebrew on a Mac that has Homebrew. Otherwise (no Homebrew, or Linux), it prints the [nodejs.org](https://nodejs.org) download link and stops; install Node, then run the script again.
+2. **npm registry.** If you have configured a registry, the script uses it. If you are on the official registry, it first tests the connection. If the official registry is unreachable (common in mainland China), it uses the `registry.npmmirror.com` mirror for this run.
+3. **sintbot.** It runs `npm i -g sintbot`. If the global npm directory is not writable, it does not fall back to `sudo`; it prints the commands that move the global directory into your home folder.
+4. **Setup wizard**, `sintbot setup`. The first step checks for Claude Code and offers to install it if it is missing (see the next section). Then the wizard asks about your region, sets up a model with a live trial turn, and configures the chat platform, the projects folder and the first group. **Create the bot and add it to a group first** (see [platforms/](./platforms/)) so you have credentials to paste.
+5. **Service.** It asks whether to run `sintbot service install`, which restarts the daemon on crash and starts it at login.
 
-- 想先看看它会做什么:`curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`(只打印,不执行);脚本源码就是仓库根目录的 [install.sh](../install.sh)。
-- 没有可交互的终端时(如 CI),向导和常驻服务这两步会跳过,只装包。
-- Windows 不支持一键安装,按下面手动来。
+- To see what the script would do without changing anything, run `curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`. The script source is [install.sh](../install.sh) at the root of the repository.
+- Without an interactive terminal (for example in CI), the wizard and service steps are skipped and only the package is installed.
+- The one-line install does not support Windows; follow the manual steps below.
 
-## Claude Code:安装与登录
+## Claude Code: install and sign in
 
-SintBot 每一轮都调用本机的 `claude` 命令行干活(Codex 群调用 `codex`),所以这台机器上要有 Claude Code —— 用 DeepSeek 等模型时也一样,它是执行框架,只是不用登录。
+SintBot runs every turn through the `claude` CLI on this machine (Codex groups use `codex`), so Claude Code must be installed. This is true even if you only use DeepSeek or another API-key model: Claude Code is the agent framework, and in that case it needs no login.
 
-**安装**,任选一种:
+**Install it** in any of these ways:
 
-- 让向导装:`sbot setup` 第一步发现没装会问「现在安装 Claude Code?」,回车就装(就是下一条的 npm 命令,源连不上会自动换镜像)。
-- npm:`npm i -g @anthropic-ai/claude-code`(国内连不上官方源时加 `--registry https://registry.npmmirror.com`)。
-- 官方安装程序:见 [Claude Code 安装说明](https://code.claude.com/docs/zh-CN/setup)。
+- **Let the wizard do it.** If `sintbot setup` finds no Claude Code, it asks "Install Claude Code now?"; press Enter. It runs the npm command below and switches to the mirror when the official registry is unreachable.
+- **npm:** `npm i -g @anthropic-ai/claude-code`. If the official registry is unreachable, add `--registry https://registry.npmmirror.com`.
+- **The official installer:** see the [Claude Code setup guide](https://code.claude.com/docs/en/setup).
 
-装好后 `claude --version` 能打出版本号即可。升级用 `claude update`(npm 装的也可以 `npm i -g @anthropic-ai/claude-code@latest`)。
+When `claude --version` prints a version, you are done. Upgrade with `claude update` (or `npm i -g @anthropic-ai/claude-code@latest` for an npm install).
 
-**认证**,按要用的模型选一种:
+**Authenticate** according to the model you plan to use:
 
-| 要用的模型 | 怎么做 |
+| Model | What to do |
 |---|---|
-| DeepSeek / 智谱 GLM / MiniMax / 火山方舟等(用 API key) | **不用登录**,装好即可;key 在向导里粘贴,见 [models.md](./models.md#三步接上-deepseek-等模型) |
-| Claude,用订阅(Pro / Max) | 终端跑 `claude auth login`,在打开的浏览器里登录;`claude auth status` 查看是否已登录 |
-| Claude,用 Anthropic API key(按量计费) | `claude auth login --console`;或把 `ANTHROPIC_API_KEY` 放进守护进程的环境 |
+| DeepSeek, Zhipu GLM, MiniMax, Volcano Ark and other API-key models | **No login.** Paste the key in the wizard; see [models.md](./models.md#use-deepseek-or-another-api-key-model-in-three-steps) |
+| Claude, on a subscription (Pro / Max) | Run `claude auth login` and sign in in the browser that opens. `claude auth status` shows whether you are signed in |
+| Claude, on an Anthropic API key (pay as you go) | Run `claude auth login --console`, or put `ANTHROPIC_API_KEY` in the daemon's environment |
 
-- 没有屏幕的机器(如当服务器用的 Mac mini):用屏幕共享(`vnc://机器IP`)进桌面跑一次 `claude auth login`,登录态落盘后无人值守也能用。
-- 用个人订阅服务多人群聊的条款问题,见 [中文 README](../README.zh-CN.md#安全须知)的「安全须知」。
-- 验证:`claude --version` → `claude auth status`(用订阅时)→ `sbot agent run "用一句话自我介绍"`(先在终端试一轮,只读)。
+- **Headless machines** (such as a Mac mini used as a server): use Screen Sharing (`vnc://<machine-ip>`) to reach the desktop and run `claude auth login` once. The login is saved to disk, so the daemon keeps working unattended.
+- For the terms-of-service question around serving a group from a personal subscription, see [Security in the README](../README.md#security).
+- **To verify:** run `claude --version`, then `claude auth status` (subscription only), then `sintbot agent run "introduce yourself in one sentence"`, a read-only trial turn in the terminal.
 
-## 前置
+## Requirements
 
-| 要求 | 检查 | 说明 |
+| Requirement | Check | Notes |
 |---|---|---|
-| Node ≥ 22 | `node -v` | 当前 LTS 即可(浏览器接管页要用 Node 自带的 WebSocket) |
-| Claude Code | `claude --version` | 可以让 `sbot setup` 替你装;安装与登录见上一节。只用 DeepSeek 等 API key 模型的话装了不登录也行 |
-| Codex CLI(可选) | `codex --version` | 有 ChatGPT 账号才用得上:GPT 群与生图。`npm i -g @openai/codex` 后 `codex login`(浏览器 OAuth,要图形界面) |
+| Node.js ≥ 22 | `node -v` | The current LTS is fine. The browser takeover page needs Node's built-in WebSocket |
+| Claude Code | `claude --version` | `sintbot setup` can install it for you; see the previous section. With API-key models only, it can stay signed out |
+| Codex CLI (optional) | `codex --version` | Needed only with a ChatGPT account, for GPT groups and image generation. Run `npm i -g @openai/codex`, then `codex login` (browser OAuth, needs a desktop) |
 
-`sbot setup` 第一步会检查这三样:缺 Claude Code 会问要不要现在装(默认装),缺 Codex 也会问(默认不装);两者的登录状态在模型那一步一起显示。
+The first step of `sintbot setup` checks all three. If Claude Code is missing, it offers to install it (default: yes); if Codex is missing, it offers too (default: no). The login status of both is shown in the model step.
 
-## 1. 装包
+## 1. Install the package
 
 ```bash
 npm i -g sintbot
-sbot version
+sintbot version
 ```
 
-包名是 **`sintbot`**(npm 上叫 `sbot` 的是别人的包,别装错)。装出两个同义命令:`sbot` 和 `sintbot`。
+The package is **`sintbot`**. The `sbot` package on npm belongs to someone else, so do not install that one by mistake.
 
-> ⚠ 同一台机器同时有 Homebrew 的 node 和 nvm 的 node 时,`npm i -g` 装进的是**当前 shell 那份**。常驻服务用的是装服务那一刻的 node(`sbot service install` 会把路径写进服务),两者对不上就会出现「升级了但跑的还是旧版」。用 `sbot service install --dry-run` 看服务里写的是哪个 node。
+> ⚠ If the machine has both a Homebrew node and an nvm node, `npm i -g` installs into **the one your current shell uses**. The service uses whichever node was active when you ran `sintbot service install`, because that path is written into the service. When the two differ, you get "I upgraded but the old version is still running". Run `sintbot service install --dry-run` to see which node the service uses.
 
-从源码跑:
+To run from source:
 
 ```bash
 git clone https://github.com/WaterTian/sintbot.git && cd sintbot
 npm install
-npm link            # 可选:把 sbot 命令链到全局
+npm link            # optional: link the sintbot / sbot commands globally
 ```
 
-## 2. 配置:`sbot setup`
+## 2. Configure: `sintbot setup`
 
-交互式向导,回车即默认(方括号里的值,`(Y/n)` 大写的那个)。**开始前先按 [platforms/](./platforms/) 把机器人建好、拉进一个群**,向导里才有凭据可填、有群可绑。依次问:
+This is an interactive wizard; Enter accepts the default (the value in brackets, or the capital letter in `(Y/n)`). **Create the bot and add it to a group first** (see [platforms/](./platforms/)), so you have credentials to paste and a group to bind. The wizard asks, in order:
 
-1. **地区**:「这台机器在中国大陆吗?」(默认按系统时区猜)。决定有国际站的厂商连哪个站、要不要问代理、聊天平台推荐哪个
-2. **模型**:先显示 Claude 订阅、ChatGPT(Codex)的登录状态和已有 key 的模型,按这个顺序推荐:
-   - Claude 已登录 → 默认 Claude;否则 Codex 已登录 → 默认 Codex。此时只问要不要再加一个用 API key 的模型
-   - 都没有 → **推荐 DeepSeek**:告诉你去 platform.deepseek.com 拿 key,粘贴后**当场试跑一轮**。也可以选别家(智谱 GLM / MiniMax / 火山方舟)、另开终端登录 Claude 或 Codex 后回来重新检测,或先跳过
-   - 智谱 GLM、MiniMax 有国际站(Z.ai / minimax.io),会问 key 是哪个站开的 —— 选错会 401
-   - 试跑失败会说原因:key 不对、余额不足或没实名、连不上(是不是开着全局代理)、模型名不对;可以重新粘贴再试
-   - 有多个能用的模型时问默认用哪个(群里 `/model` 随时切);默认模型还没试跑过会问要不要试一轮
-   - 没装或没登录 codex 时,codex 预设和「额度用完自动切到 codex」不写进配置。Kimi 不在预设里,要在控制台「模型 · 库 → 添加模型 → 自定义」添加。见 [models.md](./models.md)
-   - **代理分流**:只有在中国大陆、且用到 Claude / ChatGPT 时才问。官方 Claude / ChatGPT 走代理,国内模型端点与飞书直连;`noProxy` 按你启用的 provider 自动生成
-3. **机器人名**:群里怎么称呼它(默认 SintBot)
-4. **聊天平台**:飞书 / Slack / 企业微信,空格分隔可多选(默认 `feishu`,在中国大陆推荐飞书;`none` = 先不接)。每个平台填完凭据会问**要不要预检**,默认是 —— 预检会用你填的凭据真连一次平台接口(飞书还会顺手填上 `botOpenId`;选否就让你手填,可留空,留空的后果见 [feishu.md](./platforms/feishu.md))。飞书另问要不要配管理员(建群时自动拉入)
-5. **项目根目录**:群项目都放这里面(默认 `~/Projects`,多个用 `;` 分隔,不存在会问要不要创建),控制台只认这里面的目录
-6. **绑第一个群**(可选,默认否):选平台 → 选群(飞书会用凭据调接口列出机器人所在的群,拉不到就手填群 ID;企业微信要先在群里 @ 过机器人,或者先跳过、之后在控制台选)→ 填项目目录(不存在会问要不要创建)→ 选模型
+1. **Region.** "Is this machine in mainland China?" The default is guessed from the system time zone. The answer decides which site to use for providers that have an international site, whether to ask about a proxy, and which chat platform to recommend.
+2. **Model.** The wizard first shows the login status of Claude and ChatGPT (Codex), plus any models whose keys are already set, then recommends in this order:
+   - If Claude is signed in, the default is Claude; otherwise, if Codex is signed in, the default is Codex. In either case it only asks whether to add an API-key model as well.
+   - If neither is signed in, it **recommends DeepSeek**: it tells you to get a key at platform.deepseek.com and **runs a trial turn** as soon as you paste it. You can also pick another provider (Zhipu GLM, MiniMax, Volcano Ark), sign in to Claude or Codex in another terminal and come back to re-check, or skip for now.
+   - Zhipu GLM and MiniMax have international sites (Z.ai and minimax.io), so the wizard asks which site issued your key. Choosing the wrong one gives a 401.
+   - If the trial turn fails, the wizard tells you why: a wrong key, an empty balance or missing identity verification, a network problem (is a global proxy on?), or a wrong model name. You can paste the key again and retry.
+   - If more than one model is usable, it asks which one is the default; groups can switch any time with `/model`. If the default model has not had a trial turn yet, it offers one.
+   - If Codex is not installed or not signed in, the Codex preset and the automatic fallback to Codex are left out of the config. Kimi is not a preset; add it in the console under Models → Add model → Custom. See [models.md](./models.md).
+   - **Proxy routing** is asked only in mainland China, and only when Claude or ChatGPT is in use. Official Claude and ChatGPT go through the proxy, while domestic model endpoints and Feishu connect directly; `noProxy` is generated from the providers you enabled.
+3. **Bot name**: what the bot is called in the group (default: SintBot).
+4. **Chat platforms**: Feishu, Slack and WeCom. Separate several with spaces; the default is `feishu`, which is also the recommendation in mainland China, and `none` skips this step. After each platform's credentials, the wizard offers a **precheck** (default: yes) that calls the platform's API with them. For Feishu, the precheck also fills in `botOpenId`; if you skip it, you can type the value or leave it empty (see [feishu.md](./platforms/feishu.md) for what an empty value means). For Feishu, the wizard also offers to set admins, who are added automatically to groups the bot creates.
+5. **Projects folder**: the folder that holds group projects (default `~/Projects`; separate several with `;`). If it does not exist, the wizard offers to create it. The console only accepts directories inside it.
+6. **First group** (optional, default: no):
+   - Choose the platform, then the group. For Feishu, the wizard lists the groups the bot is in; if that fails, type the group ID. For WeCom, @ the bot in the group first, or skip this and pick the group later in the console.
+   - Enter the project directory; the wizard offers to create it if it does not exist.
+   - Choose the model.
 
-配置写到 `~/.sbot/config.json`(权限 600);当前目录已有 `sbot.config.json` 时更新那份。再跑一次 `sbot setup` 只补缺项,不动已填的(飞书预检每次都会再问,可以借此补上 `botOpenId`)。之后的日常改动(绑群、切模型、权限)在控制台里做:`sbot ui`。
+The config is written to `~/.sbot/config.json` with permissions 600. If the current directory already has a `sbot.config.json`, that file is updated instead.
 
-向导最后自动跑 `sbot doctor`。✗(失败)必须处理,!(警告)看内容。
+Running `sintbot setup` again only fills in what is missing and leaves existing values alone. The Feishu precheck is offered every time, so you can use it to fill in `botOpenId`. For day-to-day changes such as binding groups, switching models and setting permissions, use the console: `sintbot ui`.
 
-## 3. 常驻:`sbot service install`
+The wizard ends by running `sintbot doctor`. Fix every ✗ (failure); read each ! (warning).
+
+## 3. Run as a service: `sintbot service install`
 
 ```bash
-sbot service install                      # 写入并启动服务
-sbot service install --ui-host 0.0.0.0    # 控制台对局域网开放(先 sbot ui --set-password)
-sbot service status | restart | logs | uninstall
+sintbot service install                      # write and start the service
+sintbot service install --ui-host 0.0.0.0    # open the console to the LAN (run sintbot ui --set-password first)
+sintbot service status | restart | logs | uninstall
 ```
 
-- **macOS**:写 `~/Library/LaunchAgents/com.sbot.daemon.plist`(LaunchAgent,随用户登录启动,崩溃 15 秒后拉起)
-- **Linux**(实验性:1.0 只用单元测试核对过生成的单元文件,没在真机上装过):写 `~/.config/systemd/user/sbot.service`;要开机就起(不必先登录)再跑一次 `loginctl enable-linger $USER`
-- 日志:`~/.sbot/logs/err.log`(`sbot service logs` 看末尾)
-- 服务里固定的是:node 的路径、sbot 入口、配置文件绝对路径,以及当前 shell 的 PATH(`claude` / `codex` 所在目录排最前)。**换了 node、挪了配置、新装了 claude 之后,重跑一次 `sbot service install`**
-- node 路径:Homebrew 装的 node 实际在带版本号的目录里,升级后旧路径就没了 —— install 会换成指向同一个程序、不带版本号的路径(如 `/opt/homebrew/bin/node`)。nvm / volta 这类找不到稳定路径的照用原路径,并提醒你换 node 版本后重装服务
-- 环境变量:服务里**没有**你 shell 里的变量。配置里写了 `"env:变量名"` 的,install 会点名哪些在服务里拿不到;加 `--pass-env` 把这些值写进服务定义(文件权限设为 600,`--dry-run` 打印时值是遮住的),或者干脆在配置里填明文(配置文件本身就是 600)
-- 控制台对外(`--ui-host` 非本机地址)而没设密码时,install 直接拒绝 —— 否则服务每次一启动就退出
-- ⚠ 装了服务就别再手动 `sbot start`:同一个系统用户只允许一个守护进程(锁文件 `~/.sbot/daemon.lock`),第二个会报出已在运行的那个的 pid 后退出。另一台机器或另一个系统用户用**同一个机器人应用**再起一个的话:飞书和 Slack 会把每条消息**随机交给其中一个连接**(另一个就收不到),企业微信则是新连接顶掉旧连接,10 分钟内被顶两次就不再重连
+- **macOS:** writes `~/Library/LaunchAgents/com.sbot.daemon.plist`, a LaunchAgent that starts at login and restarts 15 seconds after a crash.
+- **Linux** (experimental: in 1.0 the generated unit is covered by unit tests but has not been installed on a real machine): writes `~/.config/systemd/user/sbot.service`. To start at boot without logging in, also run `loginctl enable-linger $USER`.
+- **Logs:** `~/.sbot/logs/err.log`; `sintbot service logs` shows the tail.
+- **What the service pins:** the node path, the sintbot entry point, the absolute config path, and the PATH of your current shell (with the directories of `claude` and `codex` first). **After changing node, moving the config or newly installing claude, run `sintbot service install` again.**
+- **Node path:** a Homebrew node really lives in a versioned directory that disappears on upgrade, so install switches to an unversioned path to the same program (such as `/opt/homebrew/bin/node`). For nvm, volta and other managers without a stable path, it keeps the original path and reminds you to reinstall the service after changing node versions.
+- **Environment variables:** the service does **not** inherit your shell's variables. For every `"env:NAME"` in the config, install names the ones the service cannot see. You have two options:
+  - add `--pass-env` to write their values into the service definition (the file is set to 600, and `--dry-run` masks the values);
+  - put the values directly in the config, which is itself 600.
+- **Console exposure:** if the console is opened beyond this machine (`--ui-host` set to a non-loopback address) without a password, install refuses; otherwise the service would exit on every start.
+- ⚠ **Do not start a second daemon.** Once the service is installed, do not also run `sintbot start` by hand: only one daemon is allowed per OS user (lock file `~/.sbot/daemon.lock`), and a second one reports the running one's pid and exits. If another machine or OS user starts a daemon with **the same bot app**, Feishu and Slack hand each message **to one of the connections at random**, so the other never sees it. WeCom lets the new connection replace the old one, and a connection replaced twice within 10 minutes stops reconnecting.
 
-### 升级
+### Upgrade
 
 ```bash
-npm i -g sintbot@latest && sbot service restart
+npm i -g sintbot@latest && sintbot service restart
 ```
 
-重启会中止正在跑的轮次;被中止的那一轮在重启后自动重做,群里会说一声。最稳妥的做法是挑控制台「概览」里各群都空闲的时候重启。
+A restart aborts turns in progress. An aborted turn is redone automatically after the restart, and the group is told. The safest time to restart is when every group is idle on the console's Overview page.
 
-## macOS:当服务器用的 Mac mini
+## macOS: a Mac mini as a server
 
-无人值守要满足:不休眠、断电自恢复、重启后自动进桌面。
+Unattended use needs three things: no sleep, automatic restart after a power cut, and automatic login to the desktop after a reboot.
 
 ```bash
 sudo pmset -a sleep 0 disablesleep 1 autorestart 1 powernap 0
 ```
 
-再到「系统设置 → 用户与群组」打开**自动登录**。LaunchAgent 要有用户会话才会启动(它要读 `~/.claude` / `~/.codex` 的登录态和钥匙串),不开自动登录,重启后服务不会起来。
+Then turn on **automatic login** in System Settings → Users & Groups. A LaunchAgent only starts inside a user session, because it reads the logins in `~/.claude` and `~/.codex` and the keychain; without automatic login, the service does not come back after a reboot.
 
-`codex login` 要浏览器:用屏幕共享(`vnc://机器IP`)进桌面做一次,凭据落盘后无人值守也能用。
+`codex login` needs a browser. Do it once over Screen Sharing (`vnc://<machine-ip>`); the credentials are saved to disk and work unattended afterwards.
 
 ## Windows
 
-> 1.0 没有在 Windows 真机上验证过(持续集成只跑 Linux)。下面几条按代码行为写成,遇到问题请提 issue。
+> 1.0 has not been verified on a real Windows machine (CI runs Linux only). The notes below follow the code's behavior; please open an issue if something does not work.
 
-- `claude` 若是 npm 装的,实际是 `claude.cmd` 垫片 —— 已自动处理,配置里写 `claude` 即可
-- 服务化:`sbot service install` 在 Windows 上不自动装,而是打印 [NSSM](https://nssm.cc/) 与 pm2 的现成命令,照着执行即可。用 NSSM 时,API key 和代理变量要用 `nssm set SintBot AppEnvironmentExtra …` 带进服务环境
-- 项目根目录默认 `D:\Projects`(没有 D 盘则 `%USERPROFILE%\Projects`)
+- If `claude` was installed with npm, it is really a `claude.cmd` shim. This is handled automatically; just write `claude` in the config.
+- **Service:** on Windows, `sintbot service install` does not install anything. Instead it prints ready-made commands for [NSSM](https://nssm.cc/) and pm2; run them. With NSSM, pass API keys and proxy variables into the service environment with `nssm set SintBot AppEnvironmentExtra …`.
+- The default projects folder is `D:\Projects` (or `%USERPROFILE%\Projects` if there is no D: drive).
 
-## 代理
+## Proxies (mainland China)
 
-在中国大陆:官方 Claude、ChatGPT / Codex、Slack 要走代理,国内模型端点、飞书、企业微信直连。setup 里开「代理分流」后,配置里的 `proxy` 块会:
+In mainland China, official Claude, ChatGPT / Codex and Slack need a proxy, while domestic model endpoints, Feishu and WeCom connect directly. When proxy routing is enabled in setup, the config's `proxy` block is applied in two places:
 
-- 注入到每次 spawn 的 `claude` / `codex` 子进程(不覆盖 shell 里已有的值);
-- 也用于守护进程自己连 Slack(Node 的 `fetch` / WebSocket 不读 `HTTP_PROXY` 环境变量,所以单独处理)。
+- It is injected into every spawned `claude` / `codex` process, without overriding values already set in your shell.
+- The daemon also uses it for its own Slack connection. Node's `fetch` and WebSocket ignore `HTTP_PROXY`, so this is handled separately.
 
-**国内模型端点要直连**:DeepSeek、智谱、MiniMax、火山方舟绕到境外再连回来,既慢,也可能触发对方的风控。setup 开代理分流时,`noProxy` 会按你启用的 provider 自动生成;如果是自己在 shell 里配的代理,把这些域名加进 `NO_PROXY`:
+**Domestic model endpoints should connect directly.** Routing DeepSeek, Zhipu, MiniMax or Volcano Ark through a server abroad and back is slow and can trip the provider's risk controls. When setup enables proxy routing, `noProxy` is generated from the providers you enabled. If you set the proxy in your shell yourself, add these hosts to `NO_PROXY`:
 
 ```bash
 export NO_PROXY=api.deepseek.com,open.bigmodel.cn,api.minimaxi.com,ark.cn-beijing.volces.com,localhost,127.0.0.1
 ```
 
-验证代理通没通:`curl -I https://chatgpt.com/` 返回 403 就是通了(Cloudflare 拦裸 curl);超时或连接被拒才是不通。
+To check that the proxy works, run `curl -I https://chatgpt.com/`. A 403 means it works (Cloudflare blocks bare curl); a timeout or a refused connection means it does not.
 
-## 常见问题
+## Troubleshooting
 
-| 现象 | 原因与做法 |
+| Symptom | Cause and fix |
 |---|---|
-| 体检或群里报「未登录」/ `Not logged in` | 默认模型还是 `claude`,但这台机器没登录 Claude。只用 DeepSeek 等:重跑 `sbot setup` 选模型,或群里 `/model deepseek`、控制台给群换模型;要用 Claude 就跑 `claude auth login` |
-| 试跑报「key 不对」(401) | key 没复制完整,或 key 和站点不是同一个(智谱 / MiniMax 的中国大陆站与国际站互不通用)。重跑 `sbot setup` 重新选站点、粘贴 |
-| 报余额不足 / 未实名 | 到厂商后台充值、完成实名后再试 |
-| 很慢或连不上国内模型 | 开着全局代理(梯子)时请求会绕到境外:把模型域名设成直连,见上文「代理」 |
-| npm 安装很慢或失败 | 加 `--registry https://registry.npmmirror.com`;一键安装和向导会自动换 |
-| 全局安装报权限错误(EACCES) | 别用 sudo,把 npm 全局目录改到用户目录,做法见上文「一键安装」第 3 条 |
-| GitHub 打不开 | 中文介绍和安装步骤在[官网](https://sintbot.com/zh/)上都有;英文 README 在 [npmmirror 的包页](https://npmmirror.com/package/sintbot)上也能看到 |
-| 群里 @ 了没反应 | `sbot doctor` 看平台那几行;`sbot service logs` 看最近的错误 |
+| The health check or the group says "not logged in" / `Not logged in` | The default model is still `claude`, but this machine is not signed in to Claude. If you only use DeepSeek or another API-key model, run `sintbot setup` again and pick the model, send `/model deepseek` in the group, or change the group's model in the console. To use Claude, run `claude auth login` |
+| The trial turn says the key is wrong (401) | The key was not copied in full, or the key and the site do not match (Zhipu's and MiniMax's mainland and international sites do not share keys). Run `sintbot setup` again, choose the site and paste the key |
+| Insufficient balance / identity not verified | Top up or complete identity verification in the provider's console, then retry |
+| Domestic models are slow or unreachable | With a global proxy on, requests go abroad and back. Set the model hosts to connect directly; see [Proxies](#proxies-mainland-china) above |
+| npm installs are slow or fail | Add `--registry https://registry.npmmirror.com`; the one-line install and the wizard switch automatically |
+| A permission error (EACCES) on global install | Do not use `sudo`. Move the global npm directory into your home folder; see step 3 of [One-line install](#one-line-install) |
+| GitHub is unreachable | The Chinese introduction and install steps are on [the website](https://sintbot.com/zh/); the README is also on the [npmmirror package page](https://npmmirror.com/package/sintbot) |
+| No reply after @-mentioning the bot | Check the platform rows of `sintbot doctor`, and the latest errors in `sintbot service logs` |
 
-## 卸载
+## Uninstall
 
 ```bash
-sbot service uninstall
+sintbot service uninstall
 npm rm -g sintbot
-rm -rf ~/.sbot          # 配置、会话账本、日志都在这里;项目目录不受影响
+rm -rf ~/.sbot          # config, session ledger and logs live here; project directories are untouched
 ```
