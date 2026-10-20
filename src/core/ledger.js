@@ -17,8 +17,9 @@ function createLedger(file, log = () => {}) {
     file,
     append(rec) {
       try {
-        if (!dirReady) { fs.mkdirSync(path.dirname(file), { recursive: true }); dirReady = true }
-        fs.appendFile(file, JSON.stringify(rec) + '\n', (e) => { if (e) log('ledger append failed: ' + e.message) })
+        if (!dirReady) { fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 }); dirReady = true }
+        // 账本里有发送者和消息正文:新建时只给自己读写(mode 只在创建时生效,旧文件由 core/datadir 启动时收紧)
+        fs.appendFile(file, JSON.stringify(rec) + '\n', { mode: 0o600 }, (e) => { if (e) log('ledger append failed: ' + e.message) })
       } catch (e) {
         log('ledger append failed: ' + (e && e.message))
       }

@@ -27,6 +27,7 @@ const setupmodels = require('../src/setupmodels') // setup 模型步:推荐顺�
 const crypto = require('node:crypto')
 const { StateStore, atomicWriteJSON, withFileLock } = require('../src/core/store')
 const { createLedger } = require('../src/core/ledger')
+const { secureDataDir } = require('../src/core/datadir') // 状态目录 700、里面的账本 / 审计 / 日志 600(启动时收紧旧文件)
 const { createIssues, summarize, fingerprint } = require('../src/core/issues')
 const { pendingFile, writePending, takePending, resumable, resumePrompt, resumeNotice } = require('../src/core/pending')
 const quotaalert = require('../src/core/quotaalert') // 额度告警判定+文案(v0.11.8)
@@ -446,6 +447,9 @@ async function cmdStart(rest) {
   if (!groupCount) process.stderr.write(gray('warning: no groups bound — every message will get "not bound to a project"') + '\n')
 
   const statePath = path.join(os.homedir(), '.sbot', 'state.json')
+  // 先收紧权限再写任何东西:旧版本建的目录是 755、账本是 644,同机其他用户能读到群聊正文
+  let tightened = []
+  try { tightened = secureDataDir(path.dirname(statePath)) } catch (e) { process.stderr.write(yellow('warning: 收紧状态目录权限失败:' + (e && e.message)) + '\n') }
   // 单实例锁(src/core/instancelock.js):同一份状态只许一个 daemon —— 两个会抢同一个平台的消息
   const lock = require('../src/core/instancelock').acquire(path.join(path.dirname(statePath), 'daemon.lock'))
   if (!lock.ok) return die(`另一个 sbot 已在运行(pid ${lock.holder || '?'}${lock.cmd ? ' · ' + lock.cmd.slice(0, 80) : ''})—— 同一份状态只许一个 daemon,否则会抢同一个平台的消息。先停掉那个(装了服务就 sbot service uninstall / restart,或结束终端里的 sbot start)`)
@@ -459,6 +463,7 @@ async function cmdStart(rest) {
   const logTz = normalizeTz(cfg.timezone)
   const logStamp = () => fmtLogStamp(Date.now(), logTz)
   const log = (m) => process.stderr.write(gray(`[${logStamp()}] · ` + m) + '\n')
+  if (tightened.length) log(`状态目录权限已收紧(目录 700、文件 600):${tightened.length} 项`)
   let ui = null
   let platform = null // set below; the UI (created first) reads WS health through this ref(多平台路由器,src/platform/multi.js)
   // 把一条消息交给引擎:**合成消息**(控制台插话 / 定时任务 / 续做 / 画布确认)没有真实适配器,按 chatId 查出它所属平台的

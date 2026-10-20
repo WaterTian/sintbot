@@ -54,9 +54,9 @@ function writePending(file, records, log = () => {}) {
   const list = (Array.isArray(records) ? records : []).map(normalizeRecord).filter(Boolean).slice(0, MAX_RECORDS)
   if (!list.length) return 0
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
     const tmp = file + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify(list, null, 2))
+    fs.writeFileSync(tmp, JSON.stringify(list, null, 2), { mode: 0o600 }) // 存的是请求原文
     fs.renameSync(tmp, file)
     return list.length
   } catch (e) {

@@ -125,8 +125,8 @@ function createIssues(file, { log = () => {}, withFileLock = (f, fn) => fn(), ho
     try { return foldEvents(parseLines(fs.readFileSync(file, 'utf8'))) } catch { return [] }
   }
   const appendEvent = (ev) => {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.appendFileSync(file, JSON.stringify(ev) + '\n')
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
+    fs.appendFileSync(file, JSON.stringify(ev) + '\n', { mode: 0o600 }) // 反馈原文含群成员的话,同账本只给自己读
   }
   return {
     file,

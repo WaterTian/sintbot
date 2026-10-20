@@ -81,7 +81,7 @@ class StateStore {
     if (!this.data.groups) this.data.groups = {}
   }
 
-  _save() { atomicWriteJSON(this.file, this.data) }
+  _save() { atomicWriteJSON(this.file, this.data, { mode: 0o600 }) }
 
   _group(chatId) {
     return this.data.groups[chatId] || (this.data.groups[chatId] = {})

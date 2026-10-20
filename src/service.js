@@ -196,7 +196,7 @@ function install(spec, { platform = process.platform, home = os.homedir() } = {}
   if (!file) throw new Error('这个平台不支持自动安装服务')
   const text = render(platform, spec)
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.mkdirSync(spec.logDir, { recursive: true })
+  fs.mkdirSync(spec.logDir, { recursive: true, mode: 0o700 }) // 日志里有群消息摘要;顺带建出的 ~/.sbot 也是 700
   let backup = null
   if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') !== text) {
     backup = `${file}.bak-${new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)}`
