@@ -1036,6 +1036,25 @@ test('ui: POST /api/groups 只收规范绝对路径 —— 相对路径 / 含 ..
   })
 })
 
+test('ui: POST /api/groups 认 ~ —— 存展开后的绝对路径;~ 后带 .. 照样按「不规范」拒', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sbot-home-'))
+  fs.mkdirSync(path.join(home, 'Projects', 'p'), { recursive: true })
+  const prevHome = process.env.HOME
+  process.env.HOME = home // os.homedir() 每次现读 HOME
+  try {
+    const cfg = JSON.stringify({ agent: { maxConcurrent: 2 }, providers: { claude: {} }, groups: {}, projectsRoots: ['~/Projects'] })
+    await withServer(cfg, async ({ port, token, cfgPath }) => {
+      const H = { 'X-Sbot-Token': token, 'Content-Type': 'application/json' }
+      const post = async (b) => { const r = await rawReq(port, { method: 'POST', path: '/api/groups', headers: H, body: JSON.stringify(b) }); return { status: r.status, error: (JSON.parse(r.body) || {}).error || '' } }
+      let r = await post({ chatId: 'oc_t', workdir: '~/Projects/x/../p' })
+      assert.equal(r.status, 400); assert.match(r.error, /规范/)
+      r = await post({ chatId: 'oc_t', workdir: '~/Projects/p' })
+      assert.equal(r.status, 200, r.error)
+      assert.equal(JSON.parse(fs.readFileSync(cfgPath, 'utf8')).groups.oc_t.workdir, path.join(home, 'Projects', 'p'))
+    })
+  } finally { if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome }
+})
+
 test('listDirs/makeDir: createMissing 只补建默认根;配置指定的根缺失不建、直接报错;不替人建多级父目录;点开头的名字拒', () => {
   const t = fs.mkdtempSync(path.join(os.tmpdir(), 'sbot-cm-')); const ghost = path.join(t, 'Projects')
   assert.throws(() => listDirs('', ghost, { createMissing: false }), /无法读取目录/)

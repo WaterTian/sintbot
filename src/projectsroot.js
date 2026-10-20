@@ -143,4 +143,20 @@ function withinRoots(p, roots, platform = process.platform) {
 // 给人看的根目录清单文案(多根用「或」连)。
 function describeRoots(roots) { return (roots || []).join(' 或 ') }
 
-module.exports = { norm, expandHome, defaultProjectsRoot, tooWideReason, parseRootsInput, resolveProjectsRoots, realpathLenient, samePath, withinRoots, describeRoots }
+// 绑定群目录时的输入归一(向导与控制台保存绑定同一份):先展开 `~`;只收规范的绝对路径 —— 相对路径会随
+// daemon 的 cwd 漂,含 `.`/`..` 段或重复分隔符的写法直接拒,不替人猜(`proj/link/..` 字面在根内、内核在
+// 链接指向处)。返回 { path }(展开后的绝对路径)或 { error }(给人看的中文)。
+function workdirInput(input, { home = os.homedir(), platform = process.platform } = {}) {
+  const s = typeof input === 'string' ? input.trim() : ''
+  if (!s) return { error: 'workdir 为空' }
+  const pp = P(platform)
+  // 不用 expandHome:它经 path.join 拼接,会把 `~/a/../b` 里的 `..` 消掉,下面的规范性检查就看不到了
+  const p = s === '~' ? home : /^~[\\/]/.test(s) ? home.replace(/[\\/]+$/, '') + pp.sep + s.slice(2) : s
+  if (!pp.isAbsolute(p)) return { error: `workdir 要写绝对路径(可以用 ~ 开头): ${p}` }
+  const tidy = p.replace(/[\\/]+$/, '') || p
+  const cmp = platform === 'win32' ? tidy.replace(/\//g, '\\') : tidy
+  if (pp.normalize(cmp) !== cmp) return { error: `workdir 请写规范的绝对路径(不含 . 或 .. 段、不重复分隔符): ${p}` }
+  return { path: p }
+}
+
+module.exports = { norm, expandHome, defaultProjectsRoot, tooWideReason, parseRootsInput, resolveProjectsRoots, realpathLenient, samePath, withinRoots, describeRoots, workdirInput }

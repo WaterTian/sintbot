@@ -12,7 +12,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const { DEFAULT_TZ, normalizeTz } = require('./core/time')
-const { resolveProjectsRoots } = require('./projectsroot')
+const { resolveProjectsRoots, expandHome } = require('./projectsroot')
 const { setKnownSecrets } = require('./core/redact')
 
 const DEFAULTS = {
@@ -88,6 +88,12 @@ function loadConfig(explicit) {
     providers: { ...DEFAULTS.providers, ...(user.providers || {}) },
     groups: { ...DEFAULTS.groups, ...(user.groups || {}) },
     _path: p,
+  }
+
+  // 群目录认 `~`:1.0.0–1.0.2 的向导把输入原样存进配置,`~/x` 成了字面路径(轮次会在 daemon 的 cwd 下找一个叫 `~` 的目录)。
+  // 只在内存里展开,配置文件不改 —— 控制台重新保存该群时写成绝对路径。
+  for (const [id, g] of Object.entries(cfg.groups)) {
+    if (g && typeof g.workdir === 'string' && /^~(?:[\\/]|$)/.test(g.workdir.trim())) cfg.groups[id] = { ...g, workdir: expandHome(g.workdir) }
   }
 
   // Resolve apiKey secrets up front so consumers get plain values.

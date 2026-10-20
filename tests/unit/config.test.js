@@ -287,3 +287,13 @@ test('示例配置:codex 预设不写 model,跟随 codex 自己的默认', () =>
   assert.equal(ex.providers.codex.model, undefined)
   assert.equal(ex.providers.claude.model, undefined, 'claude 预设同样不钉')
 })
+
+test('config: 群 workdir 以 ~ 开头的在内存里展开(修 1.0.2 及以前向导原样存下的 ~/x),别的不动', () => {
+  const file = writeCfg({ groups: { oc_a: { workdir: '~/Projects/a', provider: 'claude' }, oc_b: { workdir: '/srv/b' }, oc_c: { workdir: '~x' } } })
+  const cfg = loadConfig(file)
+  assert.equal(cfg.groups.oc_a.workdir, path.join(os.homedir(), 'Projects', 'a'))
+  assert.equal(cfg.groups.oc_a.provider, 'claude')
+  assert.equal(cfg.groups.oc_b.workdir, '/srv/b')
+  assert.equal(cfg.groups.oc_c.workdir, '~x')
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).groups.oc_a.workdir, '~/Projects/a') // 文件不改
+})

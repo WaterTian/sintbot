@@ -156,3 +156,17 @@ test('projectsroot: parseRootsInput —— 换行或 ; 分隔,去空白去空项
   assert.deepEqual(pr.parseRootsInput('D:\\Projects;E:\\Work'), ['D:\\Projects', 'E:\\Work'])
   assert.deepEqual(pr.parseRootsInput(''), []); assert.deepEqual(pr.parseRootsInput(null), [])
 })
+
+test('projectsroot: workdirInput —— 认 ~ 并返回展开后的绝对路径;相对路径、~ 后的 . / .. 段、重复分隔符都拒', () => {
+  const o = { home: '/home/u', platform: 'linux' }
+  assert.deepEqual(pr.workdirInput('~/Projects/a', o), { path: '/home/u/Projects/a' })
+  assert.deepEqual(pr.workdirInput('  ~/p  ', o), { path: '/home/u/p' })
+  assert.deepEqual(pr.workdirInput('/srv/x/', o), { path: '/srv/x/' })
+  assert.match(pr.workdirInput('rel/x', o).error, /绝对路径/)
+  assert.match(pr.workdirInput('~x', o).error, /绝对路径/)            // ~user 写法不认
+  assert.match(pr.workdirInput('~/a/../b', o).error, /规范/)         // .. 不能被展开时的拼接悄悄消掉
+  assert.match(pr.workdirInput('/a//b', o).error, /规范/)
+  assert.match(pr.workdirInput('', o).error, /为空/)
+  assert.match(pr.workdirInput(null, o).error, /为空/)
+  assert.deepEqual(pr.workdirInput('~\\p', { home: 'C:\\Users\\u', platform: 'win32' }), { path: 'C:\\Users\\u\\p' })
+})

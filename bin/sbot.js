@@ -13,7 +13,7 @@ const path = require('node:path')
 const readline = require('node:readline')
 const { parseArgs } = require('node:util')
 const { loadConfig, findConfigPath, defaultConfigPath, applyProxyEnv, deriveNoProxy, resolveSecret, platformsConfigured, chatPlatform } = require('../src/config')
-const { resolveProjectsRoots, withinRoots, describeRoots, parseRootsInput } = require('../src/projectsroot')
+const { resolveProjectsRoots, withinRoots, describeRoots, parseRootsInput, expandHome, workdirInput } = require('../src/projectsroot')
 // Runner dispatch (keeps core/engine agnostic — it only sees `{ runTurn }`): a provider
 // with `runner: "codex"` drives Codex CLI (GPT, Route B), else Claude Code. Shared with
 // the UI server so 测试/试跑 route the same way. See DESIGN §1 / docs/CODEX-RUNNER.md.
@@ -351,7 +351,7 @@ async function cmdAgentRun(rest) {
       prompt,
       provider,
       model: values.model,
-      workdir: values.workdir,
+      workdir: values.workdir ? expandHome(values.workdir) : undefined, // `-C '~/x'` 带引号时 shell 不展开
       sessionId: values.resume,
       permissionMode: 'dontAsk', // one-shot CLI: fail-closed floor (no global setting; per-group modes live on the console cards)
       // one-shot CLI has no project context ⇒ no allow list (read-only under dontAsk).
@@ -385,7 +385,7 @@ async function cmdChat(rest) {
   applyProxyEnv(cfg)
   const provName = values.provider || cfg.defaultProvider
   if (!cfg.providers[provName]) return die(`unknown provider '${provName}' (have: ${Object.keys(cfg.providers).join(', ')})`)
-  const workdir = path.resolve(values.workdir || process.cwd())
+  const workdir = path.resolve(expandHome(values.workdir || '') || process.cwd()) // `-C '~/x'` 带引号时 shell 不展开
   // Permissions are per-project; grant this ad-hoc session's tools explicitly via
   // --allow/--deny (comma-separated). Omit ⇒ read-only under dontAsk. Scoped to workdir.
   const asList = (s) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : undefined)
@@ -1710,7 +1710,15 @@ async function cmdSetup(rest) {
       } else {
         chatId = await ask('群 chatId (如 oc_xxx;配了飞书可自动列群供选)', '')
       }
-      const workdir = await ask(`项目 workdir 绝对路径(在 ${describeRoots(resolveProjectsRoots(raw).roots)} 下)`, '')
+      // 认 `~`、存展开后的绝对路径;写错了当场重问(1.0.2 及以前原样收下 `~/x`,在当前目录建出一个叫 `~` 的文件夹)
+      let workdir = ''
+      for (;;) {
+        const input = await ask(`项目 workdir 绝对路径(在 ${describeRoots(resolveProjectsRoots(raw).roots)} 下,可以用 ~ 开头;留空跳过)`, '')
+        if (!input) break
+        const wd = workdirInput(input)
+        if (wd.path) { workdir = wd.path; break }
+        process.stdout.write(red('  ' + wd.error) + '\n')
+      }
       // 项目根目录围栏在向导里只提醒不拦:向导与手改配置文件是同一条 operator 路,但要让他知道
       // 控制台不会认这样的绑定、doctor 会一直提示(围栏判据与控制台同源,src/projectsroot.js)
       if (workdir) {

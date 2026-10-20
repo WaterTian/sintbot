@@ -1393,20 +1393,17 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         catch (e) { return sendJSON(res, 400, { error: (e && e.message) || String(e) }) }
       }
       if (p === '/api/groups' && req.method === 'POST') {
-        const { chatId, workdir, provider, model, name, platform } = await body(req)
-        if (!chatId || !workdir) return sendJSON(res, 400, { error: 'chatId 与 workdir 必填' })
+        const { chatId, workdir: workdirIn, provider, model, name, platform } = await body(req)
+        if (!chatId || !workdirIn) return sendJSON(res, 400, { error: 'chatId 与 workdir 必填' })
         if (platform !== undefined && platform !== '' && !PLATFORMS.includes(platform)) return sendJSON(res, 400, { error: `platform 只认 ${PLATFORMS.join(' / ')}` })
         // 显式平台与 id 形态打架(oc_ 标企微 / wr… 标飞书)一定是弹窗档位没切对,不替人猜、直接拒(对抗审查:改既有群时会把企微群改写成飞书)
         // ⚠ Slack 形态不拿来拒:企微单聊 userid 可能恰好长成 C…/D… 大写串,只有 oc_ / wr 这两种强形态才判冲突
         if (PLATFORMS.includes(platform) && inferChatPlatform(chatId) && inferChatPlatform(chatId) !== 'slack' && inferChatPlatform(chatId) !== platform) return sendJSON(res, 400, { error: `这个群 id 看着是${inferChatPlatform(chatId) === 'wecom' ? '企业微信' : '飞书'}的,与所选平台不符 — 在弹窗顶部切到对的平台再保存` })
-        // 只收规范的绝对路径:相对路径会随 daemon 的 cwd 漂;含 `.`/`..` 段或重复分隔符的写法直接拒,不替人猜 ——
-        // `proj/link/..` 字面在根内、内核在链接指向处,存下这个字符串等于把围栏交给内核去反着解释(对抗审查 🔴)。
-        if (!path.isAbsolute(workdir)) return sendJSON(res, 400, { error: `workdir 要写绝对路径: ${workdir}` })
-        {
-          const tidy = workdir.replace(/[\\/]+$/, '') || workdir
-          const cmp = process.platform === 'win32' ? tidy.replace(/\//g, '\\') : tidy
-          if (path.normalize(cmp) !== cmp) return sendJSON(res, 400, { error: `workdir 请写规范的绝对路径(不含 . 或 .. 段、不重复分隔符): ${workdir}` })
-        }
+        // 只收规范的绝对路径(认 `~`,存展开后的):相对路径会随 daemon 的 cwd 漂;含 `.`/`..` 段或重复分隔符的写法直接拒,
+        // 不替人猜 —— `proj/link/..` 字面在根内、内核在链接指向处,存下这个字符串等于把围栏交给内核去反着解释(对抗审查 🔴)。
+        const wd = projectsroot.workdirInput(String(workdirIn))
+        if (wd.error) return sendJSON(res, 400, { error: wd.error })
+        const workdir = wd.path
         // Fail here, not at the first task: a binding to a missing
         // directory would only surface when a turn tries to run in it.
         if (!fs.existsSync(workdir)) return sendJSON(res, 400, { error: `workdir 不存在: ${workdir}` })
