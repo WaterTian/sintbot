@@ -1,12 +1,12 @@
 <p align="center">
-  <a href="https://sintbot.com/zh/"><picture><source srcset="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/hero-zh.svg" type="image/svg+xml"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/banner-zh.png" alt="SintBot —— 群项目 AI 守护进程,跑在你自己的机器上" width="880"></picture></a>
+  <a href="https://sintbot.com/zh/"><picture><source srcset="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/hero-zh.svg" type="image/svg+xml"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/banner-zh.png" alt="SintBot —— 群项目 AI 守护进程,跑在你自己的机器上" width="880"></picture></a>
 </p>
 
 <p align="center"><b>一群一项目,一句话就开工;模型随时换,记忆不丢;全程在你自己的机器上。</b></p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/sintbot"><img src="https://img.shields.io/npm/v/sintbot?style=flat-square&color=d68f44" alt="npm 版本"></a>
-  <a href="https://github.com/WaterTian/sintbot/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/WaterTian/sintbot/test.yml?branch=main&style=flat-square&label=tests" alt="测试"></a>
+  <a href="https://github.com/sintlab/sintbot/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/sintlab/sintbot/test.yml?branch=main&style=flat-square&label=tests" alt="测试"></a>
   <img src="https://img.shields.io/node/v/sintbot?style=flat-square" alt="Node 版本">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT 许可"></a>
 </p>
@@ -15,7 +15,7 @@
   <a href="https://sintbot.com/zh/">官网</a> ·
   <a href="./README.md">English</a> ·
   <a href="./docs/zh-CN/install.md">安装说明</a> ·
-  <a href="https://github.com/WaterTian/sintbot/releases">版本发布</a>
+  <a href="https://github.com/sintlab/sintbot/releases">版本发布</a>
 </p>
 
 ---
@@ -26,7 +26,7 @@ SintBot 是一个跑在你自己机器上的守护进程,把能写代码的 AI �
 
 ## 怎么跑
 
-<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/how-it-works-zh.svg" alt="群(飞书、Slack 或企业微信)→ 你机器上的 SintBot → 项目目录里的 Claude Code 或 Codex → 这个群选的模型;进度与结果回到群里" width="880"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/how-it-works-zh.svg" alt="群(飞书、Slack 或企业微信)→ 你机器上的 SintBot → 项目目录里的 Claude Code 或 Codex → 这个群选的模型;进度与结果回到群里" width="880"></p>
 
 - **一群一项目。** 每个群各有自己的项目目录、会话、排队、权限和定时任务。
 - **同一套 agent,任意大脑。** 群里发 `/model` 就能换模型。项目的 `CLAUDE.md`、`AGENTS.md` 和记忆目录会交给接下来运行的 agent。
@@ -91,7 +91,7 @@ sintbot service install   # 崩溃自动拉起、登录后自启
 | **控制台** | 一个本地网页管所有群:项目、模型、权限、设计库、实时活动、版本历史。界面中英文可切。 |
 | **运维** | 每轮最长 30 分钟,全局最多同时两轮。被重启打断的轮次会自动重做。另有 `sintbot doctor` 体检、运维告警群、额度提醒。 |
 
-<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/design-styles.png" alt="16 套内置设计风格" width="560"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/design-styles.png" alt="16 套内置设计风格" width="560"></p>
 
 ## 常用命令
 
@@ -115,7 +115,7 @@ sintbot help                      # 全部命令
 | **Windows** | 未验证。手动安装;`sintbot service install` 会打印 NSSM 与 pm2 的现成命令。 |
 | **企业微信** | 三个平台里最新接入的,真实环境里用得最少。 |
 | **Slack** | 原生 Stop 按钮、`!status`、线程里的按钮有测试覆盖,但真实环境里用得还少。 |
-| **Kimi** | 还不是预设,也还没实测过。在控制台「模型 · 库 → 添加模型 → 自定义」添加;用过的话欢迎[反馈结果](https://github.com/WaterTian/sintbot/issues)。 |
+| **Kimi** | 还不是预设,也还没实测过。在控制台「模型 · 库 → 添加模型 → 自定义」添加;用过的话欢迎[反馈结果](https://github.com/sintlab/sintbot/issues)。 |
 
 这里的飞书指中国版(open.feishu.cn);国际版 Lark(larksuite.com)是另一套开放平台,目前还不支持。
 
@@ -168,14 +168,14 @@ sintbot help                      # 全部命令
 
 ## 反馈
 
-碰到问题或想要新功能,请到 [GitHub Issues](https://github.com/WaterTian/sintbot/issues) 提。请附上以下信息,贴之前先遮掉密钥:
+碰到问题或想要新功能,请到 [GitHub Issues](https://github.com/sintlab/sintbot/issues) 提。请附上以下信息,贴之前先遮掉密钥:
 
 - `sintbot version`
 - 系统
 - 聊天平台
 - `sintbot doctor` 的输出
 
-安全问题请通过 [GitHub 私密漏洞报告](https://github.com/WaterTian/sintbot/security/advisories/new)私下提交,别发公开 issue,详见 [SECURITY.md](./SECURITY.zh-CN.md)。
+安全问题请通过 [GitHub 私密漏洞报告](https://github.com/sintlab/sintbot/security/advisories/new)私下提交,别发公开 issue,详见 [SECURITY.md](./SECURITY.zh-CN.md)。
 
 ## 许可
 

@@ -53,10 +53,10 @@
   "homepage": "https://sintbot.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/WaterTian/sintbot.git"
+    "url": "git+https://github.com/sintlab/sintbot.git"
   },
   "bugs": {
-    "url": "https://github.com/WaterTian/sintbot/issues"
+    "url": "https://github.com/sintlab/sintbot/issues"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.76.0",

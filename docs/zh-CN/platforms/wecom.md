@@ -4,7 +4,7 @@
 
 走「智能机器人 · API 模式 · 长连接」,不需要公网地址,企业不需要认证。
 
-> 现状:企业微信是三个平台里最新接入的,真实环境里用得最少。用着不对请[提 issue](https://github.com/WaterTian/sintbot/issues)。
+> 现状:企业微信是三个平台里最新接入的,真实环境里用得最少。用着不对请[提 issue](https://github.com/sintlab/sintbot/issues)。
 
 ## 建机器人
 

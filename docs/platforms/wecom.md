@@ -4,7 +4,7 @@ English · [简体中文](../zh-CN/platforms/wecom.md)
 
 SintBot connects as a WeCom smart bot in API mode over a long connection. No public address is needed, and the organization does not need to be verified.
 
-> **Status:** WeCom is the newest of the three platforms and has seen the least real-world use. If something does not work, please [open an issue](https://github.com/WaterTian/sintbot/issues).
+> **Status:** WeCom is the newest of the three platforms and has seen the least real-world use. If something does not work, please [open an issue](https://github.com/sintlab/sintbot/issues).
 
 The WeCom client and admin console are in Chinese; the menu names are given in Chinese with English translations.
 

@@ -73,7 +73,7 @@ sintbot version
 从源码跑:
 
 ```bash
-git clone https://github.com/WaterTian/sintbot.git && cd sintbot
+git clone https://github.com/sintlab/sintbot.git && cd sintbot
 npm install
 npm link            # 可选:把 sbot 命令链到全局
 ```

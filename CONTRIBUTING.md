@@ -5,7 +5,7 @@ English · [简体中文](./CONTRIBUTING.zh-CN.md)
 ## Getting it running
 
 ```bash
-git clone https://github.com/WaterTian/sintbot.git && cd sintbot
+git clone https://github.com/sintlab/sintbot.git && cd sintbot
 npm install
 npm test                                   # zero-dependency node --test; CI runs Node 22 / 24 / 26
 node bin/sbot.js chat -C /path/to/project  # simulate group messages in the terminal, no chat platform needed

@@ -4,7 +4,7 @@ English · [简体中文](./zh-CN/features.md)
 
 > What each group's agent can do, and how to use the console. For the full options of any command, run `sintbot <command> --help`. The linked deep-dive docs (whiteboard, icons, previews, browser, public access) are in Chinese for now.
 
-<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/slack-thread.svg" alt="A turn in a Slack thread: Lin asks SintBot to look into a 500 on staging; it acknowledges, reports progress in the thread from reading logs to running tests, then posts the cause and the pull request it opened" width="760"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/slack-thread.svg" alt="A turn in a Slack thread: Lin asks SintBot to look into a 500 on staging; it acknowledges, reports progress in the thread from reading logs to running tests, then posts the cause and the pull request it opened" width="760"></p>
 
 ## What every group project gets
 

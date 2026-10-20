@@ -4,7 +4,7 @@ English · [简体中文](../zh-CN/platforms/slack.md)
 
 SintBot connects over Socket Mode, so no public address is needed, and it works on free Slack workspaces.
 
-> **Status:** `!status`, the native Stop button and the Stop / Skip / Status buttons in threads have unit tests but have not yet been used by real people in a real workspace. If something does not work, please [open an issue](https://github.com/WaterTian/sintbot/issues).
+> **Status:** `!status`, the native Stop button and the Stop / Skip / Status buttons in threads have unit tests but have not yet been used by real people in a real workspace. If something does not work, please [open an issue](https://github.com/sintlab/sintbot/issues).
 
 ## Create the app
 

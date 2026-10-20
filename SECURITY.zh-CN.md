@@ -4,7 +4,7 @@
 
 ## 报告漏洞
 
-请**不要**在公开 issue 里报安全问题。用 GitHub 的 [私密漏洞报告](https://github.com/WaterTian/sintbot/security/advisories/new),或发邮件到 support@sintbot.com。
+请**不要**在公开 issue 里报安全问题。用 GitHub 的 [私密漏洞报告](https://github.com/sintlab/sintbot/security/advisories/new),或发邮件到 support@sintbot.com。
 
 请附上:影响的版本、复现步骤、你判断的影响面。我们会尽快回复。
 

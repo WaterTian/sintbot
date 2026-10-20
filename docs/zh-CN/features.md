@@ -4,7 +4,7 @@
 
 > 每个群的 agent 能做什么、控制台怎么用。命令的完整参数用 `sbot <命令> --help` 查。
 
-<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/slack-thread-zh.svg" alt="Slack 线程里的一轮:Lin 请 SintBot 查 staging 上的 500;它先回一句收到,在线程里从读日志到跑测试逐步报进度,最后给出原因和它开的 PR" width="760"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/slack-thread-zh.svg" alt="Slack 线程里的一轮:Lin 请 SintBot 查 staging 上的 500;它先回一句收到,在线程里从读日志到跑测试逐步报进度,最后给出原因和它开的 PR" width="760"></p>
 
 ## 群项目基础能力
 

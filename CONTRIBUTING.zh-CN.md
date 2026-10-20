@@ -5,7 +5,7 @@
 ## 跑起来
 
 ```bash
-git clone https://github.com/WaterTian/sintbot.git && cd sintbot
+git clone https://github.com/sintlab/sintbot.git && cd sintbot
 npm install
 npm test                                   # 零依赖 node --test,CI 跑 Node 22 / 24 / 26
 node bin/sbot.js chat -C /path/to/project  # 不接聊天平台,终端里模拟群消息

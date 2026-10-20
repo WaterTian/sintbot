@@ -7,7 +7,7 @@
 # 做的事:Node ≥ 22 → npm i -g sintbot → sintbot setup(向导里会问要不要装 Claude Code)
 #        →(可选)装成常驻服务。每一步先检查,已有就跳过;要动系统的先问。不用 sudo。
 # 国内网络:npm 官方源连不上时自动改用 npmmirror;你自己配过 npm 源就照用。
-# 源码与说明:https://github.com/WaterTian/sintbot(docs/install.md;中文 docs/zh-CN/install.md「一键安装」)
+# 源码与说明:https://github.com/sintlab/sintbot(docs/install.md;中文 docs/zh-CN/install.md「一键安装」)
 #
 # 输出语言:LC_ALL / LC_MESSAGES / LANG 以 zh 开头用中文,其余英文;SINTBOT_LANG=zh|en 可强制。
 #   英文模式先指 Slack 的建应用指南(海外多用 Slack),中文模式指飞书(国内推荐)。配置向导目前只有中文。
@@ -176,13 +176,13 @@ step_setup() {
   if [ "$L" = zh ]; then
     say "  向导会依次检查 Claude Code(没装会问要不要装)、配模型(没有 Claude 订阅就推荐 DeepSeek,粘贴 key 当场试跑)、接聊天平台、绑第一个群。"
     say "  先建好机器人并拉进群,向导里才有凭据可填(国内推荐飞书):"
-    say "  https://github.com/WaterTian/sintbot/tree/main/docs/zh-CN/platforms"
+    say "  https://github.com/sintlab/sintbot/tree/main/docs/zh-CN/platforms"
   else
     say "  The wizard checks Claude Code (offers to install it), sets up a model (DeepSeek is suggested if you have no Claude subscription; the key is tested on the spot), connects a chat platform and binds your first group."
     say "  The wizard is in Chinese for now; docs/install.md explains each question in English:"
-    say "  https://github.com/WaterTian/sintbot/blob/main/docs/install.md#2-configure-sintbot-setup"
+    say "  https://github.com/sintlab/sintbot/blob/main/docs/install.md#2-configure-sintbot-setup"
     say "  Create the bot and add it to a group first, so you have its credentials ready. Slack guide:"
-    say "  https://github.com/WaterTian/sintbot/blob/main/docs/platforms/slack.md   (Feishu and WeCom: docs/platforms/)"
+    say "  https://github.com/sintlab/sintbot/blob/main/docs/platforms/slack.md   (Feishu and WeCom: docs/platforms/)"
   fi
   run sintbot setup < "$TTY"
 }
@@ -209,7 +209,7 @@ step_done() {
     say "  $(t '· 要常驻(崩溃自动拉起、登录后自启):sintbot service install' '· To keep it running (restarts on crash, starts at login): sintbot service install')"
     say "  $(t '· 跑起来后,在群里 @ 机器人说一句话' '· Once it is running, @mention the bot in your group')"
   fi
-  say "  $(t '· 文档:https://github.com/WaterTian/sintbot' '· Docs: https://github.com/WaterTian/sintbot')"
+  say "  $(t '· 文档:https://github.com/sintlab/sintbot' '· Docs: https://github.com/sintlab/sintbot')"
 }
 
 main "$@"

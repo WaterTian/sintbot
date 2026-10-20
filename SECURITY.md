@@ -4,7 +4,7 @@ English · [简体中文](./SECURITY.zh-CN.md)
 
 ## Reporting a vulnerability
 
-Please **do not** report security issues in public issues. Use GitHub's [private vulnerability reporting](https://github.com/WaterTian/sintbot/security/advisories/new), or email support@sintbot.com.
+Please **do not** report security issues in public issues. Use GitHub's [private vulnerability reporting](https://github.com/sintlab/sintbot/security/advisories/new), or email support@sintbot.com.
 
 Please include:
 

@@ -1,12 +1,12 @@
 <p align="center">
-  <a href="https://sintbot.com"><picture><source srcset="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/hero.svg" type="image/svg+xml"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/banner.png" alt="SintBot — the group-project AI daemon, running on your own machine" width="880"></picture></a>
+  <a href="https://sintbot.com"><picture><source srcset="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/hero.svg" type="image/svg+xml"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/banner.png" alt="SintBot — the group-project AI daemon, running on your own machine" width="880"></picture></a>
 </p>
 
 <p align="center"><b>Say it in the group. Any model, one memory. On your own machine.</b></p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/sintbot"><img src="https://img.shields.io/npm/v/sintbot?style=flat-square&color=d68f44" alt="npm version"></a>
-  <a href="https://github.com/WaterTian/sintbot/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/WaterTian/sintbot/test.yml?branch=main&style=flat-square&label=tests" alt="tests"></a>
+  <a href="https://github.com/sintlab/sintbot/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/sintlab/sintbot/test.yml?branch=main&style=flat-square&label=tests" alt="tests"></a>
   <img src="https://img.shields.io/node/v/sintbot?style=flat-square" alt="node version">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license"></a>
 </p>
@@ -15,7 +15,7 @@
   <a href="https://sintbot.com">Website</a> ·
   <a href="./README.zh-CN.md">简体中文</a> ·
   <a href="./docs/install.md">Install guide</a> ·
-  <a href="https://github.com/WaterTian/sintbot/releases">Releases</a>
+  <a href="https://github.com/sintlab/sintbot/releases">Releases</a>
 </p>
 
 ---
@@ -26,7 +26,7 @@ Each turn runs the official **Claude Code** or **Codex** CLI headless, so tools,
 
 ## How it works
 
-<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/how-it-works.svg" alt="Group (Slack, Feishu or WeCom) → SintBot on your machine → Claude Code or Codex in the project directory → the model chosen for that group; progress and results flow back to the group" width="880"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/how-it-works.svg" alt="Group (Slack, Feishu or WeCom) → SintBot on your machine → Claude Code or Codex in the project directory → the model chosen for that group; progress and results flow back to the group" width="880"></p>
 
 - **One group, one project.** Each group gets its own project directory, session, queue, permissions and scheduled tasks.
 - **Same agent, any brain.** Switch models with `/model` in the chat. The project's `CLAUDE.md`, `AGENTS.md` and memory carry over to whichever agent runs next.
@@ -83,7 +83,7 @@ Without a Claude subscription, Claude Code is only the agent framework and needs
 | **Console** | One local page for every group: projects, models, permissions, design library, live activity and release history. Available in English or Chinese. |
 | **Operations** | Turns are capped at 30 minutes, and at most two run at once. Turns interrupted by a restart are redone automatically. Includes `sintbot doctor`, an ops alert group and quota warnings. |
 
-<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/design-styles.png" alt="The sixteen built-in design styles" width="560"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/design-styles.png" alt="The sixteen built-in design styles" width="560"></p>
 
 ## Everyday commands
 
@@ -107,7 +107,7 @@ Configuration lives in `~/.sbot/config.json`. See [docs/config.md](./docs/config
 | **Windows** | Not verified. Install manually; `sintbot service install` prints the NSSM and pm2 commands to run. |
 | **WeCom** | The newest integration, with the least real-world use. |
 | **Slack** | The native Stop button, `!status` and the thread buttons are covered by tests but have had little real-world use. |
-| **Kimi** | Not a preset and not yet tested. Add it in the console as a custom endpoint (Models → Add model → Custom); if you try it, please [report how it went](https://github.com/WaterTian/sintbot/issues). |
+| **Kimi** | Not a preset and not yet tested. Add it in the console as a custom endpoint (Models → Add model → Custom); if you try it, please [report how it went](https://github.com/sintlab/sintbot/issues). |
 
 "Feishu" here means the China edition (open.feishu.cn). The international Lark (larksuite.com) runs on a separate open platform and is not supported yet. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese; the console has an English mode.
 
@@ -162,14 +162,14 @@ The feature deep dives marked "(zh)" are in Chinese for now; each English doc li
 
 ## Feedback
 
-Please report bugs and request features in [GitHub Issues](https://github.com/WaterTian/sintbot/issues). Include the following, with secrets redacted:
+Please report bugs and request features in [GitHub Issues](https://github.com/sintlab/sintbot/issues). Include the following, with secrets redacted:
 
 - `sintbot version`
 - your OS
 - your chat platform
 - the output of `sintbot doctor`
 
-Report security issues privately through [GitHub Security Advisories](https://github.com/WaterTian/sintbot/security/advisories/new); see [SECURITY.md](./SECURITY.md).
+Report security issues privately through [GitHub Security Advisories](https://github.com/sintlab/sintbot/security/advisories/new); see [SECURITY.md](./SECURITY.md).
 
 ## License
 

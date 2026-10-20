@@ -4,7 +4,7 @@
 
 走 Socket Mode 长连接,不需要公网地址;免费版 workspace 可用。
 
-> 现状:`!status`、原生 Stop 与线程里的「停止 / 跳过 / 状态」按钮有单元测试,但还没在真实工作区里被真人用过。用着不对请[提 issue](https://github.com/WaterTian/sintbot/issues)。
+> 现状:`!status`、原生 Stop 与线程里的「停止 / 跳过 / 状态」按钮有单元测试,但还没在真实工作区里被真人用过。用着不对请[提 issue](https://github.com/sintlab/sintbot/issues)。
 
 ## 建 App
 
