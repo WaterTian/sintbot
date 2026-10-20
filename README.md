@@ -26,16 +26,16 @@ Each turn runs the official **Claude Code** or **Codex** CLI headless, so tools,
 
 ## How it works
 
-<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/how-it-works.svg" alt="Group (Feishu, Slack or WeCom) → SintBot on your machine → Claude Code or Codex in the project directory → the model chosen for that group; progress and results flow back to the group" width="880"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/how-it-works.svg" alt="Group (Slack, Feishu or WeCom) → SintBot on your machine → Claude Code or Codex in the project directory → the model chosen for that group; progress and results flow back to the group" width="880"></p>
 
 - **One group, one project.** Each group gets its own project directory, session, queue, permissions and scheduled tasks.
 - **Same agent, any brain.** Switch models with `/model` in the chat. The project's `CLAUDE.md`, `AGENTS.md` and memory carry over to whichever agent runs next.
 - **Stays on your machine.** Projects, sessions, memory and logs live on your disk and never pass through a SintBot server. Prompts and the code the model reads still go to the provider you chose.
-- **No public IP.** Every platform uses an outbound long connection (Socket Mode on Slack). One daemon can serve Feishu, Slack and WeCom at the same time.
+- **No public IP.** Every platform uses an outbound long connection (Socket Mode on Slack). One daemon can serve Slack, Feishu and WeCom at the same time.
 
 ## Quick start
 
-**1. Create a bot and add it to a group.** Step-by-step guides: [Feishu](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [WeCom](./docs/platforms/wecom.md).
+**1. Create a bot and add it to a group.** Step-by-step guides: [Slack](./docs/platforms/slack.md) · [Feishu](./docs/platforms/feishu.md) · [WeCom](./docs/platforms/wecom.md).
 
 **2. Install** on macOS or Linux:
 
@@ -73,7 +73,7 @@ Without a Claude subscription, Claude Code is only the agent framework and needs
 
 | Area | What it does |
 |---|---|
-| **In the group** | Streaming progress: Feishu cards update in place; Slack shows its native "Working…" status and a Stop button. Messages that arrive mid-turn are merged into the next turn. |
+| **In the group** | Streaming progress: Slack shows its native "Working…" status and a Stop button; Feishu cards update in place. Messages that arrive mid-turn are merged into the next turn. |
 | **Commands** | `/help` · `/status` · `/model <name>` · `/stop` · `/skip` · `/new` · `/hud` · `/issue`. On Slack, use a `!` prefix because Slack consumes messages that start with `/`. |
 | **Permissions** | Set per group, read-only by default. Thirteen secret and PII patterns are masked before a message reaches the group. |
 | **Scheduled tasks** | Cron, aliases such as `daily`, or plain "every day at 09:00". A task can wake the agent, post a reminder or run a script. |
@@ -102,14 +102,14 @@ Configuration lives in `~/.sbot/config.json`. See [docs/config.md](./docs/config
 
 | Area | Status |
 |---|---|
-| **macOS** | Verified. Real-machine testing covered the main flows on Feishu and Slack: messaging, streaming progress, model switching and scheduled tasks. |
+| **macOS** | Verified. Real-machine testing covered the main flows on Slack and Feishu: messaging, streaming progress, model switching and scheduled tasks. |
 | **Linux** | Experimental. The systemd unit is covered by unit tests but has not yet been installed on real hardware. |
 | **Windows** | Not verified. Install manually; `sintbot service install` prints the NSSM and pm2 commands to run. |
 | **WeCom** | The newest integration, with the least real-world use. |
 | **Slack** | The native Stop button, `!status` and the thread buttons are covered by tests but have had little real-world use. |
 | **Kimi** | Not a preset and not yet tested. Add it in the console as a custom endpoint (Models → Add model → Custom); if you try it, please [report how it went](https://github.com/WaterTian/sintbot/issues). |
 
-"Feishu" here means the China edition (open.feishu.cn); the international Lark has not been tested. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese; the console has an English mode.
+"Feishu" here means the China edition (open.feishu.cn). The international Lark (larksuite.com) runs on a separate open platform and is not supported yet. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese; the console has an English mode.
 
 ## Security
 
@@ -134,7 +134,7 @@ Yes. Use Feishu as the chat platform and DeepSeek (or the mainland sites of Zhip
 <details>
 <summary><b>Do I need a server or a public IP?</b></summary>
 
-No. SintBot runs on a computer you keep on; a Mac is the tested setup. It only makes outbound connections: a WebSocket long connection for Feishu, Socket Mode for Slack and a long connection for WeCom. The console stays local unless you open it.
+No. SintBot runs on a computer you keep on; a Mac is the tested setup. It only makes outbound connections: Socket Mode for Slack, a WebSocket long connection for Feishu and a long connection for WeCom. The console stays local unless you open it.
 </details>
 
 <details>
@@ -156,7 +156,7 @@ The feature deep dives marked "(zh)" are in Chinese for now; each English doc li
 | Topic | Docs |
 |---|---|
 | Getting started | [Install](./docs/install.md) · [Models](./docs/models.md) · [Configuration](./docs/config.md) · [Security](./docs/security.md) · [Features](./docs/features.md) |
-| Chat platforms | [Feishu](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [WeCom](./docs/platforms/wecom.md) |
+| Chat platforms | [Slack](./docs/platforms/slack.md) · [Feishu](./docs/platforms/feishu.md) · [WeCom](./docs/platforms/wecom.md) |
 | Features | [Whiteboard](./docs/BOARD.md) (zh) · [Previews](./docs/PREVIEW.md) (zh) · [Browser](./docs/BROWSER.md) (zh) · [Icons](./docs/ICONS.md) (zh) · [Codex runner](./docs/CODEX-RUNNER.md) (zh) · [Public console access](./docs/PUBLIC-ACCESS.md) (zh) |
 | Project | [Architecture (DESIGN.md)](./DESIGN.md) (zh) · [Contributing](./CONTRIBUTING.md) · [Changelog](./CHANGELOG.en.json) |
 

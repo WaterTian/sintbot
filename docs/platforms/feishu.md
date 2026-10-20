@@ -2,7 +2,7 @@
 
 English · [简体中文](../zh-CN/platforms/feishu.md)
 
-SintBot supports the China edition of Feishu (open.feishu.cn); the international Lark has not been tested. The Feishu developer console can be switched to English; the Chinese labels are given in parentheses where they help you find your way.
+SintBot supports the China edition of Feishu (open.feishu.cn). The international Lark (larksuite.com) runs on a separate open platform and is not supported yet. The Feishu developer console can be switched to English; the Chinese labels are given in parentheses where they help you find your way.
 
 ## Create the app
 

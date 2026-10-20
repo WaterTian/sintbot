@@ -117,7 +117,7 @@ sintbot help                      # 全部命令
 | **Slack** | 原生 Stop 按钮、`!status`、线程里的按钮有测试覆盖,但真实环境里用得还少。 |
 | **Kimi** | 还不是预设,也还没实测过。在控制台「模型 · 库 → 添加模型 → 自定义」添加;用过的话欢迎[反馈结果](https://github.com/WaterTian/sintbot/issues)。 |
 
-这里的飞书指中国版(open.feishu.cn),国际版 Lark 没有测过。欢迎试用后反馈。
+这里的飞书指中国版(open.feishu.cn);国际版 Lark(larksuite.com)是另一套开放平台,目前还不支持。
 
 ## 安全须知
 

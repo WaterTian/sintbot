@@ -37,7 +37,7 @@ The bot's built-in abilities are allowed at every level: posting messages, sched
 SintBot has no server of its own and collects no data. Only the following leaves this machine:
 
 - **Model providers.** Each turn's prompt, the group messages, and the files and command output the model reads are sent by the `claude` / `codex` CLI to the model you chose for that group: Anthropic, OpenAI or a compatible endpoint you configured. Telemetry and other behavior of those CLIs are up to their providers.
-- **Chat platforms.** Group messages, files and cards go through Feishu, Slack or WeCom.
+- **Chat platforms.** Group messages, files and cards go through Slack, Feishu or WeCom.
 - **Quota and balance lookups.** When the console or `/hud` shows quota, it asks the provider using the logins or API keys already on this machine. Claude subscription quota reads the local `claude` credentials (read-only, never refreshed); DeepSeek, GLM and MiniMax are queried for their balance.
 - **Console fonts.** The console page loads fonts from Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`). The request comes from the browser that opens the page; if it fails, the page falls back to system fonts and works the same.
 

@@ -1577,12 +1577,13 @@ async function cmdSetup(rest) {
     if (brand && brand !== 'SintBot') raw.brand = brand
     else delete raw.brand
 
-    // 接哪些平台:可以同时接;默认 = 已经配好的那些,一个都没有就是飞书
+    // 接哪些平台:可以同时接;默认 = 已经配好的那些,一个都没有时按地区推荐:中国大陆飞书,其余 Slack。
+    // 飞书只支持中国版(open.feishu.cn,SDK 默认域名);国际版 Lark(larksuite.com)是另一套开放平台,还没接,提示里写明。
     const realCreds = (v) => v && !String(v).startsWith('env:') && !/x{6,}|XXXX/.test(String(v))
     const had = [realCreds(raw.feishu && raw.feishu.appId) && 'feishu', realCreds(raw.slack && raw.slack.botToken) && 'slack', realCreds(raw.wecom && raw.wecom.botId) && 'wecom'].filter(Boolean)
     const platQ = mainland ? '接哪个聊天平台?国内推荐飞书 —— feishu / wecom / slack,空格分隔可多选(none = 先不接)'
-      : '接哪些聊天平台? feishu(飞书 / Lark)/ slack / wecom,空格分隔(none = 先不接)'
-    const platIn = (await ask(platQ, had.join(' ') || 'feishu')).toLowerCase()
+      : '接哪些聊天平台?推荐 Slack —— slack / feishu(飞书中国版,国际版 Lark 还不支持)/ wecom,空格分隔可多选(none = 先不接)'
+    const platIn = (await ask(platQ, had.join(' ') || (mainland ? 'feishu' : 'slack'))).toLowerCase()
     const plats = platIn === 'none' ? [] : [...new Set(platIn.split(/[\s,]+/).filter((x) => ['feishu', 'slack', 'wecom'].includes(x)))]
     if (platIn !== 'none' && !plats.length) process.stdout.write(red('  没认出平台名(feishu / slack / wecom),先跳过 —— 之后可重跑 setup 或去控制台配') + '\n')
 
@@ -1700,7 +1701,8 @@ async function cmdSetup(rest) {
       let chatId = ''
       const fe = raw.feishu
       // 绑到哪个平台的群:只接了一个平台就是它,接了多个先问
-      const live = [realCreds(fe && fe.appId) && 'feishu', realCreds(raw.slack && raw.slack.botToken) && 'slack', realCreds(raw.wecom && raw.wecom.botId) && 'wecom'].filter(Boolean)
+      // 排序按地区(决定默认绑哪边):中国大陆飞书在前,其余 Slack 在前
+      const live = (mainland ? ['feishu', 'wecom', 'slack'] : ['slack', 'feishu', 'wecom']).filter((x) => (x === 'feishu' ? realCreds(fe && fe.appId) : x === 'slack' ? realCreds(raw.slack && raw.slack.botToken) : realCreds(raw.wecom && raw.wecom.botId)))
       let bindPlat = live[0] || 'feishu'
       if (live.length > 1) { const a = (await ask(`这个群在哪个平台? (${live.join(' / ')})`, live[0])).toLowerCase(); if (live.includes(a)) bindPlat = a }
       const usableFeishu = bindPlat === 'feishu' && fe && fe.appId && fe.appSecret && !String(fe.appId).startsWith('env:') && !String(fe.appSecret).startsWith('env:')
