@@ -113,6 +113,7 @@ Configuration lives in `~/.sbot/config.json`. See [docs/config.md](./docs/config
 | **Windows** | Not verified. Install manually; `sintbot service install` prints the NSSM and pm2 commands to run. |
 | **WeCom** | The newest integration, with the least real-world use. |
 | **Slack** | The native Stop button, `!status` and the thread buttons are covered by tests but have had little real-world use. |
+| **Kimi** | Not a preset and not yet tested. Add it in the console as a custom endpoint (Models → Add model → Custom); if you try it, please [report how it went](https://github.com/WaterTian/sintbot/issues). |
 
 "Feishu" here means the China edition (open.feishu.cn); the international Lark has not been tested. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese; the console has an English mode.
 
