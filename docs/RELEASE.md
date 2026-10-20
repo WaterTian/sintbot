@@ -9,7 +9,7 @@
    - `date` 按产品时区(默认北京)当天写。
 2. `npm test` 全绿(CI 在 Node 22 / 24 / 26 上跑同一套)。
 3. 动过控制台交互的,用 headless Chrome 实际点一遍。
-4. `npm pack --dry-run`,逐项看文件清单:只应有 `bin/ src/ assets/ CHANGELOG*.json sbot.config.example.json docs/slack-app-manifest.yaml README.md README.en.md LICENSE THIRD-PARTY-NOTICES.md package.json`。白名单在 `package.json` 的 `files`;新增运行时要读的资源文件,记得加进去。
+4. `npm pack --dry-run`,逐项看文件清单:只应有 `bin/ src/ assets/ CHANGELOG*.json sbot.config.example.json docs/slack-app-manifest.yaml README.md README.zh-CN.md LICENSE THIRD-PARTY-NOTICES.md package.json`。白名单在 `package.json` 的 `files`;新增运行时要读的资源文件,记得加进去。
 
 ## 隔离验证
 

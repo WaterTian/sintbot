@@ -1,6 +1,6 @@
 # SintBot 设计文档
 
-> 写给要改代码的人:架构、模块边界和关键机制的「为什么」。怎么用见 [README.md](./README.md) 与 [docs/](./docs/);开发约定见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+> 写给要改代码的人:架构、模块边界和关键机制的「为什么」。怎么用见 [README.zh-CN.md](./README.zh-CN.md)(英文 [README.md](./README.md))与 [docs/](./docs/);开发约定见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ## 0. 核心思路
 

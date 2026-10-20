@@ -1,114 +1,181 @@
-# SintBot
+<p align="center">
+  <a href="https://sintbot.com"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/banner.png" alt="SintBot — the group-project AI daemon, running on your own machine" width="820"></a>
+</p>
 
-> 在群聊里驱动无头 **Claude Code** —— 一个群绑一个项目,群里的人直接派活;背后的模型可以换。
+<p align="center"><b>Say it in the group. Any model, one memory. On your own machine.</b></p>
 
-[English](./README.en.md) · [官网](https://sintbot.com) · MIT
+<p align="center">
+  <a href="https://www.npmjs.com/package/sintbot"><img src="https://img.shields.io/npm/v/sintbot?style=flat-square&color=d68f44" alt="npm version"></a>
+  <a href="https://github.com/WaterTian/sintbot/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/WaterTian/sintbot/test.yml?branch=main&style=flat-square&label=tests" alt="tests"></a>
+  <img src="https://img.shields.io/node/v/sintbot?style=flat-square" alt="node version">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license"></a>
+</p>
 
+<p align="center">
+  <a href="https://sintbot.com">Website</a> ·
+  <a href="./README.zh-CN.md">简体中文</a> ·
+  <a href="./docs/install.md">Install guide</a> ·
+  <a href="https://github.com/WaterTian/sintbot/releases">Releases</a>
+</p>
+
+---
+
+SintBot is a self-hosted daemon that puts a coding agent in your team's group chat. You bind a group to a project directory, and then anyone in that group can hand it work. It reads and changes code, designs, runs scripts and reports back, all on your own machine.
+
+Each turn runs the official **Claude Code** or **Codex** CLI headless, so tools, MCP servers, skills and project memory behave just as they do in your terminal. Each group chooses its model: Claude, GPT, DeepSeek, GLM, MiniMax, Kimi, or one you host yourself.
+
+## How it works
+
+```mermaid
+flowchart LR
+  G["Group chat<br/>Feishu · Slack · WeCom"] -- "@SintBot" --> D["SintBot daemon<br/>on your machine"]
+  D -- "headless turn" --> R["Claude Code / Codex<br/>in the project directory"]
+  R --> M["Model<br/>Claude · GPT · DeepSeek · GLM · MiniMax · …"]
+  D -. "progress & result" .-> G
 ```
-飞书 / Slack / 企业微信 群 ──► SintBot(本机常驻进程)──spawn──► claude CLI(无头)── Claude / DeepSeek / MiniMax / 火山 / Kimi / GLM …
-                                   │                         └──► codex CLI(无头)── GPT
-                                   └── 每群:项目目录 · 会话 · 排队 · 权限 · 定时任务
-```
 
-- **群即项目**:一个群绑一个本机项目目录。群里的人直接说要做什么 —— 改代码、跑脚本、查资料、出图、定时汇报 —— 机器人在那个目录里干活,做完回到群里。
-- **只换脑,不换框架**:跑的是官方 `claude` / `codex` 命令行本身,工具、文件编辑、MCP、skills、子 agent、项目记忆都原样可用;模型按群选,群里发 `/model` 就能切。
-- **数据留在本机**:项目、会话、记忆、账本都在你自己的机器上,不经过任何 SintBot 的服务器(提示词和它读到的代码照常发给你选的模型服务商,群消息经各聊天平台);出站消息自动脱敏;权限按群预设,没人值守也不会卡在审批上。
-- **一台机器,三个平台**:飞书、Slack、企业微信可以同时在线。
+- **One group, one project.** Each group gets its own project directory, session, queue, permissions and scheduled tasks.
+- **Same agent, any brain.** Switch models with `/model` in the chat. The project's `CLAUDE.md`, `AGENTS.md` and memory carry over to whichever agent runs next.
+- **Stays on your machine.** Projects, sessions, memory and logs live on your disk and never pass through a SintBot server. Prompts and the code the model reads still go to the provider you chose.
+- **No public IP.** Every platform uses an outbound long connection (Socket Mode on Slack). One daemon can serve Feishu, Slack and WeCom at the same time.
 
-## 快速开始
+## Quick start
 
-先按平台文档建好机器人、拉进一个群:[飞书](./docs/platforms/feishu.md)(在中国大陆推荐)· [Slack](./docs/platforms/slack.md) · [企业微信](./docs/platforms/wecom.md)。
+**1. Create a bot and add it to a group.** Step-by-step guides (currently in Chinese): [Feishu](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [WeCom](./docs/platforms/wecom.md).
 
-**一键安装**(macOS / Linux,新用户推荐):
+**2. Install** on macOS or Linux:
 
 ```bash
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-它会检查并装好 Node 22+、装 sintbot、接着跑配置向导,最后问要不要装成常驻服务。每一步先问再动,不用 sudo;连不上 npm 官方源会自动换国内镜像。想先看它做什么:脚本源码是仓库里的 [install.sh](./install.sh),也可以加 `--dry-run` 演练。
+The script checks for Node.js 22+, installs sintbot, runs the setup wizard and offers to install the background service. It asks before every change and never uses `sudo`. Read [install.sh](./install.sh) first, or add `--dry-run` to see what it would do.
 
-**手动安装**(前置:Node ≥ 22):
+To install by hand instead:
 
 ```bash
-npm i -g sintbot          # 包名是 sintbot(npm 上的 sbot 是别人的包);装出命令 sbot,也叫 sintbot
-sbot setup                # 向导:环境检查 → 地区 → 模型(当场试跑一轮)→ 聊天平台 → 项目根目录 → 绑第一个群,最后自动体检(✗ 先处理)
-sbot service install      # 装成常驻服务:崩溃自动拉起、登录后自启(macOS;Linux 为实验性;Windows 打印托管命令)
+npm i -g sintbot
+sintbot setup             # guided setup, with a live trial turn of your model
+sintbot service install   # restarted on crash, started at login
 ```
 
-然后在群里 @ 机器人说一句话。服务自带控制台:浏览器打开 http://127.0.0.1:4600,可以绑群、切模型、看实时活动。
+**3. @ the bot in your group.** Bind more groups, switch models and watch live activity in the local console at http://127.0.0.1:4600.
 
-### 选模型:没有 Claude 订阅也能用
+### Pick a model: no Claude subscription needed
 
-向导先看这台机器上登录了什么,按这个顺序推荐:
+The wizard checks what this machine is logged in to and recommends in this order:
 
-| 你有 | 用 | 要做的 |
+| You have | Use | What to do |
 |---|---|---|
-| Claude 订阅(Pro / Max) | Claude | 跑向导前先 `claude auth login` |
-| ChatGPT 账号 | GPT(经 Codex) | `npm i -g @openai/codex`,再 `codex login` |
-| 都没有 | **DeepSeek**(推荐) | 到 [platform.deepseek.com](https://platform.deepseek.com) 注册、充值、创建 API key,在向导里粘贴,当场试跑一轮 |
+| A Claude subscription (Pro / Max) | Claude | run `claude auth login` before the wizard |
+| A ChatGPT account | GPT, via Codex | `npm i -g @openai/codex`, then `codex login` |
+| Neither | **DeepSeek** (recommended) | sign up at [platform.deepseek.com](https://platform.deepseek.com), top up, create an API key and paste it into the wizard; it runs a trial turn on the spot |
 
-也可以选智谱 GLM、MiniMax、火山方舟,Kimi 等其他 Anthropic 兼容端点在控制台「模型 · 库 → 添加模型 → 自定义」添加,见 [models.md](./docs/models.md)。没有 Claude 订阅时,Claude Code 只是执行框架,不用登录;用不了的只有 GPT 群和生图(这两样借的是 Codex)。
+The other presets are Zhipu GLM, MiniMax and Volcano Ark. For GLM and MiniMax, the wizard asks whether your key comes from the mainland-China site or the international one (Z.ai, minimax.io). Kimi and any other Anthropic-compatible endpoint can be added as custom endpoints in the console.
 
-### 在中国大陆
+Without a Claude subscription, Claude Code is only the agent framework and needs no login. The only features you lose are GPT groups and image generation, both of which borrow Codex. In mainland China, see the [Chinese README](./README.zh-CN.md#在中国大陆).
 
-- **聊天平台用飞书。**
-- **模型**:没有 Claude 订阅就用 DeepSeek(或智谱 / MiniMax / 火山的中国大陆站),直连,不用代理。向导问「这台机器在中国大陆吗」时答是:只有用到 Claude / ChatGPT 才会问代理。
-- **开着全局代理(梯子)的话**,把模型域名设成直连,否则请求绕到境外再回来,又慢又可能触发风控,见 [install.md「代理」](./docs/install.md#代理)。
-- **npm 慢**:一键安装和向导会自动换 `registry.npmmirror.com`;手动装加 `--registry https://registry.npmmirror.com`。
-- **GitHub 打不开**:这份 README 在 [npmmirror 的包页](https://npmmirror.com/package/sintbot)上也能看到。
+## What you get
 
-完整安装说明(Claude Code 安装与登录、向导每一步问什么、Windows、代理、无头 Mac mini、常见问题)见 [docs/install.md](./docs/install.md);各家模型的端点、国际站、计费方式见 [docs/models.md](./docs/models.md)。
-
-## 能做什么
-
-| | |
+| Area | What it does |
 |---|---|
-| **群内命令** | `/help` · `/status` · `/model <名字>` · `/stop`(全停)· `/skip`(跳过当前这件)· `/new`(新会话)· `/hud` · `/issue`(Slack 里 `/` 被占,用 `!` 前缀) |
-| **流式回复** | 飞书卡片打字机式更新;长任务卡上实时显示做到哪一步;Slack 带原生「Working…」与 Stop 按钮 |
-| **定时任务** | `sbot cron`:让机器人按时做事、按时说话,或只跑一个脚本 |
-| **模型** | Claude(本机 `claude` 登录,或给 `ANTHROPIC_API_KEY`)· DeepSeek / 智谱 GLM / MiniMax / 火山方舟(预设,填 API key)· Kimi 等任意 Anthropic 兼容端点(控制台自定义)· GPT(经 Codex CLI);额度用完自动切备用 |
-| **设计与出图** | 飞书画板上的标注迭代、项目级设计风格档与交付前验收、四套图标库、生图 |
-| **预览与浏览器** | 把 HTML 原型挂到局域网给群成员看;机器人的浏览器碰到登录 / 验证码时,群成员用一次性链接接管 |
-| **控制台** | 本地网页控制台:概览 · 群与项目 · 模型与插件库 · 设置(含版本历史),中英文切换;可选经反代开到公网(用飞书账号登录) |
-| **运维** | `sbot doctor` 体检 · 运维告警群 · 被打断的轮次重启后自动重做 · 版本升级群内播报 |
+| **In the group** | Streaming progress: Feishu cards update in place; Slack shows its native "Working…" status and a Stop button. Messages that arrive mid-turn are merged into the next turn. |
+| **Commands** | `/help` · `/status` · `/model <name>` · `/stop` · `/skip` · `/new` · `/hud` · `/issue`. On Slack, use a `!` prefix because Slack consumes messages that start with `/`. |
+| **Permissions** | Set per group, read-only by default. Thirteen secret and PII patterns are masked before a message reaches the group. |
+| **Scheduled tasks** | Cron, aliases such as `daily`, or plain "every day at 09:00". A task can wake the agent, post a reminder or run a script. |
+| **Design** | A per-project `DESIGN.md` style file the agent must read. Sixteen built-in styles. A check before every hand-off. Iterate by annotating Feishu whiteboards. |
+| **Images** | Generated with the machine's Codex subscription, so no API key is needed. Edit an existing image, repaint a masked region, or produce a transparent background. |
+| **Previews & browser** | HTML prototypes are served on your LAN for the group to see. When the bot's browser hits a login or captcha, a group member takes over through a one-time link. |
+| **Console** | One local page for every group: projects, models, permissions, design library, live activity and release history. Available in English or Chinese. |
+| **Operations** | Turns are capped at 30 minutes, and at most two run at once. Turns interrupted by a restart are redone automatically. Includes `sintbot doctor`, an ops alert group and quota warnings. |
 
-## 安全须知
+<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/design-styles.png" alt="The sixteen built-in design styles" width="560"></p>
 
-- 机器人能在绑定的项目目录里**执行命令**。权限按群设:默认只读;「完全访问」只给你信任的群。详见 [docs/security.md](./docs/security.md)。
-- 控制台默认只听本机。要给局域网用,先 `sbot ui --set-password`。
-- **订阅条款**:用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款。团队使用请改用 API key 或企业账号,并自行确认合规。
-
-## 常用命令
+## Everyday commands
 
 ```bash
-sbot doctor                    # 体检:配置 / claude / 各模型 / 平台 / 群绑定;配了飞书还会用凭据调一次接口,核对 bot 身份与权限
-sbot ui                        # 控制台(不接守护进程)
-sbot start --ui                # 前台跑守护进程(调试用;常驻请用 sbot service)
-sbot service status|restart|logs|uninstall
-sbot chat -C <项目目录>        # 不接聊天平台,在终端里模拟群消息
-sbot agent run "说一句话"      # 单轮试跑(只读,在当前目录;-C 指定目录)
-sbot help                      # 全部命令
+sintbot doctor                    # health check: config, CLIs, models, platforms, groups
+sintbot service status | logs     # is the service up, and what is it doing
+sintbot agent run "…"             # a read-only trial turn in the current directory
+sintbot ui                        # open the console
+sintbot chat -C <project-dir>     # simulate group messages in the terminal, no chat platform needed
+sintbot help                      # all commands
 ```
 
-配置在 `~/.sbot/config.json`,字段说明见 [docs/config.md](./docs/config.md),带注释的完整示例见 [sbot.config.example.json](./sbot.config.example.json)(`sbot setup` 写出的配置保留这些注释)。
+Configuration lives in `~/.sbot/config.json`. See [docs/config.md](./docs/config.md) for the fields, or the annotated [sbot.config.example.json](./sbot.config.example.json). The package installs two equivalent commands, `sintbot` and `sbot`.
 
-## 验证现状与反馈
+## Status
 
-macOS 上飞书与 Slack 的主流程(收发消息、流式进度、换模型、定时任务)已真机验过。下面这些有单元测试,但真实环境里用得还少,欢迎试用后反馈:
+| Area | Status |
+|---|---|
+| **macOS** | Verified. Real-machine testing covered the main flows on Feishu and Slack: messaging, streaming progress, model switching and scheduled tasks. |
+| **Linux** | Experimental. The systemd unit is covered by unit tests but has not yet been installed on real hardware. |
+| **Windows** | Not verified. Install manually; `sintbot service install` prints the NSSM and pm2 commands to run. |
+| **WeCom** | The newest integration, with the least real-world use. |
+| **Slack** | The native Stop button, `!status` and the thread buttons are covered by tests but have had little real-world use. |
 
-- Slack 的 `!status`、「Working…」旁的原生 Stop、线程里的「停止 / 跳过 / 状态」按钮;
-- 企业微信(三个平台里最新接入的);
-- Linux(实验性)与 Windows(未验证)。
+"Feishu" here means the China edition (open.feishu.cn); the international Lark has not been tested. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese, and most docs are in Chinese for now. The console has an English mode.
 
-碰到问题请到 [GitHub Issues](https://github.com/WaterTian/sintbot/issues) 提,附上 `sbot --version`、系统与聊天平台、`sbot doctor` 输出和复现步骤(贴日志前先遮掉密钥)。安全问题请按 [SECURITY.md](./SECURITY.md) 私下报告,别发公开 issue。
+## Security
 
-## 文档
+- The bot **executes commands** in the bound project directory. Permissions are set per group: read-only by default, with "full access" for groups you trust. File tools are confined to the project directory; shell commands are not sandboxed. See [docs/security.md](./docs/security.md).
+- The console listens on this machine only. Before opening it to your LAN, run `sintbot ui --set-password`.
+- Serving a multi-user group from a personal Claude or ChatGPT subscription may conflict with the provider's terms. For team use, choose API billing or a plan that permits it.
 
-- [安装](./docs/install.md) · [配置](./docs/config.md) · [模型](./docs/models.md) · [功能详解](./docs/features.md) · [安全](./docs/security.md)
-- 平台:[飞书](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [企业微信](./docs/platforms/wecom.md)
-- 功能:[画板](./docs/BOARD.md) · [预览](./docs/PREVIEW.md) · [浏览器](./docs/BROWSER.md) · [图标](./docs/ICONS.md) · [Codex 后端](./docs/CODEX-RUNNER.md) · [控制台公网访问](./docs/PUBLIC-ACCESS.md)
-- 架构与设计:[DESIGN.md](./DESIGN.md) · 参与开发:[CONTRIBUTING.md](./CONTRIBUTING.md)
+## FAQ
 
-## 许可
+<details>
+<summary><b>Do I need a Claude subscription?</b></summary>
+
+No. If the wizard finds no Claude or Codex login, it recommends DeepSeek and runs a trial turn as soon as you paste the API key. Claude Code is still the agent framework; it just needs no login.
+</details>
+
+<details>
+<summary><b>Can I use it in mainland China?</b></summary>
+
+Yes. Use Feishu as the chat platform and DeepSeek (or the mainland sites of Zhipu GLM, MiniMax or Volcano Ark) as the model: they connect directly, with no proxy. A proxy is needed only for Claude, ChatGPT or Slack.
+</details>
+
+<details>
+<summary><b>Do I need a server or a public IP?</b></summary>
+
+No. SintBot runs on a computer you keep on; a Mac is the tested setup. It only makes outbound connections: a WebSocket long connection for Feishu, Socket Mode for Slack and a long connection for WeCom. The console stays local unless you open it.
+</details>
+
+<details>
+<summary><b>Does switching models lose the project's memory?</b></summary>
+
+No. A switch starts a fresh conversation, but the project's `CLAUDE.md`, `AGENTS.md` and memory directory are handed to whichever agent runs next. Long sessions are compacted automatically.
+</details>
+
+<details>
+<summary><b>How is it different from cc-bot?</b></summary>
+
+Both are free and MIT-licensed. [cc-bot](https://github.com/WaterTian/cc-bot) is a Claude Code plugin: it runs inside your own interactive session, on that session's model. SintBot is a standalone daemon: no one has to keep a terminal open, each group has its own project, model and permissions, it drives both Claude Code and Codex, and it comes with a local console.
+</details>
+
+## Documentation
+
+These guides are currently in Chinese.
+
+| Topic | Docs |
+|---|---|
+| Getting started | [Install](./docs/install.md) · [Models](./docs/models.md) · [Configuration](./docs/config.md) · [Security](./docs/security.md) · [Features](./docs/features.md) |
+| Chat platforms | [Feishu](./docs/platforms/feishu.md) · [Slack](./docs/platforms/slack.md) · [WeCom](./docs/platforms/wecom.md) |
+| Features | [Whiteboard](./docs/BOARD.md) · [Previews](./docs/PREVIEW.md) · [Browser](./docs/BROWSER.md) · [Icons](./docs/ICONS.md) · [Codex runner](./docs/CODEX-RUNNER.md) · [Public console access](./docs/PUBLIC-ACCESS.md) |
+| Project | [Architecture (DESIGN.md)](./DESIGN.md) · [Contributing](./CONTRIBUTING.md) · [Changelog](./CHANGELOG.en.json) |
+
+## Feedback
+
+Please report bugs and request features in [GitHub Issues](https://github.com/WaterTian/sintbot/issues). Include the following, with secrets redacted:
+
+- `sintbot version`
+- your OS
+- your chat platform
+- the output of `sintbot doctor`
+
+Report security issues privately through [GitHub Security Advisories](https://github.com/WaterTian/sintbot/security/advisories/new); see [SECURITY.md](./SECURITY.md).
+
+## License
 
 [MIT](./LICENSE) © WaterTian

@@ -15,7 +15,7 @@ labels: bug
 2.
 
 **环境 / Environment**
-- `sbot --version`:
+- `sintbot --version`:
 - 系统 / OS(macOS / Linux / Windows + 版本):
 - 聊天平台 / Chat platform(飞书 Lark / Slack / 企业微信 WeCom):
 - 模型 / Model(claude / codex / 其他端点 other endpoint):

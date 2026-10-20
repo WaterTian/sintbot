@@ -43,7 +43,7 @@ SintBot 每一轮都调用本机的 `claude` 命令行干活(Codex 群调用 `co
 | Claude,用 Anthropic API key(按量计费) | `claude auth login --console`;或把 `ANTHROPIC_API_KEY` 放进守护进程的环境 |
 
 - 没有屏幕的机器(如当服务器用的 Mac mini):用屏幕共享(`vnc://机器IP`)进桌面跑一次 `claude auth login`,登录态落盘后无人值守也能用。
-- 用个人订阅服务多人群聊的条款问题,见 README 的「安全须知」。
+- 用个人订阅服务多人群聊的条款问题,见 [中文 README](../README.zh-CN.md#安全须知)的「安全须知」。
 - 验证:`claude --version` → `claude auth status`(用订阅时)→ `sbot agent run "用一句话自我介绍"`(先在终端试一轮,只读)。
 
 ## 前置
@@ -167,7 +167,7 @@ export NO_PROXY=api.deepseek.com,open.bigmodel.cn,api.minimaxi.com,ark.cn-beijin
 | 很慢或连不上国内模型 | 开着全局代理(梯子)时请求会绕到境外:把模型域名设成直连,见上文「代理」 |
 | npm 安装很慢或失败 | 加 `--registry https://registry.npmmirror.com`;一键安装和向导会自动换 |
 | 全局安装报权限错误(EACCES) | 别用 sudo,把 npm 全局目录改到用户目录,做法见上文「一键安装」第 3 条 |
-| GitHub 打不开 | README 在 [npmmirror 的包页](https://npmmirror.com/package/sintbot)上也能看到 |
+| GitHub 打不开 | 中文介绍和安装步骤在[官网](https://sintbot.com/zh/)上都有;英文 README 在 [npmmirror 的包页](https://npmmirror.com/package/sintbot)上也能看到 |
 | 群里 @ 了没反应 | `sbot doctor` 看平台那几行;`sbot service logs` 看最近的错误 |
 
 ## 卸载
