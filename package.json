@@ -59,7 +59,7 @@
     "url": "https://github.com/WaterTian/sintbot/issues"
   },
   "dependencies": {
-    "@larksuiteoapi/node-sdk": "^1.68.0",
+    "@larksuiteoapi/node-sdk": "^1.76.0",
     "ws": "^8.21.3"
   }
 }
