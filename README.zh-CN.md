@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://sintbot.com/zh/"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/banner-zh.png" alt="SintBot —— 群项目 AI 守护进程,跑在你自己的机器上" width="820"></a>
+  <a href="https://sintbot.com/zh/"><picture><source srcset="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/hero-zh.svg" type="image/svg+xml"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/banner-zh.png" alt="SintBot —— 群项目 AI 守护进程,跑在你自己的机器上" width="820"></picture></a>
 </p>
 
 <p align="center"><b>一群一项目,一句话就开工;模型随时换,记忆不丢;全程在你自己的机器上。</b></p>
@@ -26,13 +26,7 @@ SintBot 是一个跑在你自己机器上的守护进程,把能写代码的 AI �
 
 ## 怎么跑
 
-```mermaid
-flowchart LR
-  G["聊天群<br/>飞书 · Slack · 企业微信"] -- "@SintBot" --> D["SintBot<br/>你的机器"]
-  D -- "一轮" --> R["Claude Code / Codex<br/>在项目目录里"]
-  R --> M["模型<br/>按群选"]
-  D -. "进度" .-> G
-```
+<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/how-it-works-zh.svg" alt="群(飞书、Slack 或企业微信)→ 你机器上的 SintBot → 项目目录里的 Claude Code 或 Codex → 这个群选的模型;进度与结果回到群里" width="880"></p>
 
 - **一群一项目。** 每个群各有自己的项目目录、会话、排队、权限和定时任务。
 - **同一套 agent,任意大脑。** 群里发 `/model` 就能换模型。项目的 `CLAUDE.md`、`AGENTS.md` 和记忆目录会交给接下来运行的 agent。

@@ -4,6 +4,8 @@
 
 > 每个群的 agent 能做什么、控制台怎么用。命令的完整参数用 `sbot <命令> --help` 查。
 
+<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/slack-thread-zh.svg" alt="Slack 线程里的一轮:Lin 请 SintBot 查 staging 上的 500;它先回一句收到,在线程里从读日志到跑测试逐步报进度,最后给出原因和它开的 PR" width="760"></p>
+
 ## 群项目基础能力
 
 每个群的 agent 每轮都收到一份**自知清单**:身份、项目目录与仓库状态、模型与执行权限、控制台地址、本群已启用的插件,以及下面这些能力怎么用;能力或配置变了下轮自动重注入,**不重置会话**。清单里的命令名是给 agent 执行的,它对群成员说话按「零工具名」约定只说人话。基础技能白名单(`Bash(sbot feishu|wecom|cron|imagen|design|preview *)`)在任何权限档都放行;codex 群的只读沙箱无法联网,这些要完全访问档才可用。

@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://sintbot.com"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/banner.png" alt="SintBot — the group-project AI daemon, running on your own machine" width="820"></a>
+  <a href="https://sintbot.com"><picture><source srcset="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/hero.svg" type="image/svg+xml"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/banner.png" alt="SintBot — the group-project AI daemon, running on your own machine" width="820"></picture></a>
 </p>
 
 <p align="center"><b>Say it in the group. Any model, one memory. On your own machine.</b></p>
@@ -26,13 +26,7 @@ Each turn runs the official **Claude Code** or **Codex** CLI headless, so tools,
 
 ## How it works
 
-```mermaid
-flowchart LR
-  G["Group chat<br/>Feishu · Slack · WeCom"] -- "@SintBot" --> D["SintBot<br/>your machine"]
-  D -- "turn" --> R["Claude Code / Codex<br/>in the project"]
-  R --> M["Model<br/>chosen per group"]
-  D -. "progress" .-> G
-```
+<p align="center"><img src="https://raw.githubusercontent.com/WaterTian/sintbot/main/docs/assets/how-it-works.svg" alt="Group (Feishu, Slack or WeCom) → SintBot on your machine → Claude Code or Codex in the project directory → the model chosen for that group; progress and results flow back to the group" width="880"></p>
 
 - **One group, one project.** Each group gets its own project directory, session, queue, permissions and scheduled tasks.
 - **Same agent, any brain.** Switch models with `/model` in the chat. The project's `CLAUDE.md`, `AGENTS.md` and memory carry over to whichever agent runs next.
