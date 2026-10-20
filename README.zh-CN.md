@@ -71,14 +71,14 @@ sintbot service install   # 崩溃自动拉起、登录后自启
 | ChatGPT 账号 | GPT(经 Codex) | `npm i -g @openai/codex`,再 `codex login` |
 | 都没有 | **DeepSeek**(推荐) | 到 [platform.deepseek.com](https://platform.deepseek.com) 注册、充值、创建 API key,在向导里粘贴,当场试跑一轮 |
 
-其他预设有智谱 GLM、MiniMax、火山方舟。智谱和 MiniMax 会问 key 是在中国大陆站还是国际站(Z.ai、minimax.io)开的。Kimi 等任何 Anthropic 兼容端点,都可以在控制台作为自定义端点添加。
+其他预设有智谱 GLM、MiniMax、火山方舟。智谱和 MiniMax 会问 key 是在中国站还是国际站(Z.ai、minimax.io)开的。Kimi 等任何 Anthropic 兼容端点,都可以在控制台作为自定义端点添加。
 
 没有 Claude 订阅时,Claude Code 只是执行框架,不用登录。用不了的只有 GPT 群和生图,这两样借的是 Codex。
 
 ### 在中国大陆
 
 - **聊天平台用飞书。**
-- **模型**:没有 Claude 订阅就用 DeepSeek(或智谱 / MiniMax 的中国大陆站),直连,不用代理。向导问「这台机器在中国大陆吗」时答「是」:只有用到 Claude / ChatGPT 才会问代理。
+- **模型**:没有 Claude 订阅就用 DeepSeek(或智谱 / MiniMax / Kimi 的中国站),直连,不用代理。向导问「这台机器在中国大陆吗」时答「是」:只有用到 Claude / ChatGPT 才会问代理。
 - **开着全局代理(梯子)的话**,把模型域名设成直连。否则请求绕到境外再回来,又慢又可能触发风控,见 [install.md「代理」](./docs/zh-CN/install.md#代理)。
 - **npm 慢**:一键安装和向导会自动换 `registry.npmmirror.com`;手动装加 `--registry https://registry.npmmirror.com`。
 - **GitHub 打不开**:中文介绍和安装步骤在[官网](https://sintbot.com/zh/)上都有。
@@ -141,7 +141,7 @@ sintbot help                      # 全部命令
 <details>
 <summary><b>在中国大陆能用吗?</b></summary>
 
-能。聊天平台用飞书,模型用 DeepSeek(或智谱 GLM、MiniMax 的中国大陆站),都是直连、不用代理。只有用 Claude、ChatGPT 或 Slack 才需要代理。
+能。聊天平台用飞书,模型用 DeepSeek(或智谱 GLM、MiniMax、Kimi 的中国站),都是直连、不用代理。只有用 Claude、ChatGPT 或 Slack 才需要代理。
 </details>
 
 <details>

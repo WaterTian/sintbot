@@ -2,7 +2,7 @@
 // 向导本身在 bin/sbot.js(交互、读写配置);这里只放可单测的部分。
 //
 // 推荐顺序(2026-10-19 定):有 Claude 订阅 → 用 Claude;有 ChatGPT(Codex)→ 用 Codex;都没有 → 推荐 DeepSeek。
-// 地区只决定两件事:同一家用中国大陆站还是国际站的端点,以及要不要代理。
+// 地区只决定两件事:同一家用中国站还是国际站的端点,以及要不要代理。
 
 // 用 API key 的预设(名字与 sbot.config.example.json 的 providers 键一致)。
 // intl:有国际站的厂商,key 在哪个站开的就得连哪个站,填错站点会 401。
@@ -10,7 +10,7 @@ const PROVIDER_INFO = {
   deepseek: { label: 'DeepSeek', site: 'https://platform.deepseek.com', billing: '按量付费' },
   glm: { label: '智谱 GLM', site: 'https://open.bigmodel.cn', billing: '按量或包月 GLM Coding Plan', intl: { label: 'Z.ai', site: 'https://z.ai', baseUrl: 'https://api.z.ai/api/anthropic' } },
   minimax: { label: 'MiniMax', site: 'https://platform.minimaxi.com', billing: '按量或包月 Token Plan', intl: { label: 'MiniMax 国际站', site: 'https://platform.minimax.io', baseUrl: 'https://api.minimax.io/anthropic' } },
-  volcano: { label: '火山方舟', site: 'https://console.volcengine.com/ark', billing: '包月 Coding Plan,只有中国大陆站' },
+  volcano: { label: '火山方舟', site: 'https://console.volcengine.com/ark', billing: '包月 Coding Plan,只有中国站' },
 }
 const RECOMMENDED = 'deepseek'
 

@@ -164,7 +164,7 @@ export NO_PROXY=api.deepseek.com,open.bigmodel.cn,api.minimaxi.com,ark.cn-beijin
 | 现象 | 原因与做法 |
 |---|---|
 | 体检或群里报「未登录」/ `Not logged in` | 默认模型还是 `claude`,但这台机器没登录 Claude。只用 DeepSeek 等:重跑 `sbot setup` 选模型,或群里 `/model deepseek`、控制台给群换模型;要用 Claude 就跑 `claude auth login` |
-| 试跑报「key 不对」(401) | key 没复制完整,或 key 和站点不是同一个(智谱 / MiniMax 的中国大陆站与国际站互不通用)。重跑 `sbot setup` 重新选站点、粘贴 |
+| 试跑报「key 不对」(401) | key 没复制完整,或 key 和站点不是同一个(智谱 / MiniMax 的中国站与国际站互不通用)。重跑 `sbot setup` 重新选站点、粘贴 |
 | 报余额不足 / 未实名 | 到厂商后台充值、完成实名后再试 |
 | 很慢或连不上国内模型 | 开着全局代理(梯子)时请求会绕到境外:把模型域名设成直连,见上文「代理」 |
 | npm 安装很慢或失败 | 加 `--registry https://registry.npmmirror.com`;一键安装和向导会自动换 |

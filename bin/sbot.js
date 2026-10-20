@@ -1408,7 +1408,7 @@ async function cmdSetup(rest) {
       if (!p) { process.stdout.write(red(`  没有 ${name} 的预设`) + '\n'); return false }
       let site = info.site
       if (info.intl) {
-        const cn = await askYN(`${info.label} 的 key 是在中国大陆站(${setupmodels.host(info.site)})开的吗?否 = 国际站(${setupmodels.host(info.intl.site)})`, mainland)
+        const cn = await askYN(`${info.label} 的 key 是在中国站(${setupmodels.host(info.site)})开的吗?否 = 国际站(${setupmodels.host(info.intl.site)})`, mainland)
         p.baseUrl = cn ? ((presetOf(name) && presetOf(name).baseUrl) || p.baseUrl) : info.intl.baseUrl
         site = cn ? info.site : info.intl.site
       }
