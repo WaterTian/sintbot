@@ -1,5 +1,27 @@
 [
   {
+    "version": "1.0.3",
+    "name": "Health checks that tell you what works; wrong keys fail in a second",
+    "items": [
+      {
+        "t": "Wrong keys fail in a second",
+        "d": "For models that use an API key, a wrong or revoked key now fails in about a second instead of after roughly three minutes of retries. Subscription logins are not affected."
+      },
+      {
+        "t": "Health checks report what actually works",
+        "d": "The health check and the console overview now use the latest verification: a failed key test, a failed chat platform precheck or a signed-out Claude subscription is flagged instead of showing as fine just because it is filled in. Changing a key resets it to unverified."
+      },
+      {
+        "t": "Project folders can start with ~",
+        "d": "The setup wizard and the console accept project folders starting with ~ and save the full path. Folders saved with ~ by older versions of the wizard are resolved against your home folder."
+      },
+      {
+        "t": "Slack by default outside China; an English installer",
+        "d": "Outside mainland China the setup wizard recommends Slack and notes that the international Lark is not supported yet. The one-line installer speaks English or Chinese depending on your system language and, if you skip the background service, explains how to start the bot. Terminal hints now use the product name."
+      }
+    ]
+  },
+  {
     "version": "1.0.2",
     "name": "Security hardening: local data private to you, dependency updates",
     "items": [
