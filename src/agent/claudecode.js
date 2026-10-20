@@ -134,6 +134,20 @@ function normalizeEvent(ev) {
   }
 }
 
+// key 型模型认证失败时造的那条出错 result(形状同 normalizeEvent 的 result)。quota 直接标 account:
+// 与重试耗尽后「authentication_error」原话被 quotaerr 判成的结果一致;text 带 HTTP 码,setupmodels 据此判成 key 不对。
+function authFailedResult(status, error, sessionId) {
+  return {
+    type: 'result',
+    subtype: 'auth_failed',
+    text: `模型认证失败(HTTP ${status}${error ? ' ' + error : ''}):key 不对或已失效`,
+    isError: true,
+    authFailed: true,
+    quota: { kind: 'account', window: null },
+    sessionId,
+  }
+}
+
 /**
  * Run a single agent turn.
  * @param {import('../core/interfaces').RunTurnOptions} opts
@@ -305,7 +319,7 @@ function runTurn({
       const armCloseGrace = () => {
         if (closeTimer || settled || closeGraceMs <= 0) return
         closeTimer = setTimeout(() => {
-          if (!aborted) log(`claude 答案已到但 ${closeGraceMs}ms 内没退出 ⇒ 强制收尾;本轮若起过后台命令(run_in_background),它会被一起收掉,下一轮可能空转一次`)
+          if (!aborted && !(lastResult && lastResult.authFailed)) log(`claude 答案已到但 ${closeGraceMs}ms 内没退出 ⇒ 强制收尾;本轮若起过后台命令(run_in_background),它会被一起收掉,下一轮可能空转一次`)
           killTree()
           finish(() => resolve({ sessionId: capturedSessionId, result: lastResult, code: null, aborted }))
         }, closeGraceMs)
@@ -336,6 +350,17 @@ function runTurn({
           if (!line) continue
           let raw
           try { raw = JSON.parse(line) } catch { continue } // skip non-JSON noise
+          // key 错快速失败(1.0.3):claude 对 401 / 403 默认重试约 3 分钟才放弃,第一次重试时(实测 0.8 秒)就会先报一条
+          // `system/api_retry` 带 error_status。只对 API key 型模型(有 baseUrl)当场收尾 —— 订阅登录的 401 可能是
+          // Claude Code 自己在刷新登录,让它重试;5xx / 529 这类过载照旧重试。造一条出错 result 交给上层:账号类失败
+          // 那套(备用模型 / 运维告警 / 群里人话)和重试耗尽时一样走,只是不用等。
+          if (raw.type === 'system' && raw.subtype === 'api_retry' && provider.baseUrl && (raw.error_status === 401 || raw.error_status === 403) && !lastResult && !aborted) {
+            lastResult = authFailedResult(raw.error_status, raw.error, capturedSessionId)
+            if (onEvent) { try { onEvent(lastResult) } catch { /* renderer must not kill the turn */ } }
+            killTree()
+            armCloseGrace()
+            continue
+          }
           const ev = normalizeEvent(raw)
           if (ev.sessionId) capturedSessionId = ev.sessionId
           if (ev.type === 'assistant' && raw.message && raw.message.usage) {

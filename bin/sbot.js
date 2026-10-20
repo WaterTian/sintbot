@@ -299,6 +299,9 @@ function cmdProviders() {
   process.stdout.write(dim('\n* = default provider\n'))
 }
 
+// claude 出错时先把「API Error: …」当一条 assistant 文本流出来,result 里再给同一句 ⇒ 记住最后一段正文,
+// result 的报错与它相同就不再打一遍(1.0.2 及以前同一句错误在终端里出现两次)
+let lastAssistantText = ''
 function renderEvent(ev) {
   switch (ev.type) {
     case 'system':
@@ -309,11 +312,11 @@ function renderEvent(ev) {
       for (const t of ev.tools || []) {
         process.stdout.write(cyan(`🔧 ${t.name} `) + gray(truncate(JSON.stringify(t.input), 80)) + '\n')
       }
-      if (ev.text) process.stdout.write(ev.text)
+      if (ev.text) { process.stdout.write(ev.text); lastAssistantText = ev.text }
       break
     case 'result':
       process.stdout.write('\n')
-      if (ev.isError) process.stderr.write(red(`✕ ${ev.text || 'error'}`) + '\n')
+      if (ev.isError && String(ev.text || '').trim() !== lastAssistantText.trim()) process.stderr.write(red(`✕ ${ev.text || 'error'}`) + '\n')
       break
   }
 }
@@ -359,9 +362,15 @@ async function cmdAgentRun(rest) {
       // Tool permissions are per-project — use a bound group for tool-using turns.
       onEvent: renderEvent,
     })
-    process.stderr.write(dim(`■ done  session=${sessionId}  (resume with: sbot agent run --resume ${sessionId} "…")`) + '\n')
-    if (result && result.isError) process.exit(1)
+    verify.recordTurn(provider, !(result && result.isError), (result && result.text) || '') // doctor / 控制台据此报「能用」或「key 不对」
+    if (result && result.isError) {
+      // 出错的轮次没有可续的上下文,不给 resume 提示;key 型模型认证失败时指一下去哪换
+      if (result.authFailed) process.stderr.write(dim(`  换 key:控制台「模型」页,或重跑 sintbot setup`) + '\n')
+      process.exit(1)
+    }
+    process.stderr.write(dim(`■ done  session=${sessionId}  (resume with: sintbot agent run --resume ${sessionId} "…")`) + '\n')
   } catch (e) {
+    verify.recordTurn(provider, false, e.message)
     die(e.message)
   }
 }

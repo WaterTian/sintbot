@@ -41,7 +41,7 @@ function keyPresent(apiKey, env = process.env) {
 function explainTestFailure(text, { baseUrl } = {}) {
   const t = String(text || '')
   const h = baseUrl ? host(baseUrl) : '模型端点'
-  if (/\b401\b|authentication|invalid (api )?key|invalid_authentication|unauthori[sz]ed|令牌|token expired|login fail|api key.*invalid/i.test(t)) {
+  if (/\b401\b|authentication|invalid (api )?key|invalid_authentication|unauthori[sz]ed|令牌|token expired|login fail|api key.*invalid|模型认证失败/i.test(t)) {
     return { kind: 'auth', text: 'key 不对:检查有没有复制完整;有国际站的厂商,确认 key 和所选站点是同一个站开的' }
   }
   if (/\b402\b|insufficient|balance|余额|欠费|arrear|quota|实名|recharge|billing/i.test(t)) {

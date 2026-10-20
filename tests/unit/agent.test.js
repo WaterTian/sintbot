@@ -259,6 +259,38 @@ test('runTurn: 人为中止(/stop・撤回・墙钟)同样走宽限期,但不留
   assert.equal(logs.some((m) => /强制收尾/.test(m)), false, '每次 /stop 都留一行像故障的话,真正的那条就找不着了')
 })
 
+// ── key 错快速失败(1.0.3):第一次 api_retry 带 401 / 403 就收尾,不等 claude 重试约 3 分钟 ──────────
+// 只对 key 型模型(有 baseUrl);订阅登录的 401 可能是 CLI 在刷新登录,照旧让它重试;过载(529)也照旧重试。
+const RETRY = (status) => ({ type: 'system', subtype: 'api_retry', attempt: 1, max_retries: 10, retry_delay_ms: 565, error_status: status, error: status === 401 ? 'authentication_failed' : 'overloaded', session_id: 'sid-1' })
+
+test('runTurn: key 型模型第一次重试报 401 ⇒ 当场收尾,出错 result 标 account、说人话,不留强制收尾那行', async () => {
+  const child = fakeClaudeChild()
+  const logs = []; const events = []
+  const p = runTurn({ prompt: 'hi', provider: { baseUrl: 'https://api.deepseek.com/anthropic', apiKey: 'k' }, closeGraceMs: 20, log: (m) => logs.push(m), onEvent: (e) => events.push(e), spawnFn: () => child })
+  await new Promise((r) => setImmediate(r))
+  child.emitLine(RETRY(401))
+  const out = await p
+  assert.equal(child.killed, true)
+  assert.equal(out.aborted, false, '不是人叫停的')
+  assert.equal(out.result.isError, true)
+  assert.equal(out.result.quota.kind, 'account', '与重试耗尽后的 authentication_error 同一档:备用模型 / 告警照走')
+  assert.match(out.result.text, /HTTP 401.*key 不对或已失效/)
+  assert.equal(events.filter((e) => e.type === 'result').length, 1, '渲染侧也看得到这条 result')
+  assert.equal(logs.some((m) => /强制收尾/.test(m)), false)
+})
+
+test('runTurn: 订阅登录(无 baseUrl)的 401、key 型模型的 529 ⇒ 都不拦,等 CLI 自己重试', async () => {
+  for (const [provider, status] of [[{}, 401], [{ baseUrl: 'https://x', apiKey: 'k' }, 529]]) {
+    const child = fakeClaudeChild()
+    const p = runTurn({ prompt: 'hi', provider, closeGraceMs: 20, spawnFn: () => child })
+    await new Promise((r) => setImmediate(r))
+    child.emitLine(RETRY(status))
+    assert.equal(child.killed, false, `${status} 不该被拦`)
+    child.emitLine(RESULT_LINE); child.emit('close', 0)
+    assert.equal((await p).result.text, '好了')
+  }
+})
+
 // ── 瞬时错(API 过载)标人话,与 codex 侧同一份判据 ──────────────────────────────
 // ⚠ 夹具照 2.1.260 二进制里的**真实形状**写(2026-09-08 审查核对):① error_during_execution / error_max_turns
 //   的原因在 errors[] 里、**没有 result**;② API 过载是 subtype success + is_error + result 带「API Error: 529 …」。
