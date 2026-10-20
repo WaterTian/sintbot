@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.0.2",
+    "name": "Security hardening: local data private to you, dependency updates",
+    "items": [
+      {
+        "t": "Local data private to you",
+        "d": "The data directory holding the chat ledger, audit log, group feedback and logs is now readable only by the system user running the bot, and files left by older versions are tightened at startup, so other users on the same machine cannot read group content."
+      },
+      {
+        "t": "Dependency updates",
+        "d": "The Feishu SDK and the HTTP library it uses are updated to versions with known vulnerabilities fixed."
+      }
+    ]
+  },
+  {
     "version": "1.0.1",
     "name": "English docs by default",
     "items": [
