@@ -64,7 +64,7 @@ function stableNodeBin({ execPath, candidates = [], exists = fs.existsSync, real
   for (const c of [...candidates, ...brew]) {
     if (c && exists(c) && !versionedPath(c) && real(c) === target) return { bin: c }
   }
-  return { bin: execPath, warn: `node 的路径带版本号(${execPath}),换 node 版本后要重跑 sbot service install` }
+  return { bin: execPath, warn: `node 的路径带版本号(${execPath}),换 node 版本后要重跑 sintbot service install` }
 }
 
 // 配置里所有 `env:VAR` 引用的变量名(去重,按出现顺序)。下划线开头的键是说明 / 示例(`_slack_example` 这类),

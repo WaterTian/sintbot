@@ -20,7 +20,7 @@
 ## 接入 SintBot
 
 ```bash
-sbot setup     # 选 slack,填 xoxb- 与 xapp-;预检会核对凭据、权限、Socket Mode 与已加入的频道
+sintbot setup     # 选 slack,填 xoxb- 与 xapp-;预检会核对凭据、权限、Socket Mode 与已加入的频道
 ```
 
 或在控制台「设置 → Slack 应用」里填。绑群时选 Slack 频道(只列出机器人已加入的)。

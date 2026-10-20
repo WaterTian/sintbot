@@ -59,7 +59,7 @@
 
 ## 登录态与额度(控制台 codex 卡、`/hud`、doctor)
 
-- 登录态:`codex login status`。`sbot doctor` 也查它:没登录时 codex 那一行和指向 codex 的备用模型行都标黄。
+- 登录态:`codex login status`。`sintbot doctor` 也查它:没登录时 codex 那一行和指向 codex 的备用模型行都标黄。
 - 额度:临时起一个 `codex app-server`(换行分隔的 JSON-RPC,走 stdio):`initialize` → `initialized` → `account/rateLimits/read` → 退出。
 - 返回里的窗口**按 `windowDurationMins` 认**(300 = 5 小时,10080 = 一周),不按 `primary` / `secondary` 的位置 —— 这两个位置放哪个窗口,服务端变过。显示的百分比是**已用**。
 

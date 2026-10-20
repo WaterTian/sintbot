@@ -67,7 +67,8 @@ test('派发表里每个子命令都出现在顶层 --help 的清单里', () => 
   const top = runHelp('--help').out
   // 对照组:顶层 help 本身得是真读出来的,否则下面全绿也没意义
   assert.ok(/sbot feishu/.test(top) && top.length > 600, '顶层 --help 没读到内容,这条断言失去分辨力')
-  const missing = subs.filter((s) => !new RegExp(`\\bsbot ${s}\\b`).test(top))
+  // 给人用的写 sintbot、agent 用的基础技能写 sbot(权限白名单是 Bash(sbot …)),两种写法都算列出
+  const missing = subs.filter((s) => !new RegExp(`\\b(?:sintbot|sbot) ${s}\\b`).test(top))
   assert.deepEqual(missing, [], `这些命令在顶层 --help 里没列出来(agent 无从知道它们存在):${missing.join(', ')}`)
 })
 
@@ -132,10 +133,10 @@ test('每个命令认的动作都列在它的 --help 与顶层清单里(清单�
     assert.deepEqual(missingSub, [], `sbot ${cmd} --help 没列这些动作:${missingSub.join(', ')}`)
     // ⚠ 只在**这条命令自己的那一块**里找(从「sbot <cmd>」起到下一条「sbot 」为止):整份顶层 help 里
     //   `list` / `start` / `doctor` 这些词别的命令也有,整体匹配会让 cron 行删掉 list 也照样绿
-    const blockStart = top.search(new RegExp(`\\bsbot ${cmd}\\b`))
-    assert.ok(blockStart >= 0, `顶层 --help 里找不到「sbot ${cmd}」`)
-    const rest = top.slice(blockStart + `sbot ${cmd}`.length)
-    const nextCmd = rest.search(/\n {2}sbot /)
+    const head = top.match(new RegExp(`\\b(?:sintbot|sbot) ${cmd}\\b`))
+    assert.ok(head, `顶层 --help 里找不到「sbot ${cmd}」或「sintbot ${cmd}」`)
+    const rest = top.slice(head.index + head[0].length)
+    const nextCmd = rest.search(/\n {2}(?:sintbot|sbot) /)
     const block = nextCmd >= 0 ? rest.slice(0, nextCmd) : rest
     const missingTop = actions.filter((a) => !(ALIASES[cmd] || []).includes(a)).filter((a) => !new RegExp(`(^|[^a-z-])${a}([^a-z-]|$)`, 'm').test(block))
     assert.deepEqual(missingTop, [], `顶层 --help 的「sbot ${cmd}」那块没列这些动作:${missingTop.join(', ')}`)

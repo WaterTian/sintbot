@@ -276,11 +276,11 @@ async function checkHealth(cfg, opts = {}) {
       else add('ok', 'feishu', v ? `飞书应用能用(${verify.when(v.at)} 预检通过)` : '飞书应用已配(appId + appSecret),还没预检')
       if (!cfg.feishu.botOpenId) add('warn', 'feishu.botOpenId', (cfg.feishu.onlyWhenMentioned
         ? '没填 — 开着「只在 @ 时回复」却认不出哪个 @ 是机器人,群里一条都不会回'
-        : '没填 — 分不清 @机器人 和 @别人,群里 @ 别人的消息也会接') + ';重跑 sbot setup 选飞书预检可自动填')
-    } else if (!hasId && !hasSecret) { if (!plat.wecom && !plat.slack) add('warn', 'feishu', '没配任何聊天平台 — sbot start 收不到消息') }
+        : '没填 — 分不清 @机器人 和 @别人,群里 @ 别人的消息也会接') + ';重跑 sintbot setup 选飞书预检可自动填')
+    } else if (!hasId && !hasSecret) { if (!plat.wecom && !plat.slack) add('warn', 'feishu', '没配任何聊天平台 — sintbot start 收不到消息') }
     else add('fail', 'feishu', hasId ? '缺 appSecret' : '缺 appId')
   } else if (!plat.wecom && !plat.slack) {
-    add('warn', 'feishu', '没配任何聊天平台 — sbot start 收不到消息')
+    add('warn', 'feishu', '没配任何聊天平台 — sintbot start 收不到消息')
   }
   // 写了 wecom 块就要报:env: 引用解析成空串也算缺(真机踩到 —— 非交互 shell 没 source 凭据文件,doctor 一声不吭地把群报成「没配企微」)
   if (cfg.wecom) {
@@ -333,7 +333,7 @@ async function checkHealth(cfg, opts = {}) {
   if (!missingRoots.length) add('ok', 'projectsRoots', pr.roots.join(' · '))
   else add(pr.fromConfig ? 'fail' : 'warn', 'projectsRoots', `不存在: ${missingRoots.join(' · ')}` + (pr.fromConfig ? '' : '(默认根,首次在控制台浏览时自动创建)'))
 
-  if (!groups.length) add('warn', 'groups', '还没绑定群 — 在控制台「群 · 项目」页绑定,或重跑 sbot setup')
+  if (!groups.length) add('warn', 'groups', '还没绑定群 — 在控制台「群 · 项目」页绑定,或重跑 sintbot setup')
   for (const [chatId, g] of groups) {
     const placeholder = chatId === 'oc_example_chat_id' || (g.workdir && g.workdir.startsWith('/abs/path/to'))
     const exists = g.workdir && fs.existsSync(g.workdir)

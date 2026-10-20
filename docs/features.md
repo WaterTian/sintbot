@@ -80,7 +80,7 @@ The built-in skills allow list (`Bash(sbot feishu|wecom|cron|imagen|design|previ
   Times accept standard cron, Chinese shorthands such as `每天 09:00` (every day at 09:00) or `工作日 8:30` (weekdays at 8:30), or `--at "YYYY-MM-DD HH:mm"` for a one-off task that deletes itself after firing. All times use the product time zone. ⚠ A `--do` task is a hidden competitor for the group lock; review frequent ones as an ongoing cost.
 - **Group feedback log**, `/issue <one sentence>`. Any group member can report a problem, not only admins. Reports go to the local event stream `~/.sbot/issues.jsonl`, **with the last turn's technical fingerprint attached**: status, duration, tokens, model and failure reason.
   - In the console's Overview, the feedback log can mark a report and tell the original group in one click.
-  - `sbot issue list --json` supports collecting reports across machines.
+  - `sintbot issue list --json` supports collecting reports across machines.
   - Each machine keeps its own log and numbering, unrelated to issues on the code host.
 - **Memory handoff across models.** After a `/model` switch, the project's accumulated knowledge is kept.
   - The briefing names `CLAUDE.md` and `AGENTS.md` if they exist at the project root. Both are named because claude and codex each read only one of them automatically.

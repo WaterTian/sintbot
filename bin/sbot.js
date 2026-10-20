@@ -121,32 +121,32 @@ function truncate(s, n) {
 //   与 --config 在群里被拒这些都没说。tests/unit/cli-help.test.js 从各命令的分支里读出动作名,
 //   缺一个就红;参数名没有那种守卫,改了解析就要来这里同步。
 const SUBHELP = {
-  providers: '用法: sbot providers\n'
+  providers: '用法: sintbot providers\n'
     + '      列出配置里的模型 provider:型号 / 端点 / key 是否就位;* = 默认那个\n'
     + '      (改 provider 走控制台「模型」页或直接编辑 sbot.config.json;群里用 /model 切)',
-  setup: '用法: sbot setup [--config <path>]\n'
+  setup: '用法: sintbot setup [--config <path>]\n'
     + '      交互式首次向导:环境检查 → 地区 → 模型(先看 Claude / Codex 登录,都没有推荐 DeepSeek,填 key 当场试跑)→ 代理(中国大陆才问)→ 机器人名与聊天平台(飞书 / Slack / 企业微信)→ 项目根目录 → (可选)绑一个群\n'
     + '      回车即默认;已有配置只补缺项、不动已填的;新建默认写到 ~/.sbot/config.json(当前目录已有 sbot.config.json 就更新它;--config 另指),权限 600,完了自动跑一遍 doctor',
-  ui: '用法: sbot ui [--port <n>] [--host <ip>] [--no-open] [--config <path>]\n'
-    + '      sbot ui --set-password\n'
+  ui: '用法: sintbot ui [--port <n>] [--host <ip>] [--no-open] [--config <path>]\n'
+    + '      sintbot ui --set-password\n'
     + '      浏览器里的控制台(配置模式,不接 daemon):配置 / 健康 / provider 试跑 / 群绑定;默认 http://127.0.0.1:4600\n'
     + '      --host 0.0.0.0 对局域网开放 —— 必须先 --set-password 设过密码,否则拒绝启动;--host / --port 只管本次,不写进配置\n'
-    + '      与 daemon 共宿的实时控制台是 sbot start --ui\n'
+    + '      与 daemon 共宿的实时控制台是 sintbot start --ui\n'
     + '      公网访问不走命令行参数:配置 ui.publicUrl + feishu.admins 名单,经 SSH 隧道与反代终结 HTTPS,公网上只认「用飞书登录」—— 见 docs/PUBLIC-ACCESS.md',
-  doctor: '用法: sbot doctor [--config <path>] [--kill-leftovers]\n'
+  doctor: '用法: sintbot doctor [--config <path>] [--kill-leftovers]\n'
     + '      体检:Node / 配置 / claude CLI 与旗子 / 各 provider 的 key 与端点 / 浏览器与 MCP / 飞书凭证与权限预检 / 项目根目录 / 各群目录 / 遗留进程\n'
     + '      --kill-leftovers  顺手结束「遗留进程」(agent 轮次结束后仍在跑的后台 shell,体检尾巴会列出来;不加只列不杀)\n'
     + '      末尾列出运行中的预览服务;有 fail 退出码 1(warn 不算,但要看内容)\n'
     + '      配置按 --config > SBOT_CONFIG > 当前目录的 sbot.config.json > ~/.sbot/config.json 的顺序找;第二行显示实际用的是哪个',
-  start: '用法: sbot start [--ui] [--ui-port <n>] [--ui-host <ip>] [--no-open] [--config <path>]\n'
+  start: '用法: sintbot start [--ui] [--ui-port <n>] [--ui-host <ip>] [--no-open] [--config <path>]\n'
     + '      飞书守护进程:群消息 → 绑定项目 → agent → 回群;配置文件改了热重载,不用重启\n'
-    + '      --ui 同时提供实时控制台(默认 127.0.0.1:4600;对外绑定须先 sbot ui --set-password;端口被占只提示,daemon 照常跑)\n'
+    + '      --ui 同时提供实时控制台(默认 127.0.0.1:4600;对外绑定须先 sintbot ui --set-password;端口被占只提示,daemon 照常跑)\n'
     + '      前置:feishu.appId / appSecret 已配、claude CLI 可用;SIGTERM / Ctrl-C 优雅退出(会中止进行中的轮次)\n'
     + '      公网入口(SSH 隧道 + 反代 + ui.publicUrl + 飞书登录名单)不在参数里,见 docs/PUBLIC-ACCESS.md;launchd 常驻要带 --ui-host 0.0.0.0',
-  chat: '用法: sbot chat [--workdir|-C <dir>] [--provider <名>] [--model <id>] [--allow <list>] [--deny <list>] [--config <path>]\n'
+  chat: '用法: sintbot chat [--workdir|-C <dir>] [--provider <名>] [--model <id>] [--allow <list>] [--deny <list>] [--config <path>]\n'
     + '      从终端逐行驱动引擎(不接飞书):每行 = 一条群消息;/help 看群内命令,/exit 退出\n'
     + '      --allow / --deny 逗号分隔的工具名,两个都不给 ⇒ 只读;会话状态落在 <workdir>/.sbot/',
-  agent: '用法: sbot agent run [--provider <名>] [--model <id>] [--workdir|-C <dir>] [--resume <sid>] [--config <path>] "<prompt>"\n'
+  agent: '用法: sintbot agent run [--provider <名>] [--model <id>] [--workdir|-C <dir>] [--resume <sid>] [--config <path>] "<prompt>"\n'
     + '      跑单轮无头 agent(唯一动作是 run):正文走 stdout,进度与 session id 走 stderr;只读,不给工具权限\n'
     + '      轮次出错退出码 1;续接上一轮用 --resume <session id>',
   wecom: '用法: sbot wecom <动作> [参数…] [--chat <群id>] [--config <path>]\n'
@@ -207,20 +207,20 @@ const SUBHELP = {
     + '      --tab 把链接绑在某个已打开的标签页上(对方只能操作那一页,不能看别的、不能新开网址)—— 卡在哪个页面就给哪个,推荐总是带\n'
     + '      --send 直接把一张卡发进群(带当前页面截图 + 「接管浏览器」按钮 + 有效期;有人点开始接管卡片自动翻成「正在接管中」)—— 群里跑时就用它,别自己贴链接\n'
     + '      对方在手机或电脑上打开就能直接操作这台机器的浏览器,登录态留在浏览器里,之后 agent 自己接着干\n'
-    + '      要守护进程带控制台在跑(sbot start --ui);群里跑时控制台地址已注入,终端里可设 SBOT_UI_URL=http://127.0.0.1:4600',
-  service: '用法: sbot service install [--ui-host <ip>] [--config <path>] [--pass-env] [--dry-run]\n'
-    + '      sbot service status | restart | logs [-n <行数>] | uninstall\n'
-    + '      把 sbot start --ui 装成常驻服务:崩溃自动拉起、登录后自启(macOS = launchd,Linux = systemd --user)\n'
+    + '      要守护进程带控制台在跑(sintbot start --ui);群里跑时控制台地址已注入,终端里可设 SBOT_UI_URL=http://127.0.0.1:4600',
+  service: '用法: sintbot service install [--ui-host <ip>] [--config <path>] [--pass-env] [--dry-run]\n'
+    + '      sintbot service status | restart | logs [-n <行数>] | uninstall\n'
+    + '      把 sintbot start --ui 装成常驻服务:崩溃自动拉起、登录后自启(macOS = launchd,Linux = systemd --user)\n'
     + '      install 写单元文件并立即启动;服务里固定用当前的 node、sbot 与配置文件的绝对路径,PATH 取当前 shell 的\n'
-    + '      --dry-run 只打印要写的单元文件,不动系统;--ui-host 0.0.0.0 对局域网开控制台(须先 sbot ui --set-password,否则拒装)\n'
+    + '      --dry-run 只打印要写的单元文件,不动系统;--ui-host 0.0.0.0 对局域网开控制台(须先 sintbot ui --set-password,否则拒装)\n'
     + '      服务拿不到当前 shell 的环境变量:配置里 env:VAR 引用的 key 会被点名;--pass-env 把它们的值写进单元文件(文件权限 600)\n'
     + '      Windows 不自动装:打印 NSSM / pm2 的现成命令。日志在 ~/.sbot/logs/;同一份状态只许一个 daemon,第二个会直接报错退出',
-  version: '用法: sbot version        (也认 sbot --version / -v)\n'
+  version: '用法: sintbot version        (也认 sbot --version / -v)\n'
     + '      打印版本号',
-  issue: '用法: sbot issue list [--all] [--json]        (不给动作时默认就是 list)\n'
-    + '      sbot issue show <id>\n'
-    + '      sbot issue close <id> [--note <说明>] [--no-notify]\n'
-    + '      sbot issue reopen <id> [--note <说明>]\n'
+  issue: '用法: sintbot issue list [--all] [--json]        (不给动作时默认就是 list)\n'
+    + '      sintbot issue show <id>\n'
+    + '      sintbot issue close <id> [--note <说明>] [--no-notify]\n'
+    + '      sintbot issue reopen <id> [--note <说明>]\n'
     + '      本机的群内反馈本:群成员在群里用 /issue 提,每台机器一本、各自发号;与代码托管平台的 issue 无关\n'
     + '      list 默认只看待处理(--all 含已处理;--json 走 stdout 供跨机汇总)\n'
     + '      close 默认回原群告知(说明一并带上;群已暂停或飞书未配则不发),--no-notify 不发;reopen 放回待处理,不发群消息',
@@ -241,9 +241,10 @@ function printSubHelp(sub) {
 // 顶层清单按**谁在用**分三组(运维 / 本机试跑 / 群里的基础技能),不按实现顺序平铺:agent 在群里
 // 只会碰第三组,operator 在终端里只会碰前两组,混在一起 34 行谁都得从头找。每个命令一行,
 // 动作名列全(feishu 18 个、design 10 个都在这儿),细节去各自的 --help。
-// ⚠ 派发表里每个子命令都必须以「sbot <名>」出现在这里(cli-help.test 钉着):否则 agent 无从知道它存在。
+// ⚠ 派发表里每个子命令都必须以「sbot <名>」或「sintbot <名>」出现在这里(cli-help.test 钉着):否则 agent 无从知道它存在。
+// 给人用的(安装运维 / 本机试跑)写 sintbot;agent 用的基础技能写 sbot —— 权限白名单是 `Bash(sbot …)`,写成 sintbot 会被拦。
 function printHelp() {
-  process.stdout.write(`sbot — 从聊天群驱动无头 Claude Code,模型大脑可换
+  process.stdout.write(`sintbot — 从聊天群驱动无头 Claude Code,模型大脑可换
 
   · 群即项目:一个群绑一个项目,多人在群里直接派活(改码 · 部署 · 查资料 · 出图 · 定时任务);每群独立会话、排队与权限
   · 记得住:项目约定与长期记忆存在项目目录里,长会话自动压缩,换模型不丢
@@ -251,23 +252,23 @@ function printHelp() {
   · 只换脑,不换框架:沿用 Claude Code 的工具 / 权限 / 插件体系;模型任选(Claude · DeepSeek · MiniMax · 火山 · GPT),群里 /model 即切
   · 各用所长:同一个项目里各模型干各自擅长的活 —— Claude 改码,GPT 出图(借本机 codex 订阅,零 API key)
 
-用法: sbot <命令> [动作] [参数…]           每条命令都收 --help(输出走 stdout、退出码 0)
+用法: sintbot <命令> [动作] [参数…]        每条命令都收 --help(输出走 stdout、退出码 0);sbot 是同一个命令的短名
 
 【安装与运维】(配置默认在 ~/.sbot/config.json;--config / $SBOT_CONFIG 可另指)
-  sbot setup [--config <path>]          首次向导:环境检查 · 模型 · 聊天平台(飞书 / Slack / 企业微信)· 项目根目录 · 绑一个群;完了自动体检
-  sbot service install|status|restart|logs|uninstall   装成常驻服务(macOS launchd / Linux systemd),崩溃自动拉起、登录后自启
-  sbot version                          打印版本号
-  sbot doctor [--config <path>] [--kill-leftovers]   体检:配置 / claude CLI / provider / MCP / 飞书权限 / 群绑定 / 遗留进程;有 fail 退出码 1
-  sbot providers                        列出配置里的模型 provider(* = 默认)
-  sbot ui [--port <n>] [--host <ip>]    浏览器控制台(配置模式,不接 daemon);--set-password 设密码,对外绑定必先设
-  sbot start [--ui] [--ui-host <ip>]    前台跑守护进程(群消息 → 绑定项目 → agent → 回群);--ui 同时开实时控制台
-  sbot issue list|show|close|reopen     本机的群内反馈本(群成员在群里用 /issue 提);close 默认回原群告知
+  sintbot setup [--config <path>]          首次向导:环境检查 · 模型 · 聊天平台(飞书 / Slack / 企业微信)· 项目根目录 · 绑一个群;完了自动体检
+  sintbot service install|status|restart|logs|uninstall   装成常驻服务(macOS launchd / Linux systemd),崩溃自动拉起、登录后自启
+  sintbot version                          打印版本号
+  sintbot doctor [--config <path>] [--kill-leftovers]   体检:配置 / claude CLI / provider / MCP / 飞书权限 / 群绑定 / 遗留进程;有 fail 退出码 1
+  sintbot providers                        列出配置里的模型 provider(* = 默认)
+  sintbot ui [--port <n>] [--host <ip>]    浏览器控制台(配置模式,不接 daemon);--set-password 设密码,对外绑定必先设
+  sintbot start [--ui] [--ui-host <ip>]    前台跑守护进程(群消息 → 绑定项目 → agent → 回群);--ui 同时开实时控制台
+  sintbot issue list|show|close|reopen     本机的群内反馈本(群成员在群里用 /issue 提);close 默认回原群告知
 
 【本机试跑】(不接飞书)
-  sbot chat [-C <dir>] [--provider <名>]         终端里逐行驱动引擎:每行 = 一条群消息,/help 看群内命令,/exit 退出
-  sbot agent run [--provider <名>] "<prompt>"    单轮无头 agent,只读;--resume <sid> 续接
+  sintbot chat [-C <dir>] [--provider <名>]         终端里逐行驱动引擎:每行 = 一条群消息,/help 看群内命令,/exit 退出
+  sintbot agent run [--provider <名>] "<prompt>"    单轮无头 agent,只读;--resume <sid> 续接
 
-【群里的基础技能】(agent 在群项目里调;目标群取 --chat <oc_…>,群里跑时已注入 $SBOT_CHAT_ID)
+【群里的基础技能】(agent 在群项目里调,写 sbot:与 agent 的权限白名单一致;目标群取 --chat <oc_…>,群里跑时已注入 $SBOT_CHAT_ID)
   sbot feishu <动作>                    消息:send-msg · send-file · send-image · history · reply · edit · recall · download · react
                                         画布:board-create · board-add-image · board-add-diagram · board-add-nodes · board-nodes
                                               board-del-node · board-comments · board-resolve-comment · board-get-media
@@ -335,7 +336,7 @@ async function cmdAgentRun(rest) {
   })
 
   const prompt = positionals.join(' ').trim()
-  if (!prompt) return die('missing prompt: sbot agent run [--provider X] "<prompt>"')
+  if (!prompt) return die('missing prompt: sintbot agent run [--provider X] "<prompt>"')
 
   const cfg = loadConfig(values.config)
   applyProxyEnv(cfg)
@@ -417,7 +418,7 @@ async function cmdChat(rest) {
   engine.hasImagen = () => Object.values(engine.cfg.providers || {}).some((p) => p && p.runner === 'codex') // 生图桥可用性(core 不认 runner 名,bin 判)
   const platform = createCliPlatform({ senderName: process.env.USER || 'you' })
 
-  process.stderr.write(dim(`sbot chat — provider=${provName} workdir=${workdir}\ntype a message + Enter; /help for commands; /exit to quit`) + '\n')
+  process.stderr.write(dim(`sintbot chat — provider=${provName} workdir=${workdir}\ntype a message + Enter; /help for commands; /exit to quit`) + '\n')
   await platform.start((msg) => engine.handleMessage(msg, platform))
 }
 
@@ -451,7 +452,7 @@ async function cmdStart(rest) {
   if (plat.wecom) process.stderr.write(gray(`企业微信:接机器人 ${cfg.wecom.botName || '(未填名)'} · Bot ID …${String(cfg.wecom.botId).slice(-6)}(一个机器人只许一条长连接,别在另一台机配同一个)`) + '\n')
   // Startup probe (FR3.4): fail fast if the agent binary is missing/broken.
   const probe = await probeVersion(cfg.agent.bin)
-  if (!probe.ok) return die(`agent check failed: ${probe.error} (run 'sbot doctor')`)
+  if (!probe.ok) return die(`agent check failed: ${probe.error} (run 'sintbot doctor')`)
 
   const groupCount = Object.keys(cfg.groups || {}).length
   if (!groupCount) process.stderr.write(gray('warning: no groups bound — every message will get "not bound to a project"') + '\n')
@@ -462,7 +463,7 @@ async function cmdStart(rest) {
   try { tightened = secureDataDir(path.dirname(statePath)) } catch (e) { process.stderr.write(yellow('warning: 收紧状态目录权限失败:' + (e && e.message)) + '\n') }
   // 单实例锁(src/core/instancelock.js):同一份状态只许一个 daemon —— 两个会抢同一个平台的消息
   const lock = require('../src/core/instancelock').acquire(path.join(path.dirname(statePath), 'daemon.lock'))
-  if (!lock.ok) return die(`另一个 sbot 已在运行(pid ${lock.holder || '?'}${lock.cmd ? ' · ' + lock.cmd.slice(0, 80) : ''})—— 同一份状态只许一个 daemon,否则会抢同一个平台的消息。先停掉那个(装了服务就 sbot service uninstall / restart,或结束终端里的 sbot start)`)
+  if (!lock.ok) return die(`另一个 sbot 已在运行(pid ${lock.holder || '?'}${lock.cmd ? ' · ' + lock.cmd.slice(0, 80) : ''})—— 同一份状态只许一个 daemon,否则会抢同一个平台的消息。先停掉那个(装了服务就 sintbot service uninstall / restart,或结束终端里的 sintbot start)`)
   process.on('exit', lock.release)
   const store = new StateStore(statePath)
   // ⚠ 日志此前**一行时间戳都没有**,而账本记的是 epoch ms ⇒ **两边对不上号**:出事时账本说
@@ -682,7 +683,7 @@ async function cmdStart(rest) {
     // 打不开、还要密码,而公网入口只认飞书登录。归一判据与控制台「飞书登录」就绪判据同源(feishulogin)。
     engine.publicUrl = feishulogin.normalizePublicUrl((cfg.ui || {}).publicUrl)
     // Fail-closed: LAN exposure requires a console password (set via `sbot ui --set-password`).
-    if (!uiLoopback && !((cfg.ui || {}).auth)) die(`控制台对外(--ui-host ${uiHost})需先设密码:sbot ui --set-password`)
+    if (!uiLoopback && !((cfg.ui || {}).auth)) die(`控制台对外(--ui-host ${uiHost})需先设密码:sintbot ui --set-password`)
     // 接管卡片翻状态:有人兑换 ⇒「正在接管中」;点「结束」/ 到时 ⇒「接管已结束」;票过期没人来 ⇒「已过期」。boardClient 在下面才定义,hook 只在运行时才调,不踩 TDZ。
     const flipTakeoverCard = (state) => (meta) => {
       if (!meta || !meta.cardId || !boardClient) return
@@ -718,7 +719,7 @@ async function cmdStart(rest) {
         // `shown` 非空 ⇒ 先把这句话发进群(群成员看得见来龙去脉);为 null ⇒ 静默注入,群里只看到产出。
         // 返回结构化结果而不是布尔:前端要**如实**告诉人「到底插进去没有」,理由与 issues 那条 canNotify 相同。
         say: (chatId, text, shown, quiet) => {
-          if (!platform || !platform.send) return { ok: false, reason: 'no-daemon' }   // `sbot ui` 纯配置模式
+          if (!platform || !platform.send) return { ok: false, reason: 'no-daemon' }   // `sintbot ui` 纯配置模式
           const g = (engine.cfg.groups || {})[chatId]
           if (!g) return { ok: false, reason: 'unbound' }
           if (g.paused) return { ok: false, reason: 'paused' }                          // 暂停群按语义跳过,与 cron 一致
@@ -963,7 +964,7 @@ async function cmdStart(rest) {
   process.on('SIGINT', () => shutdown('SIGINT'))
   process.on('SIGTERM', () => shutdown('SIGTERM'))
 
-  process.stderr.write(dim(`sbot start — ${platform.names().join('+')} daemon (${probe.version}), ${groupCount} group(s) bound, state=${statePath}, log times in ${logTz} (now ${fmtStamp(Date.now(), logTz)})`) + '\n')
+  process.stderr.write(dim(`sintbot start — ${platform.names().join('+')} daemon (${probe.version}), ${groupCount} group(s) bound, state=${statePath}, log times in ${logTz} (now ${fmtStamp(Date.now(), logTz)})`) + '\n')
   // onRecall(撤回即停): 排队中剔除 / 运行中如 /stop(卡片收尾注明撤回,无卡片则全程静默)。
   // onBoardUpdated(画布自动感知): 事件进 boardwatch 去抖,core 无感。
   // onReaction(点表情即触发): 表情落在某画布的最新播报消息上 = 用户确认
@@ -1181,7 +1182,7 @@ async function printLeftovers(doKill) {
   if (!r.supported || !r.rows.length) { if (doKill && r.supported) process.stdout.write(dim('\n遗留进程:无,没什么可结束的\n')); return }
   process.stdout.write('\n' + cyan('遗留进程') + dim(`  (${r.rows.length} 个后台 shell 在 agent 轮次结束后仍在跑 · 判据:父进程已退 + 存活 ≥ 1 小时)`) + '\n')
   for (const x of r.rows) process.stdout.write(`  ${yellow('⚠')} pid ${String(x.pid).padEnd(6)} ${x.age.padEnd(6)} ${dim(x.summary)}\n`)
-  if (!doKill) { process.stdout.write(dim('  结束:sbot doctor --kill-leftovers(或控制台「概览 → 后台进程」)\n')); return }
+  if (!doKill) { process.stdout.write(dim('  结束:sintbot doctor --kill-leftovers(或控制台「概览 → 后台进程」)\n')); return }
   const res = await leftover.kill(r.rows.map((x) => x.pid))
   leftover.clearCache()
   const again = await leftover.list()
@@ -1216,12 +1217,12 @@ async function cmdService(rest) {
   const nice = (st) => st.running ? cyan('● 运行中') + (st.pid ? dim(` pid ${st.pid}`) : '') : st.loaded ? yellow(`○ 已加载、未在运行(${st.state || '?'})`) : st.installed ? yellow('○ 已安装、未加载') : gray('○ 未安装')
   if (action === 'install') {
     const configPath = findConfigPath(values.config)
-    if (!configPath) return die('没找到配置文件 —— 先跑 sbot setup(或 --config 指定)')
+    if (!configPath) return die('没找到配置文件 —— 先跑 sintbot setup(或 --config 指定)')
     // 控制台对外又没设密码:daemon 一启动就会拒绝退出,装成服务就是每 15 秒拉起一次的死循环 ⇒ 装之前就拦
     const uiHost = values['ui-host']
     let raw
     try { raw = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch (e) { return die(`读不了配置 ${configPath}:${e.message}`) }
-    if (uiHost && !isLoopbackHost(uiHost) && !((raw.ui || {}).auth)) return die(`控制台对外(--ui-host ${uiHost})要先设密码:sbot ui --set-password${values.config ? ' --config ' + values.config : ''} —— 否则服务一启动就退出、被反复拉起`)
+    if (uiHost && !isLoopbackHost(uiHost) && !((raw.ui || {}).auth)) return die(`控制台对外(--ui-host ${uiHost})要先设密码:sintbot ui --set-password${values.config ? ' --config ' + values.config : ''} —— 否则服务一启动就退出、被反复拉起`)
     // 服务进程拿不到当前 shell 的环境变量:点名配置里的 env: 引用;--pass-env 才把值写进单元文件
     const refs = svc.envRefs(raw)
     const inShell = refs.filter((v) => process.env[v])
@@ -1240,11 +1241,11 @@ async function cmdService(rest) {
       env,
     })
     if (node.warn) process.stderr.write(yellow('⚠ ' + node.warn) + '\n')
-    if (svc.versionedPath(sbotBin)) process.stderr.write(yellow(`⚠ sbot 装在带版本号的 node 目录下(${sbotBin}),换 node 版本后要重装 sintbot 并重跑 sbot service install`) + '\n')
+    if (svc.versionedPath(sbotBin)) process.stderr.write(yellow(`⚠ sbot 装在带版本号的 node 目录下(${sbotBin}),换 node 版本后要重装 sintbot 并重跑 sintbot service install`) + '\n')
     if (inShell.length && !values['pass-env']) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${inShell.join(' ')} 只在当前终端里有,服务里拿不到 —— 加 --pass-env 把值写进服务定义(文件权限 600),或把值直接写进配置(配置本身是 600)`) + '\n')
     if (nowhere.length) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${nowhere.join(' ')} 当前终端里也没有 —— 用到它们的模型 / 平台不会工作`) + '\n')
     if (platform !== 'darwin' && platform !== 'linux') { process.stdout.write(svc.windowsHint(spec) + '\n'); return }
-    if (!tools.length) process.stderr.write(yellow('⚠ PATH 里没找到 claude / codex —— 服务能起,但群里的轮次会失败;装好后重跑 sbot service install') + '\n')
+    if (!tools.length) process.stderr.write(yellow('⚠ PATH 里没找到 claude / codex —— 服务能起,但群里的轮次会失败;装好后重跑 sintbot service install') + '\n')
     if (values['dry-run']) { // 打印时遮掉 --pass-env 带进来的值(多半是 key)
       const shown = { ...spec, env: Object.fromEntries(Object.keys(spec.env).map((k) => [k, '<已隐藏>'])) }
       process.stdout.write(dim(`# ${svc.unitPath(platform, home)}`) + '\n' + svc.render(platform, shown)); return
@@ -1258,7 +1259,7 @@ async function cmdService(rest) {
     if (r.steps.some((s) => !s.ok)) process.exit(1)
     return
   }
-  if (action === 'status') { const st = svc.status({ platform, home }); process.stdout.write(`${nice(st)}\n` + dim(st.file ? `单元文件:${st.file}${st.installed ? '' : '(不存在)'}\n` : '这个平台没有自动服务(见 sbot service --help)\n')); return }
+  if (action === 'status') { const st = svc.status({ platform, home }); process.stdout.write(`${nice(st)}\n` + dim(st.file ? `单元文件:${st.file}${st.installed ? '' : '(不存在)'}\n` : '这个平台没有自动服务(见 sintbot service --help)\n')); return }
   if (action === 'restart') { const r = svc.restart({ platform }); if (!r.ok) return die('重启失败:' + (r.err || '?')); process.stderr.write(cyan('✓ ') + '已重启\n'); return }
   if (action === 'uninstall') { const r = svc.uninstall({ platform, home }); process.stderr.write((r.removed ? cyan('✓ ') + `已停止并删除 ${r.file}` : dim('没有已安装的服务')) + '\n' + dim('日志与配置都保留在 ~/.sbot/') + '\n'); return }
   if (action === 'logs') {
@@ -1269,7 +1270,7 @@ async function cmdService(rest) {
     process.stdout.write(lines.slice(-n - 1).join('\n') + '\n' + dim(`(${file} 末尾 ${n} 行;实时看:tail -f ${file})`) + '\n')
     return
   }
-  die(`unknown service action '${action}' (try: sbot service --help)`)
+  die(`unknown service action '${action}' (try: sintbot service --help)`)
 }
 
 // `sbot setup` — interactive first-run wizard. Seeds sbot.config.json from the
@@ -1335,7 +1336,7 @@ async function cmdSetup(rest) {
   }
 
   try {
-    process.stdout.write('\n' + cyan('sbot setup') + dim(' — 交互式配置 (Enter 用默认值)') + '\n\n')
+    process.stdout.write('\n' + cyan('sintbot setup') + dim(' — 交互式配置 (Enter 用默认值)') + '\n\n')
 
     // 第 0 步:环境检查 —— 只报不拦(缺了照样能把配置写完,最后的体检会接着报)。
     // 缺 claude / codex 时问一句替新用户装(npm i -g;官方源连不上自动换国内镜像,见 src/installdeps.js)。
@@ -1349,7 +1350,7 @@ async function cmdSetup(rest) {
       if (r.ok) {
         const pre = installdeps.globalPrefix()
         const dir = pre ? (process.platform === 'win32' ? pre : path.join(pre, 'bin')) : 'npm prefix -g 下的 bin 目录'
-        process.stdout.write(`  ${yellow('!')} 装好了,但当前 PATH 里找不到 ${binName} —— 把 ${dir} 加进 PATH,重开终端再跑一次 sbot setup\n`)
+        process.stdout.write(`  ${yellow('!')} 装好了,但当前 PATH 里找不到 ${binName} —— 把 ${dir} 加进 PATH,重开终端再跑一次 sintbot setup\n`)
         return null
       }
       process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,做法见 docs/zh-CN/install.md「一键安装」\n`)
@@ -1773,9 +1774,9 @@ async function cmdSetup(rest) {
   await runDoctor(cfg)
   const cfgArg = cfgPath === path.join(os.homedir(), '.sbot', 'config.json') ? '' : ` --config ${cfgPath}`
   process.stdout.write('\n' + gray('— 下一步 —') + '\n'
-    + `  sbot agent run --provider ${cfg.defaultProvider} "用一句话自我介绍"${cfgArg}   ${dim('先在终端试一轮')}\n`
-    + `  sbot service install${cfgArg}                 ${dim('装成常驻服务(开机/登录自启,崩溃自动拉起)')}\n`
-    + `  sbot ui${cfgArg}                              ${dim('打开控制台:绑群、切模型、看实时活动')}\n`
+    + `  sintbot agent run --provider ${cfg.defaultProvider} "用一句话自我介绍"${cfgArg}   ${dim('先在终端试一轮')}\n`
+    + `  sintbot service install${cfgArg}                 ${dim('装成常驻服务(开机/登录自启,崩溃自动拉起)')}\n`
+    + `  sintbot ui${cfgArg}                              ${dim('打开控制台:绑群、切模型、看实时活动')}\n`
     + (!((cfg.providers || {})[cfg.defaultProvider] || {}).baseUrl
       ? '\n' + yellow('⚠ 订阅条款:') + '用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款;团队使用请改用 API key 或企业账号,并自行确认合规。\n' : ''))
 }
@@ -1818,11 +1819,11 @@ async function cmdUi(rest) {
   // Fail-closed: never expose the operator console to the LAN without a password.
   if (!loopback) {
     let raw; try { raw = readRawCfg() } catch (e) { die(`配置文件损坏:${e.message}`) }
-    if (!((raw.ui || {}).auth)) die(`对外访问(--host ${host})需先设置密码:sbot ui --set-password`)
+    if (!((raw.ui || {}).auth)) die(`对外访问(--host ${host})需先设置密码:sintbot ui --set-password`)
   }
   const ui = createUiServer({ configPath, host, log: (m) => process.stderr.write(gray('· ' + m) + '\n') })
   ui.server.on('error', (e) => {
-    if (e.code === 'EADDRINUSE') return die(`端口 ${port} 被占用 — 换端口:sbot ui --port <其它>`)
+    if (e.code === 'EADDRINUSE') return die(`端口 ${port} 被占用 — 换端口:sintbot ui --port <其它>`)
     die('ui server error: ' + (e && e.message))
   })
   ui.listen(port, host, () => {
@@ -4013,14 +4014,14 @@ async function cmdIssue(rest) {
 
   if (action === 'show') {
     const it = book.get(positionals[0])
-    if (!it) return die(`没有 #${positionals[0]} 这条(sbot issue list --all 看全部)`)
+    if (!it) return die(`没有 #${positionals[0]} 这条(sintbot issue list --all 看全部)`)
     process.stdout.write(JSON.stringify(it, null, 2) + '\n')
     return
   }
 
   if (action === 'close' || action === 'reopen') {
     const id = positionals[0]
-    if (!id) return die(`用法: sbot issue ${action} <id> [--note "<说明>"]`)
+    if (!id) return die(`用法: sintbot issue ${action} <id> [--note "<说明>"]`)
     const it = book.setStatus(id, action, note)
     if (!it) return die(`#${id} 不存在,或本来就是${action === 'close' ? '已处理' : '未处理'}状态`)
     process.stderr.write(green(`  ✓ #${it.id} 已标记为${action === 'close' ? '已处理' : '重新打开'}\n`))
@@ -4073,7 +4074,7 @@ async function cmdBrowser(rest) {
     const resp = await fetch(base + '/api/browser/link', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sbot-Local': '1' }, body: JSON.stringify({ ...(minutes > 0 ? { minutes } : {}), ...(tab ? { tab } : {}) }) })
     r = await resp.json().catch(() => ({}))
     if (!resp.ok) return die(r.error || `控制台返回 HTTP ${resp.status}`)
-  } catch (e) { return die(`连不上控制台(${base}):守护进程要带控制台在跑(sbot start --ui);终端里手工跑可用 SBOT_UI_URL=… 指定 —— ${e.message}`) }
+  } catch (e) { return die(`连不上控制台(${base}):守护进程要带控制台在跑(sintbot start --ui);终端里手工跑可用 SBOT_UI_URL=… 指定 —— ${e.message}`) }
   // --send:命令自己把卡发进群。截图失败 / 传图失败都不阻断 —— 卡没图照发;卡本身发不出去才是错
   if (send) {
     const chatId = chatOpt || process.env.SBOT_CHAT_ID
@@ -4509,10 +4510,10 @@ async function main() {
   if (sub === 'start') return cmdStart(argv.slice(1))
   if (sub === 'chat') return cmdChat(argv.slice(1))
   if (sub === 'agent') {
-    if (argv[1] !== 'run') return die(`unknown agent action '${argv[1] || ''}' (try: sbot agent run "<prompt>")`)
+    if (argv[1] !== 'run') return die(`unknown agent action '${argv[1] || ''}' (try: sintbot agent run "<prompt>")`)
     return cmdAgentRun(argv.slice(2))
   }
-  die(`unknown command '${sub}' (try: sbot help)`)
+  die(`unknown command '${sub}' (try: sintbot help)`)
 }
 
 main().catch((e) => die(e && e.message || String(e)))

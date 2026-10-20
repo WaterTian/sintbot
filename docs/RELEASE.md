@@ -39,9 +39,9 @@ npm publish
 ## 部署到在跑的机器
 
 ```bash
-npm i -g sintbot@latest && sbot service restart
+npm i -g sintbot@latest && sintbot service restart
 ```
 
-重启会中止正在跑的轮次(重启后自动重做)。挑各群空闲时做;有多台机器就逐台来,每台重启后看一眼 `sbot service logs` 与 `sbot doctor`。
+重启会中止正在跑的轮次(重启后自动重做)。挑各群空闲时做;有多台机器就逐台来,每台重启后看一眼 `sintbot service logs` 与 `sintbot doctor`。
 
 不想让这次升级在群里播报:重启前把 `~/.sbot/state.json` 的 `lastVersion` 改成新版本号。

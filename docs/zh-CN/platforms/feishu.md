@@ -37,12 +37,12 @@
 ## 接入 SintBot
 
 ```bash
-sbot setup          # 选 feishu,填 App ID / App Secret;预检会探出机器人的 open_id 并逐项检查权限
+sintbot setup          # 选 feishu,填 App ID / App Secret;预检会探出机器人的 open_id 并逐项检查权限
 ```
 
 或在控制台「设置 → 飞书应用」里填,有开通指引与一键预检(错误码翻成人话)。
 
-把机器人拉进群,然后在控制台「群 · 项目」里绑定项目目录(或重跑 `sbot setup`)。
+把机器人拉进群,然后在控制台「群 · 项目」里绑定项目目录(或重跑 `sintbot setup`)。
 
 ## 配置项
 

@@ -11,7 +11,7 @@
 
 - **HTTP 服务在 detached worker 里**(与 `sbot imagen` 同款)。daemon 是全群单点,不让一个吃局域网请求的 handler 进它的进程;daemon 重启(含升级)也不打断预览。
 - **生命周期策略在 daemon**:记账、闲置回收、孤儿清理、群暂停联动、控制台展示。
-- **worker 自己也会到点自尽** ⇒ 不装 daemon、只跑 `sbot ui`、daemon 崩了,回收照样成立。两道保险,任一独立有效。
+- **worker 自己也会到点自尽** ⇒ 不装 daemon、只跑 `sintbot ui`、daemon 崩了,回收照样成立。两道保险,任一独立有效。
 
 ```
 群 agent ──Bash──► sbot preview start design/prototype/index.html
@@ -23,7 +23,7 @@
        闲置 / 超龄 / 群暂停 ⇒ 停 + 群通知             只服务围栏内的静态文件
        孤儿记录(pid 已死)⇒ 清理                     GET /<token>/… → serveRoot/…
                       │
-              控制台概览「预览服务」区(端口 / 最后访问 / 剩余闲置 + 停止)· sbot doctor 如实列
+              控制台概览「预览服务」区(端口 / 最后访问 / 剩余闲置 + 停止)· sintbot doctor 如实列
 ```
 
 ## 命令
@@ -99,7 +99,7 @@ URL 形如 `http://192.168.1.75:4612/<token>/index.html`,`token` 是随机的 10
 ## 控制台与 doctor
 
 - 控制台概览的「预览服务」区:标签 / 群 / 端口 / 目录 / 起始 / 最后访问 / 剩余闲置 + 停止按钮。
-- `sbot doctor` 列出运行中的预览;服务项目根的、常驻的会单独标出。
+- `sintbot doctor` 列出运行中的预览;服务项目根的、常驻的会单独标出。
 
 ## 明确不做
 

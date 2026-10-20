@@ -29,7 +29,7 @@ sbot 侧**零特殊逻辑**:`gpt` provider 的 `baseUrl` 指向本机代理,和�
 
 | 要求 | 检查 | 说明 |
 |---|---|---|
-| sbot 已能跑 | `sbot doctor` 里 `claude` 那行 ✓ | 先照 [install.md](./zh-CN/install.md) 把基础跑绿 |
+| sbot 已能跑 | `sintbot doctor` 里 `claude` 那行 ✓ | 先照 [install.md](./zh-CN/install.md) 把基础跑绿 |
 | Node ≥ 22 | `node -v` | SintBot 本身就要 |
 | OpenAI **平台** API key | 有 `sk-...` | platform.openai.com 签发、**按 token 付费**;放 CCR 配置里,别放 sbot |
 
@@ -83,7 +83,7 @@ ccr start          # 或 claude-code-router start
 ```
 
 > **端口以 `ccr start` 实际打印的为准** —— 经典 CLI 多是 `127.0.0.1:3456`,新版桌面网关默认 `:8080`。
-> sbot 的 `gpt.baseUrl` 要对上它;对不上 `sbot doctor` 的 `router:gpt` 行会直接报「连不上」,不会静默错。
+> sbot 的 `gpt.baseUrl` 要对上它;对不上 `sintbot doctor` 的 `router:gpt` 行会直接报「连不上」,不会静默错。
 
 > **务必选 Responses 路由**。走 chat/completions 也能出字,但 GPT 每次工具调用后会丢 reasoning、
 > 且 `reasoning:none` 时禁用工具 → sbot 依赖的多步工具循环会变弱。DESIGN §1 有说明。
@@ -120,7 +120,7 @@ ccr start          # 或 claude-code-router start
 **1) doctor 看代理起没起** —— sbot 会探本机代理端口(loopback baseUrl 自动触发):
 
 ```bash
-sbot doctor
+sintbot doctor
 ```
 
 - `router:gpt  在线 127.0.0.1:3456` → 代理在线,继续。
@@ -130,7 +130,7 @@ sbot doctor
 **2) 单轮直跑** —— 不经飞书,最快闭环:
 
 ```bash
-sbot agent run --provider gpt "用一句话自我介绍,并说出你的模型名"
+sintbot agent run --provider gpt "用一句话自我介绍,并说出你的模型名"
 ```
 
 出一句合理回复 = 翻译链路通。若报错,看第五节。

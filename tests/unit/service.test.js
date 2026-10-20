@@ -89,7 +89,7 @@ test('service: stableNodeBin —— PATH 上的候选只在指向同一文件时
   const exe = '/Users/me/.nvm/versions/node/v22.16.0/bin/node'
   const other = svc.stableNodeBin({ execPath: exe, candidates: ['/usr/local/bin/node'], exists: () => true, realpath: (p) => p })
   assert.equal(other.bin, exe, '/usr/local/bin/node 是另一个 node,不能拿来顶')
-  assert.match(other.warn, /带版本号.*重跑 sbot service install/)
+  assert.match(other.warn, /带版本号.*重跑 sintbot service install/)
   const same = svc.stableNodeBin({ execPath: exe, candidates: ['/Users/me/bin/node'], exists: () => true, realpath: () => exe })
   assert.deepEqual(same, { bin: '/Users/me/bin/node' })
   // 对照组:本来就不带版本号的路径原样返回、不提醒

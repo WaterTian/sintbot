@@ -146,10 +146,10 @@ agent 就没法走「截图存项目目录 → `sbot feishu send-image` 发群�
 (当前页面截图 + 「接管浏览器」按钮 + 有效期;⚠ 文案不点名手机,电脑上一样能接管)⇒ 让人在手机或电脑上做 ⇒ 登录态留在这边、之后自己接着干;不要在群里要密码或验证码;
 登录页用 fill / click 真实输入」。卡片四态由 daemon 翻:有人点「开始接管」⇒「正在接管中」(蓝);点「结束接管」/ 到时 ⇒「接管已结束」(绿);票到期没人来 ⇒「已过期」(灰)。
 文案由代码保证(`src/platform/takeovercard.js`,零工具名),不靠 agent 每次现编;截图 / 传图失败卡照发、只是没图。控制台地址由 engine 经
-`SBOT_UI_URL` 注入;没开控制台(`sbot start` 不带 `--ui`)时命令会说清缘由、清单也不教这条。
+`SBOT_UI_URL` 注入;没开控制台(`sintbot start` 不带 `--ui`)时命令会说清缘由、清单也不教这条。
 
 **配置**(`sbot.config.json` 顶层,可省):`"browser": { "cdpUrl": "http://127.0.0.1:9222", "takeoverMinutes": 10 }`。
-`sbot doctor` 多一行 `browser`:探到 ok;探不到且配了 browser 段才 warn。
+`sintbot doctor` 多一行 `browser`:探到 ok;探不到且配了 browser 段才 warn。
 
 **代价与边界**:通行密钥(要本机指纹)接管也做不了;扫码要人在电脑上看页面、拿手机扫。画面经公网走的是控制台
 现有的隧道与 HTTPS;链接被转发给第三者的风险靠「只能打开一次 + 短命」兜住,发之前仍要确认对方是谁。

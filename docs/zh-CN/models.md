@@ -17,9 +17,9 @@
 
 1. **拿 API key**:到下表的平台注册、充值、创建 key。智谱和 MiniMax 分中国站与国际站,两边的 key 互不通用。
 2. **填进 SintBot**,任选一种:
-   - `sbot setup`:没检测到 Claude / Codex 登录时会直接推荐 DeepSeek,粘贴 key 后当场试跑一轮;要用别家选「用别家」。默认模型自动设成跑通的那家。
+   - `sintbot setup`:没检测到 Claude / Codex 登录时会直接推荐 DeepSeek,粘贴 key 后当场试跑一轮;要用别家选「用别家」。默认模型自动设成跑通的那家。
    - 控制台「模型 · 库 → 添加模型」选对应预设,填 key(国际站把端点改成下表那一列)。
-   - 环境变量:`export DEEPSEEK_API_KEY=…`(示例配置里写的是 `env:DEEPSEEK_API_KEY`)。装成常驻服务时,服务拿不到 shell 里的变量,要 `sbot service install --pass-env`,见 [install.md](./install.md)。
+   - 环境变量:`export DEEPSEEK_API_KEY=…`(示例配置里写的是 `env:DEEPSEEK_API_KEY`)。装成常驻服务时,服务拿不到 shell 里的变量,要 `sintbot service install --pass-env`,见 [install.md](./install.md)。
 3. **在群里切换**:发 `/model deepseek`,或在控制台给这个群选模型。
 
 | provider 名 | 在哪拿 key | 端点 `baseUrl` | 国际站端点 | 默认模型 | key 变量 |
@@ -68,7 +68,7 @@
 ```
 
 - 跑的仍是 `claude` 二进制,认证走各家的 API key,**不需要登录 Claude 账号**。
-- `env` 叠加在 spawn 环境之上,放各家的调优项(快慢模型分工、关遥测等)。Kimi 等不在预设里的端点,在控制台「模型 · 库 → 添加模型 → 自定义」填端点、key 和模型名。[sbot.config.example.json](../../sbot.config.example.json) 里有几家已验证过的端点与调优参数,`sbot setup` 从那里起步。
+- `env` 叠加在 spawn 环境之上,放各家的调优项(快慢模型分工、关遥测等)。Kimi 等不在预设里的端点,在控制台「模型 · 库 → 添加模型 → 自定义」填端点、key 和模型名。[sbot.config.example.json](../../sbot.config.example.json) 里有几家已验证过的端点与调优参数,`sintbot setup` 从那里起步。
 - **纯文本模型**(不能看图)标 `"vision": false`:图片输入会经本地代理换成占位文字,避免整轮因 `400` 失败。不确定就别标。
 
 ### 3. GPT(经 Codex CLI)

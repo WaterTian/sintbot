@@ -23,7 +23,7 @@
 ## 接入 SintBot
 
 ```bash
-sbot setup     # 选 wecom,填 Bot ID / Secret,以及机器人在企微里的名字(用来剥掉正文里的 @)
+sintbot setup     # 选 wecom,填 Bot ID / Secret,以及机器人在企微里的名字(用来剥掉正文里的 @)
 ```
 
 或在控制台「设置 → 企业微信机器人」里填(含预检:凭据、命令行工具、工具授权的是不是同一个机器人)。
