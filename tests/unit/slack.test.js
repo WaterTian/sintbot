@@ -349,6 +349,33 @@ test('slackPrecheck: 凭据不对就地收工,不再拿坏 token 去撞后面几
   assert.match(r.checks[0].detail, /重新安装/)
 })
 
+test('slackHint: 错误码翻成「哪里不对 + 怎么修」,末尾留原始码;认不出的原样给码', () => {
+  const { slackHint, SlackError } = require('../../src/platform/slack')
+  assert.match(slackHint(new SlackError('invalid_auth', 'auth.test')), /无效或已撤销.*重新安装.*\[invalid_auth\]/)
+  assert.match(slackHint(new SlackError('token_revoked', 'auth.test')), /重新安装/)
+  const scope = slackHint(new SlackError('missing_scope', 'users.conversations', { needed: 'groups:read' }))
+  assert.match(scope, /缺权限 groups:read/)
+  assert.match(scope, /重新安装/, '改了权限不重装 = 照样缺')
+  assert.match(slackHint(new SlackError('missing_scope', 'x')), /^缺权限 —— /, '没带 needed 也要读得通')
+  assert.match(slackHint(new SlackError('request_timeout', 'x', { cause: 'fetch failed' })), /代理.*\[fetch failed\]/)
+  assert.match(slackHint(new SlackError('ratelimited', 'x')), /限流/)
+  assert.equal(slackHint(new SlackError('weird_new_code', 'x')), 'weird_new_code')
+  assert.equal(slackHint(new Error('boom')), 'boom')
+})
+
+test('slackPrecheck: 频道列表拉不到时,warn 行给的是可操作的话而不是裸错误码', async () => {
+  const { slackPrecheck } = require('../../src/platform/slack')
+  const fetchImpl = mockJson({
+    'auth.test': { json: { ok: true, user: 'sintbot', user_id: 'U1', team: 'Acme', team_id: 'T1' }, scopes: 'chat:write,channels:history,channels:read,app_mentions:read' },
+    'apps.connections.open': { json: { ok: true, url: 'wss://x' } },
+    'users.conversations': { json: { ok: false, error: 'missing_scope', needed: 'groups:read' } },
+  })
+  const r = await slackPrecheck('xoxb-t', 'xapp-t', { fetchImpl })
+  const ch = r.checks.find((c) => c.key === 'channels')
+  assert.equal(ch.status, 'warn')
+  assert.match(ch.detail, /缺权限 groups:read.*重新安装/)
+})
+
 test('fetchSlackChannels: 走 cursor 分页,且只列频道不列 DM', async () => {
   const { fetchSlackChannels } = require('../../src/platform/slack')
   const seen = []

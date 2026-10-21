@@ -47,6 +47,20 @@ const CONTENT_LEVEL = new Set(['msg_too_long', 'msg_blocks_too_long', 'invalid_b
 // ⭐ 这一组的处置是同一个动作:**立刻改发新消息(带 thread_ts)并切换进度指针**(SLACK.md「可靠性」)。
 const UPDATE_DEGRADE = new Set(['edit_window_closed', 'message_not_found', 'cant_update_message', 'block_mismatch', 'message_not_in_streaming_state', 'streaming_state_conflict'])
 
+// 把 Slack 错误翻成「哪里不对 + 怎么修」的一句话,给向导拉频道列表、平台预检用(1.0.4)。
+// 此前这两处直接显示错误码,`invalid_auth` 这类字样新手看不懂、也不知道去哪修。末尾仍带上原始码,方便搜索与报 issue。
+const AUTH_CODES = new Set(['invalid_auth', 'not_authed', 'token_revoked', 'token_expired', 'account_inactive', 'invalid_auth_token'])
+function slackHint(e) {
+  const code = (e && e.code) || ''
+  const p = (e && e.payload) || {}
+  if (AUTH_CODES.has(code)) return `Bot Token(xoxb-)无效或已撤销 —— 到 api.slack.com 这个应用的 OAuth & Permissions 页重新安装,换上新 token [${code}]`
+  if (code === 'missing_scope') return `缺权限${p.needed ? ' ' + p.needed : ''} —— 在 OAuth & Permissions 里加上,然后重新安装应用才生效 [missing_scope]`
+  if (code === 'ratelimited' || code === 'rate_limited') return `触发了 Slack 限流,稍等一会儿再试 [${code}]`
+  if (code === 'request_timeout') return `连不上 slack.com —— 检查网络;在中国大陆要先配好代理 [${p.cause || code}]`
+  if (code === 'service_unavailable') return 'Slack 服务暂时不可用,稍后再试 [service_unavailable]'
+  return code || (e && e.message) || String(e)
+}
+
 function classifyError(code) {
   if (!code) return 'other'
   if (FATAL.has(code)) return 'fatal'
@@ -588,8 +602,7 @@ async function slackPrecheck(botToken, appToken, { fetchImpl = null } = {}) {
     identity = { botName: me.user || '', botUserId, team: me.team || '', teamId: me.team_id || '', url: me.url || '' }
     checks.push({ key: 'auth', status: 'ok', label: 'bot 凭据', detail: `${me.user || 'bot'} · ${me.team || ''}` })
   } catch (e) {
-    const hint = e && e.code === 'invalid_auth' ? 'xoxb 无效或已撤销 —— 去 OAuth 页重新安装取新的' : (e && e.code) || String(e)
-    checks.push({ key: 'auth', status: 'fail', label: 'bot 凭据', detail: hint })
+    checks.push({ key: 'auth', status: 'fail', label: 'bot 凭据', detail: slackHint(e) })
     return { checks, botUserId, identity, scopes }
   }
 
@@ -615,7 +628,7 @@ async function slackPrecheck(botToken, appToken, { fetchImpl = null } = {}) {
       ? { key: 'channels', status: 'ok', label: '已加入的频道', detail: `${chans.length} 个 —— 绑群时从这里选` }
       : { key: 'channels', status: 'warn', label: '已加入的频道', detail: '一个都没有 —— 去频道里发 `/invite @bot`,不做这步收不到任何消息' })
   } catch (e) {
-    checks.push({ key: 'channels', status: 'warn', label: '已加入的频道', detail: (e && e.code) || String(e) })
+    checks.push({ key: 'channels', status: 'warn', label: '已加入的频道', detail: slackHint(e) })
   }
 
   return { checks, botUserId, identity, scopes }
@@ -1266,6 +1279,7 @@ module.exports = {
   CONTROL_BUTTONS,
   plainFallback,
   classifyError,
+  slackHint,
   SlackError,
   FATAL,
   RETRYABLE,

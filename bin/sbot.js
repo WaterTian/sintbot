@@ -41,7 +41,7 @@ const { createCliPlatform } = require('../src/platform/cli')
 const { createWecomPlatform } = require('../src/platform/wecom') // 企业微信智能机器人长连接(配了 wecom 块就接它;docs/WECOM.md)
 const { createMultiPlatform } = require('../src/platform/multi') // 多平台路由器:飞书 + 企微同时接,按群分发(双平台并存)
 const { createWecomCli } = require('../src/platform/wecomcli') // 企微官方命令行工具封装:基础技能 / 生图通知 / 接管链接三处共用(不占长连接)
-const { createFeishuPlatform, feishuClient, fetchChats, feishuPrecheck, fetchOrgUsers, resolveContactToOpenId, sendChatText, sendChatImage, sendChatFile, sendChatCard, historyAtMark, updateCardEntity, uploadImage, resolveSendPath, larkErrMsg, fetchChatHistory, replyMessage, editMessage, recallMessage, downloadResource, reactMessage, createBoardDoc, shareDocWithChat, addChatTabDoc, uploadBoardImage, createBoardNodes, createBoardDiagram, listBoardNodes, deleteBoardNodes, boardTextNode, boardUsageNoteNodes, subscribeBoard, listBoardComments, resolveBoardComment, downloadBoardMedia, boardPreviewImageKey } = require('../src/platform/feishu')
+const { createFeishuPlatform, feishuClient, fetchChats, feishuPrecheck, feishuHint, fetchOrgUsers, resolveContactToOpenId, sendChatText, sendChatImage, sendChatFile, sendChatCard, historyAtMark, updateCardEntity, uploadImage, resolveSendPath, larkErrMsg, fetchChatHistory, replyMessage, editMessage, recallMessage, downloadResource, reactMessage, createBoardDoc, shareDocWithChat, addChatTabDoc, uploadBoardImage, createBoardNodes, createBoardDiagram, listBoardNodes, deleteBoardNodes, boardTextNode, boardUsageNoteNodes, subscribeBoard, listBoardComments, resolveBoardComment, downloadBoardMedia, boardPreviewImageKey } = require('../src/platform/feishu')
 const { createSlackPlatform } = require('../src/platform/slack') // Slack 适配器(docs/SLACK.md):路由器里与飞书 / 企微平级,按群分发
 const { imageSize, digestNodes, digestComments, nodeText, nextImagePosition, besideImagePosition, besideRegionPosition, nodesBBox, sanitizeDiagramNodes, shiftDiagramNodes, groupDiagramBatch, parseInvalidNodeFields, buildDeliverCard, diagramSpec, redactNodeTexts, trimPngWhitespace, decodePngRGBA, encodePngRGBA, padToMaxAspect } = require('../src/platform/board') // 画布纯函数(尺寸魔数/节点·评论摘要/文字指纹/摆放几何/图表移植:并集bbox·净化·平移·打组·字段解析/结果卡/图表映射/节点脱敏/PNG白边裁剪·PNG编解码/卡内预览高宽比封顶)
 const { createBoardWatch } = require('../src/platform/boardwatch') // 画布自动感知(B3):轮询主触发+事件加速 → diff → 群播报
@@ -1611,7 +1611,7 @@ async function cmdSetup(rest) {
           verify.recordPrecheck('feishu', raw.feishu, r.checks)
           if (r.botOpenId) { raw.feishu.botOpenId = r.botOpenId; process.stdout.write(cyan('  ✓ ') + `botOpenId = ${r.botOpenId}\n`) }
           if (r.identity && r.identity.appName) process.stdout.write(cyan('  ✓ ') + `应用 = ${r.identity.appName}${r.identity.activateText ? ` (${r.identity.activateText})` : ''}\n`)
-          for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 70))}\n`)
+          for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 140))}\n`) // 1.0.4:提示是写好的整句(怎么修),别截在半句
         } catch (e) { process.stdout.write(red(`  预检失败(${(e && e.message) || e})`) + '\n') }
         if (!raw.feishu.botOpenId) raw.feishu.botOpenId = await ask('bot openId (可留空)', '')
       } else {
@@ -1663,7 +1663,7 @@ async function cmdSetup(rest) {
           verify.recordPrecheck('slack', raw.slack, r.checks)
           if (r.botUserId) raw.slack.botUserId = r.botUserId
           if (r.identity) raw.slack.identity = r.identity
-          for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 80))}\n`)
+          for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 140))}\n`)
         } catch (e) { process.stdout.write(red(`  预检失败(${(e && e.message) || e})`) + '\n') }
       }
     }
@@ -1715,7 +1715,11 @@ async function cmdSetup(rest) {
             const pick = await ask('选择要绑定的频道(序号,或直接粘贴频道 ID;留空跳过)', '')
             chatId = (/^\d+$/.test(pick) && chans[+pick - 1]) ? chans[+pick - 1].id : pick
           } else chatId = await ask('频道 ID(如 C0123ABCD;bot 还没进任何频道 —— 先在频道里 /invite 它)', '')
-        } catch (e) { chatId = await ask(`频道 ID(拉频道列表失败:${(e && e.message) || e})`, '') }
+        } catch (e) {
+          // 1.0.4:错误码翻成人话(凭据 / 权限 / 网络各自怎么修),不再只甩一个 invalid_auth
+          process.stdout.write(red(`  拉频道列表失败:${require('../src/platform/slack').slackHint(e)}`) + '\n')
+          chatId = await ask('频道 ID(如 C0123ABCD;修好上面的问题后重跑向导就能从列表里选)', '')
+        }
       } else if (bindPlat === 'wecom') {
         chatId = await ask('企业微信群 ID(还不知道就留空:先跑起来,在群里 @ 机器人说一句,再到控制台绑定 —— 那里会列出 @ 过它的群)', '')
       } else if (usableFeishu) {
@@ -1731,7 +1735,7 @@ async function cmdSetup(rest) {
             chatId = await ask('群 chatId (如 oc_xxx)', '')
           }
         } catch (e) {
-          process.stdout.write(red(`  拉群列表失败(${(e && e.message) || e});手动输入`) + '\n')
+          process.stdout.write(red(`  拉群列表失败:${feishuHint(e, 'im:chat')}`) + '\n')
           chatId = await ask('群 chatId (如 oc_xxx)', '')
         }
       } else {
