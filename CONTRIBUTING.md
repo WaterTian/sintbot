@@ -2,6 +2,8 @@
 
 English · [简体中文](./CONTRIBUTING.zh-CN.md)
 
+Everyone taking part is expected to follow the [Code of Conduct](./CODE_OF_CONDUCT.md). Bugs and feature requests go through the [issue forms](https://github.com/sintlab/sintbot/issues/new/choose).
+
 ## Getting it running
 
 ```bash

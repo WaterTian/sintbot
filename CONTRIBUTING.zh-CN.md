@@ -2,6 +2,8 @@
 
 [English](./CONTRIBUTING.md) · 简体中文
 
+参与本项目请遵守[行为准则](./CODE_OF_CONDUCT.md)(英文)。报问题、提建议请用 [issue 表单](https://github.com/sintlab/sintbot/issues/new/choose)。
+
 ## 跑起来
 
 ```bash
