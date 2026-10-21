@@ -3691,7 +3691,10 @@ test('engine: 长任务只调工具不说话时,卡里会滚动出「已跑多�
   const run = okRunner(async ({ onEvent }) => {
     onEvent({ type: 'assistant', text: '我先看看代码' })   // 有一段文字 ⇒ 卡被建出来
     onEvent({ type: 'assistant', tools: [{ name: 'Bash' }] })
-    await wait(420)                                        // 之后长时间只有工具、不说话
+    // 之后长时间只有工具、不说话。⚠ 窗口要比 2 帧宽得多:脉搏的闸是「距上次碰卡满 cardPulseMs」,而碰卡时刻取的是
+    //   回调真正执行的那一刻 —— 回调一晚,下一跳量出来就差 1ms 不到间隔、被闸掉。原先 420ms 只有 3 跳、刚好够 2 帧,
+    //   CI 慢机器(Node 24,2026-10-20)一跳被闸就只剩 1 帧而红。900ms 有 7 跳,隔一跳闸一次也有 3 帧。
+    await wait(900)
     return { sessionId: 's', result: { text: '做完了' } }
   })
   await new Engine(pulseCfg(120), { runner: run, store: mkStore() }).handleMessage(mkMsg('长任务'), p); await tick()
