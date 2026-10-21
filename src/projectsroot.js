@@ -159,4 +159,14 @@ function workdirInput(input, { home = os.homedir(), platform = process.platform 
   return { path: p }
 }
 
-module.exports = { norm, expandHome, defaultProjectsRoot, tooWideReason, parseRootsInput, resolveProjectsRoots, realpathLenient, samePath, withinRoots, describeRoots, workdirInput }
+// 向导绑群时的默认项目目录(1.0.4):第一个项目根目录下、以群名命名的子目录;不知道群名(手填的 ID)就用 my-project。
+// 此前这一问没有默认值,新手不知道该填哪。群名只做最少的清洗:路径分隔符、Windows 不认的字符、括号和空白换成 `-`,
+// 英文转小写,中文原样保留(目录名用中文没问题)。
+function defaultWorkdir(name, roots, { platform = process.platform, home = os.homedir() } = {}) {
+  const root = (roots && roots[0]) || defaultProjectsRoot({ platform, home })
+  const slug = String(name || '').trim().toLowerCase()
+    .replace(/[\\/:*?"<>|#()（）\[\]\s]+/g, '-').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 60)
+  return P(platform).join(root, slug || 'my-project')
+}
+
+module.exports = { norm, expandHome, defaultProjectsRoot, tooWideReason, parseRootsInput, resolveProjectsRoots, realpathLenient, samePath, withinRoots, describeRoots, workdirInput, defaultWorkdir }

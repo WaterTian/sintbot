@@ -170,3 +170,19 @@ test('projectsroot: workdirInput —— 认 ~ 并返回展开后的绝对路径;
   assert.match(pr.workdirInput(null, o).error, /为空/)
   assert.deepEqual(pr.workdirInput('~\\p', { home: 'C:\\Users\\u', platform: 'win32' }), { path: 'C:\\Users\\u\\p' })
 })
+
+test('projectsroot: defaultWorkdir —— 向导绑群的默认目录 = 第一个项目根目录 / 群名;没有群名用 my-project', () => {
+  const o = { platform: 'linux', home: '/home/u' }
+  const roots = ['/home/u/Projects', '/srv/work']
+  assert.equal(pr.defaultWorkdir('design-team', roots, o), '/home/u/Projects/design-team')
+  assert.equal(pr.defaultWorkdir('Design Team', roots, o), '/home/u/Projects/design-team')   // 英文转小写、空白换 -
+  assert.equal(pr.defaultWorkdir('设计组', roots, o), '/home/u/Projects/设计组')               // 中文原样保留
+  assert.equal(pr.defaultWorkdir('a/b:c', roots, o), '/home/u/Projects/a-b-c')                // 分隔符与 Windows 不认的字符不许漏进路径
+  assert.equal(pr.defaultWorkdir('../..', roots, o), '/home/u/Projects/my-project')           // 只剩点和横线 ⇒ 当没名字,绝不跳出根目录
+  assert.equal(pr.defaultWorkdir('', roots, o), '/home/u/Projects/my-project')
+  assert.equal(pr.defaultWorkdir(null, roots, o), '/home/u/Projects/my-project')
+  assert.equal(pr.defaultWorkdir('ops', [], o), '/home/u/Projects/ops')                       // 没配根目录 ⇒ 平台默认根
+  assert.equal(pr.defaultWorkdir('ops', ['D:\\Projects'], { platform: 'win32', home: 'C:\\Users\\u' }), 'D:\\Projects\\ops')
+  // 出来的默认值必须能原样通过向导的输入校验(回车即用,不能一回车就报错)
+  assert.deepEqual(pr.workdirInput(pr.defaultWorkdir('Design Team', roots, o), o), { path: '/home/u/Projects/design-team' })
+})

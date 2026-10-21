@@ -13,7 +13,7 @@ const path = require('node:path')
 const readline = require('node:readline')
 const { parseArgs } = require('node:util')
 const { loadConfig, findConfigPath, defaultConfigPath, applyProxyEnv, deriveNoProxy, resolveSecret, platformsConfigured, chatPlatform } = require('../src/config')
-const { resolveProjectsRoots, withinRoots, describeRoots, parseRootsInput, expandHome, workdirInput } = require('../src/projectsroot')
+const { resolveProjectsRoots, withinRoots, describeRoots, parseRootsInput, expandHome, workdirInput, defaultWorkdir } = require('../src/projectsroot')
 // Runner dispatch (keeps core/engine agnostic — it only sees `{ runTurn }`): a provider
 // with `runner: "codex"` drives Codex CLI (GPT, Route B), else Claude Code. Shared with
 // the UI server so 测试/试跑 route the same way. See DESIGN §1 / docs/CODEX-RUNNER.md.
@@ -1699,6 +1699,7 @@ async function cmdSetup(rest) {
 
     if (await askYN('绑定一个 群→项目?', false)) {
       let chatId = ''
+      let groupName = '' // 从列表里选的群 / 频道名,用来给项目目录出默认值
       const fe = raw.feishu
       // 绑到哪个平台的群:只接了一个平台就是它,接了多个先问
       // 排序按地区(决定默认绑哪边):中国大陆飞书在前,其余 Slack 在前
@@ -1713,7 +1714,9 @@ async function cmdSetup(rest) {
             process.stdout.write(gray('  bot 已加入的频道:') + '\n')
             chans.forEach((c, i) => process.stdout.write(`    ${cyan(String(i + 1))}) #${c.name}  ${dim(c.id)}\n`))
             const pick = await ask('选择要绑定的频道(序号,或直接粘贴频道 ID;留空跳过)', '')
-            chatId = (/^\d+$/.test(pick) && chans[+pick - 1]) ? chans[+pick - 1].id : pick
+            const hit = /^\d+$/.test(pick) && chans[+pick - 1]
+            chatId = hit ? hit.id : pick
+            if (hit) groupName = hit.name
           } else chatId = await ask('频道 ID(如 C0123ABCD;bot 还没进任何频道 —— 先在频道里 /invite 它)', '')
         } catch (e) {
           // 1.0.4:错误码翻成人话(凭据 / 权限 / 网络各自怎么修),不再只甩一个 invalid_auth
@@ -1729,7 +1732,9 @@ async function cmdSetup(rest) {
             process.stdout.write(gray('  bot 所在的群:') + '\n')
             chats.forEach((c, i) => process.stdout.write(`    ${cyan(String(i + 1))}) ${c.name}  ${dim(c.chatId)}\n`))
             const pick = await ask('选择要绑定的群(序号,或直接粘贴 chatId;留空跳过)', '')
-            chatId = (/^\d+$/.test(pick) && chats[+pick - 1]) ? chats[+pick - 1].chatId : pick
+            const hit = /^\d+$/.test(pick) && chats[+pick - 1]
+            chatId = hit ? hit.chatId : pick
+            if (hit && hit.name !== '(未命名群)') groupName = hit.name
           } else {
             process.stdout.write(gray('  (bot 不在任何群里 — 先把 bot 拉进群再重试,或手动输入)') + '\n')
             chatId = await ask('群 chatId (如 oc_xxx)', '')
@@ -1741,28 +1746,31 @@ async function cmdSetup(rest) {
       } else {
         chatId = await ask('群 chatId (如 oc_xxx;配了飞书可自动列群供选)', '')
       }
-      // 认 `~`、存展开后的绝对路径;写错了当场重问(1.0.2 及以前原样收下 `~/x`,在当前目录建出一个叫 `~` 的文件夹)
-      let workdir = ''
-      for (;;) {
-        const input = await ask(`项目 workdir 绝对路径(在 ${describeRoots(resolveProjectsRoots(raw).roots)} 下,可以用 ~ 开头;留空跳过)`, '')
-        if (!input) break
-        const wd = workdirInput(input)
-        if (wd.path) { workdir = wd.path; break }
-        process.stdout.write(red('  ' + wd.error) + '\n')
-      }
-      // 项目根目录围栏在向导里只提醒不拦:向导与手改配置文件是同一条 operator 路,但要让他知道
-      // 控制台不会认这样的绑定、doctor 会一直提示(围栏判据与控制台同源,src/projectsroot.js)
-      if (workdir) {
+      if (!chatId) {
+        // 没有群就不往下问了(1.0.4 前照问目录和 provider,问完才说「未绑定」)
+        process.stdout.write(gray('  没有群 ID,先不绑定 —— 跑起来后在控制台「群 · 项目」页绑定') + '\n')
+      } else {
+        // 认 `~`、存展开后的绝对路径;写错了当场重问(1.0.2 及以前原样收下 `~/x`,在当前目录建出一个叫 `~` 的文件夹)。
+        // 1.0.4 起有默认值:项目根目录下以群名命名的子目录,回车即用
         const pr = resolveProjectsRoots(raw)
+        const def = defaultWorkdir(groupName, pr.roots)
+        let workdir = ''
+        for (;;) {
+          const wd = workdirInput(await ask(`项目目录(在 ${describeRoots(pr.roots)} 下,可以用 ~ 开头;回车用默认)`, def))
+          if (wd.path) { workdir = wd.path; break }
+          process.stdout.write(red('  ' + wd.error) + '\n')
+        }
+        // 项目根目录围栏在向导里只提醒不拦:向导与手改配置文件是同一条 operator 路,但要让他知道
+        // 控制台不会认这样的绑定、doctor 会一直提示(围栏判据与控制台同源,src/projectsroot.js)
         if (!withinRoots(workdir, pr.roots)) process.stdout.write(yellow(`  ⚠ 不在项目根目录(${describeRoots(pr.roots)})下 —— 控制台不会允许这样的绑定,doctor 会提示;向导照记`) + '\n')
         if (!fs.existsSync(workdir) && await askYN(`  ${workdir} 不存在,现在创建?`, true)) {
           try { fs.mkdirSync(workdir, { recursive: true }); process.stdout.write(cyan('  ✓ 已创建 ') + workdir + '\n') }
           catch (e) { process.stdout.write(red(`  创建失败:${(e && e.message) || e}`) + '\n') }
         }
+        const gp = await ask('该群 provider', raw.defaultProvider)
+        delete raw.groups.oc_example_chat_id
+        raw.groups[chatId] = { workdir, provider: gp, ...(live.length > 1 || bindPlat !== 'feishu' ? { platform: bindPlat } : {}) }
       }
-      const gp = await ask('该群 provider', raw.defaultProvider)
-      if (chatId && workdir) { delete raw.groups.oc_example_chat_id; raw.groups[chatId] = { workdir, provider: gp, ...(live.length > 1 || bindPlat !== 'feishu' ? { platform: bindPlat } : {}) } }
-      else process.stdout.write(red('  chatId/workdir 为空,未绑定') + '\n')
     }
   } finally {
     rl.close()
