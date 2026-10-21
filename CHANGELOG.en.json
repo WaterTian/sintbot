@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.0.4",
+    "name": "Smoother group binding; clear fixes when a platform can't be reached",
+    "items": [
+      {
+        "t": "Listing errors explain the fix",
+        "d": "When the setup wizard can't list Feishu groups or Slack channels, it now says whether the credentials, a missing permission or the network is the problem and where to fix it, instead of showing a bare error code. The console's Slack precheck does the same."
+      },
+      {
+        "t": "A default project folder",
+        "d": "When binding a group, the setup wizard suggests a folder named after the group under your projects folder, so pressing Enter is enough. It no longer asks for a folder when no group was chosen."
+      },
+      {
+        "t": "The repository moved to SintLab",
+        "d": "The project repository moved to the SintLab organization. Links in the docs are updated and the old address redirects. Bug reports and feature requests now use forms that ask for the version, system and chat platform."
+      }
+    ]
+  },
+  {
     "version": "1.0.3",
     "name": "Health checks that tell you what works; wrong keys fail in a second",
     "items": [
