@@ -177,4 +177,3 @@ SintBot is source-available under the [PolyForm Shield License 1.0.0](./LICENSE)
 
 - You may use, modify and run it for yourself, your team or your company.
 - You may not use it to offer a product that competes with SintBot, paid or free.
-- Versions 1.0.4 and earlier were released under the MIT License and remain under it.

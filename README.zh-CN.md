@@ -183,4 +183,3 @@ SintBot 源码公开,采用 [PolyForm Shield 1.0.0 许可](./LICENSE) © WaterTi
 
 - 可以自己用、团队或公司内部用,也可以改了自己用。
 - 不可以拿它做成与 SintBot 竞争的产品,收费、免费都不行。
-- 1.0.4 及以前的版本按 MIT 许可发布,仍适用 MIT。
