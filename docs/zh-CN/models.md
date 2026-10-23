@@ -95,4 +95,4 @@
 
 ## 订阅条款
 
-用个人订阅(Claude Pro/Max、ChatGPT Plus/Pro)的登录态服务多人群聊,可能不符合提供方的条款。团队使用请选用允许这种用法的账号类型或 API 计费,并自行确认合规。
+个人 Claude Pro/Max 或 ChatGPT Plus/Pro 订阅未必允许服务多人群聊。团队使用前请核对提供方条款。

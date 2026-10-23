@@ -24,6 +24,8 @@ SintBot 是一个跑在你自己机器上的守护进程,把能写代码的 AI �
 
 每一轮都用官方的 **Claude Code** 或 **Codex** 命令行无头运行,所以工具、MCP、skills、项目记忆都和你在终端里用的一样。模型按群选:Claude、GPT、DeepSeek、GLM、MiniMax、Kimi,或你自己部署的模型。
 
+完整源码、文档和测试均已公开,可查看、克隆和下载,采用 [PolyForm Shield 1.0.0 许可](./LICENSE)。
+
 ## 怎么跑
 
 <p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/how-it-works-zh.svg" alt="群(飞书、Slack 或企业微信)→ 你机器上的 SintBot → 项目目录里的 Claude Code 或 Codex → 这个群选的模型;进度与结果回到群里" width="880"></p>
@@ -123,7 +125,7 @@ sintbot help                      # 全部命令
 
 - 机器人能在绑定的项目目录里**执行命令**。权限按群设:默认只读;「完全访问」只给你信任的群。文件工具限制在项目目录内,命令行没有沙箱。详见 [docs/security.md](./docs/zh-CN/security.md)。
 - 控制台默认只听本机。要给局域网用,先 `sintbot ui --set-password`。
-- **订阅条款**:用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款。团队使用请改用 API 计费或允许这种用法的账号类型,并自行确认合规。
+- **订阅条款**:个人 Claude / ChatGPT 订阅未必允许服务多人群聊;团队使用前请核对提供方条款。
 
 ## 常见问题
 
@@ -179,7 +181,7 @@ sintbot help                      # 全部命令
 
 ## 许可
 
-SintBot 源码公开,采用 [PolyForm Shield 1.0.0 许可](./LICENSE) © WaterTian。
+完整源码、文档和测试均已公开,可查看、克隆和下载,采用 [PolyForm Shield 1.0.0 许可](./LICENSE) © WaterTian。准确边界以许可原文为准。
 
-- 可以自己用、团队或公司内部用,也可以改了自己用。
+- 可以自己用、团队或公司内部用,也可以修改和运行。
 - 不可以拿它做成与 SintBot 竞争的产品,收费、免费都不行。

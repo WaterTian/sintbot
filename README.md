@@ -24,6 +24,8 @@ SintBot is a self-hosted daemon that puts a coding agent in your team's group ch
 
 Each turn runs the official **Claude Code** or **Codex** CLI headless, so tools, MCP servers, skills and project memory behave just as they do in your terminal. Each group chooses its model: Claude, GPT, DeepSeek, GLM, MiniMax, Kimi, or one you host yourself.
 
+Full source, docs and tests are public and downloadable under the [PolyForm Shield License 1.0.0](./LICENSE).
+
 ## How it works
 
 <p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/how-it-works.svg" alt="Group (Slack, Feishu or WeCom) → SintBot on your machine → Claude Code or Codex in the project directory → the model chosen for that group; progress and results flow back to the group" width="880"></p>
@@ -115,7 +117,7 @@ Configuration lives in `~/.sbot/config.json`. See [docs/config.md](./docs/config
 
 - The bot **executes commands** in the bound project directory. Permissions are set per group: read-only by default, with "full access" for groups you trust. File tools are confined to the project directory; shell commands are not sandboxed. See [docs/security.md](./docs/security.md).
 - The console listens on this machine only. Before opening it to your LAN, run `sintbot ui --set-password`.
-- Serving a multi-user group from a personal Claude or ChatGPT subscription may conflict with the provider's terms. For team use, choose API billing or a plan that permits it.
+- Personal Claude or ChatGPT subscriptions may not permit multi-user groups; check the provider's terms before team use.
 
 ## FAQ
 
@@ -173,7 +175,7 @@ Report security issues privately through [GitHub Security Advisories](https://gi
 
 ## License
 
-SintBot is source-available under the [PolyForm Shield License 1.0.0](./LICENSE) © WaterTian.
+Full source, docs and tests are public and downloadable under the [PolyForm Shield License 1.0.0](./LICENSE) © WaterTian. The license text governs.
 
 - You may use, modify and run it for yourself, your team or your company.
 - You may not use it to offer a product that competes with SintBot, paid or free.

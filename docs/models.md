@@ -100,4 +100,4 @@ With no `baseUrl` or `apiKey`, the provider uses the local `claude` login (run `
 
 ## Subscription terms
 
-Serving a multi-user group from a personal subscription login (Claude Pro/Max, ChatGPT Plus/Pro) may conflict with the provider's terms. For team use, choose an account type that permits it or API billing, and confirm compliance yourself.
+Personal Claude Pro/Max or ChatGPT Plus/Pro subscriptions may not permit multi-user groups. Check the provider's terms before team use.

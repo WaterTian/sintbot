@@ -1,12 +1,12 @@
 # Third-party notices
 
-SintBot itself is released under the MIT license (see [LICENSE](./LICENSE)). This file lists third-party material that is **copied into** this repository and the npm package.
+SintBot uses the [PolyForm Shield License 1.0.0](./LICENSE). Bundled third-party material keeps its own license or trademark terms.
 
 ## Chat platform logos
 
 - **Where**: `PLAT_LOGO` in `src/ui/console.html` — the small icons on the Feishu, Slack and WeCom cards under Settings → Chat platforms.
 - **Source**: each platform's own website favicon (feishu.cn, slack.com, work.weixin.qq.com).
-- **License**: not covered by SintBot's MIT license. These logos are trademarks of their respective owners (Beijing Feishu Technology, Slack Technologies, Tencent) and are used only to identify which platform a settings card configures. SintBot is not affiliated with or endorsed by them.
+- **License**: separate from SintBot's license. The logos are trademarks of Beijing Feishu Technology, Slack Technologies and Tencent, used only to identify platform settings. SintBot is not affiliated with or endorsed by them.
 
 ## Lucide icons
 
