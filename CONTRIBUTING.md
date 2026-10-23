@@ -54,3 +54,7 @@ Architecture and key design decisions: [DESIGN.md](./DESIGN.md) (in Chinese). In
 
 - One commit, one change; explain the "why" in the message.
 - Release-history entries (`CHANGELOG.json` / `.en.json`) are written for group members; see [docs/RELEASE.md](./docs/RELEASE.md) (in Chinese).
+
+## License
+
+SintBot is licensed under the [PolyForm Shield License 1.0.0](./LICENSE). By submitting a contribution, you agree that it is licensed under the same terms and that the maintainer may relicense it, including under an open-source license.

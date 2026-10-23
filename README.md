@@ -8,7 +8,7 @@
   <a href="https://www.npmjs.com/package/sintbot"><img src="https://img.shields.io/npm/v/sintbot?style=flat-square&color=d68f44" alt="npm version"></a>
   <a href="https://github.com/sintlab/sintbot/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/sintlab/sintbot/test.yml?branch=main&style=flat-square&label=tests" alt="tests"></a>
   <img src="https://img.shields.io/node/v/sintbot?style=flat-square" alt="node version">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Shield-blue?style=flat-square" alt="PolyForm Shield license"></a>
 </p>
 
 <p align="center">
@@ -146,7 +146,7 @@ No. A switch starts a fresh conversation, but the project's `CLAUDE.md`, `AGENTS
 <details>
 <summary><b>How is it different from cc-bot?</b></summary>
 
-Both are free and MIT-licensed. [cc-bot](https://github.com/WaterTian/cc-bot) is a Claude Code plugin: it runs inside your own interactive session, on that session's model. SintBot is a standalone daemon: no one has to keep a terminal open, each group has its own project, model and permissions, it drives both Claude Code and Codex, and it comes with a local console.
+Both are free. [cc-bot](https://github.com/WaterTian/cc-bot) is a Claude Code plugin: it runs inside your own interactive session, on that session's model. SintBot is a standalone daemon: no one has to keep a terminal open, each group has its own project, model and permissions, it drives both Claude Code and Codex, and it comes with a local console.
 </details>
 
 ## Documentation
@@ -173,4 +173,8 @@ Report security issues privately through [GitHub Security Advisories](https://gi
 
 ## License
 
-[MIT](./LICENSE) © WaterTian
+SintBot is source-available under the [PolyForm Shield License 1.0.0](./LICENSE) © WaterTian.
+
+- You may use, modify and run it for yourself, your team or your company.
+- You may not use it to offer a product that competes with SintBot, paid or free.
+- Versions 1.0.4 and earlier were released under the MIT License and remain under it.

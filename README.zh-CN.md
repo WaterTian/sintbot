@@ -8,7 +8,7 @@
   <a href="https://www.npmjs.com/package/sintbot"><img src="https://img.shields.io/npm/v/sintbot?style=flat-square&color=d68f44" alt="npm 版本"></a>
   <a href="https://github.com/sintlab/sintbot/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/sintlab/sintbot/test.yml?branch=main&style=flat-square&label=tests" alt="测试"></a>
   <img src="https://img.shields.io/node/v/sintbot?style=flat-square" alt="Node 版本">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT 许可"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Shield-blue?style=flat-square" alt="PolyForm Shield 许可"></a>
 </p>
 
 <p align="center">
@@ -154,7 +154,7 @@ sintbot help                      # 全部命令
 <details>
 <summary><b>它和 cc-bot 有什么区别?</b></summary>
 
-两者都免费、都是 MIT 许可。[cc-bot](https://github.com/WaterTian/cc-bot) 是 Claude Code 插件,运行在你自己的交互会话里,用的就是该会话的模型。SintBot 是独立的守护进程:不需要有人守着终端,每个群有自己的项目、模型和权限,同时驱动 Claude Code 和 Codex,并自带本地控制台。
+两者都免费。[cc-bot](https://github.com/WaterTian/cc-bot) 是 Claude Code 插件,运行在你自己的交互会话里,用的就是该会话的模型。SintBot 是独立的守护进程:不需要有人守着终端,每个群有自己的项目、模型和权限,同时驱动 Claude Code 和 Codex,并自带本地控制台。
 </details>
 
 ## 文档
@@ -179,4 +179,8 @@ sintbot help                      # 全部命令
 
 ## 许可
 
-[MIT](./LICENSE) © WaterTian
+SintBot 源码公开,采用 [PolyForm Shield 1.0.0 许可](./LICENSE) © WaterTian。
+
+- 可以自己用、团队或公司内部用,也可以改了自己用。
+- 不可以拿它做成与 SintBot 竞争的产品,收费、免费都不行。
+- 1.0.4 及以前的版本按 MIT 许可发布,仍适用 MIT。

@@ -51,3 +51,7 @@ tests/unit/            单测(一个模块一个文件)
 
 - 一个提交一件事;说明写清「为什么」。
 - 版本历史条目(`CHANGELOG.json` / `.en.json`)是写给群成员看的,见 [docs/RELEASE.md](./docs/RELEASE.md)。
+
+## 许可
+
+SintBot 采用 [PolyForm Shield 1.0.0 许可](./LICENSE)。提交贡献即表示你同意它按同一许可提供,并同意维护者日后可以改换许可(包括改为开源许可)。
