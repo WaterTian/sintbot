@@ -838,7 +838,9 @@ d.dataset.theme=t;if(l!=='en'&&l!=='zh')l=/^zh/i.test((navigator.language||''))?
 <body>
 <div class="app">
   <div class="top">
-    <div class="mark"><a class="word" href="https://sintbot.com" target="_blank" rel="noopener" title="SintBot 官网" style="color:inherit;text-decoration:none">Sint<i class="trace" aria-hidden="true"></i>Bot</a><span class="ver">__SBOT_VERSION__</span><small>控制台</small></div>
+    <!-- 品牌字标不进翻译层(data-i18n-skip):「Sint」「Bot」是两个文本节点,英文界面下翻译层会把恰好等于某条译文的
+         英文反查回中文(i18nZhOrig),「机器人 → Bot」一加,切回中文时左上角就成了「Sint机器人」(10-24 发版前撞到)。 -->
+    <div class="mark"><a class="word" href="https://sintbot.com" target="_blank" rel="noopener" title="SintBot 官网" style="color:inherit;text-decoration:none"><span data-i18n-skip>Sint<i class="trace" aria-hidden="true"></i>Bot</span></a><span class="ver">__SBOT_VERSION__</span><small>控制台</small></div>
     <div class="spacer"></div>
     <div class="topright">
       <!-- 当前连着的飞书应用(名称 + 图标)。左边 .mark 是产品品牌、固定不变;这块是「这台机器
