@@ -93,8 +93,6 @@ sintbot service install   # 崩溃自动拉起、登录后自启
 | **控制台** | 一个本地网页管所有群:项目、模型、权限、设计库、实时活动、版本历史。界面中英文可切。 |
 | **运维** | 每轮最长 30 分钟,全局最多同时两轮。被重启打断的轮次会自动重做。另有 `sintbot doctor` 体检、运维告警群、额度提醒。 |
 
-<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/design-styles.png" alt="16 套内置设计风格" width="560"></p>
-
 ## 常用命令
 
 ```bash

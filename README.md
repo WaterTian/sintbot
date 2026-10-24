@@ -85,8 +85,6 @@ Without a Claude subscription, Claude Code is only the agent framework and needs
 | **Console** | One local page for every group: projects, models, permissions, design library, live activity and release history. Available in English or Chinese. |
 | **Operations** | Turns are capped at 30 minutes, and at most two run at once. Turns interrupted by a restart are redone automatically. Includes `sintbot doctor`, an ops alert group and quota warnings. |
 
-<p align="center"><img src="https://raw.githubusercontent.com/sintlab/sintbot/main/docs/assets/design-styles.png" alt="The sixteen built-in design styles" width="560"></p>
-
 ## Everyday commands
 
 ```bash
