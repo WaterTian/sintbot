@@ -31,10 +31,10 @@ npm publish
 
 `main` 与 `v*` 标签受仓库规则集保护:不能删除、不能强推,标签推上去就不能再移动。所以先等 CI 全绿再打标签;标签打错了只能发下一个版本号。
 
-发布后同步官网仓库 [sintbot-site](https://github.com/WaterTian/sintbot-site):
+发布后:
 
-- 把 `app.js` 顶部的 `VERSION` 改成新版本号,跑 `node scripts/build-zh.mjs` 后推送。漏了的话,官网每天的版本检查会失败并发邮件提醒。
-- 改过根目录的 `install.sh` 的话,把它原样拷到官网仓库根目录(`https://sintbot.com/install.sh` 是那份副本)。
+- 建 GitHub Release:标签 `v<版本>`,英文说明(本版改了什么 + 升级命令),设为 Latest。
+- 官网仓库 [sintbot-site](https://github.com/WaterTian/sintbot-site) **自动跟上**:每小时一次的工作流发现 npm 出了新版,就改官网版本号、换上该版标签的 `install.sh`(`https://sintbot.com/install.sh` 是它的副本)、重新生成页面并上线;失败会发邮件。不想等整点:`gh workflow run version-sync.yml -R WaterTian/sintbot-site`。
 
 ## 部署到在跑的机器
 
