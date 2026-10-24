@@ -56,4 +56,4 @@ On machines that need a proxy to reach Slack, the config's `proxy` block applies
 - Whiteboards (Feishu only), and any form of feedback other than emoji reactions.
 - Streaming messages in public channels (Slack supports them only in direct messages), so progress is shown by editing a message.
 
-Implementation details and lessons learned: [SLACK.md](../SLACK.md) (in Chinese).
+Implementation details and lessons learned: [SLACK.md](../SLACK.md).

@@ -52,4 +52,4 @@ sintbot setup     # 选 slack,填 xoxb- 与 xapp-;预检会核对凭据、权限
 - 画板(飞书专有)与表情回应以外的反馈方式。
 - 公开频道里的流式消息(Slack 只在私信里支持),所以进度靠编辑消息实现。
 
-实现细节与踩坑记录见 [SLACK.md](../../SLACK.md)。
+实现细节与踩坑记录见 [SLACK.md](../SLACK.md)。

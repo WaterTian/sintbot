@@ -28,7 +28,7 @@ src/*.js               config, health checks, plugins, design style files, previ
 tests/unit/            unit tests, one file per module
 ```
 
-Architecture and key design decisions: [DESIGN.md](./DESIGN.md) (in Chinese). Interface contracts live in `src/core/interfaces.js`.
+Architecture and key design decisions: [DESIGN.md](./DESIGN.md). Interface contracts live in `src/core/interfaces.js`.
 
 ## Conventions
 
@@ -42,7 +42,7 @@ Architecture and key design decisions: [DESIGN.md](./DESIGN.md) (in Chinese). In
 - **Shipped material does not name other products in the same space.** This covers the README, docs, comments and package.json.
 - **CLI help.** Every `sbot <subcommand>` must answer `--help` and appear in the `sbot help` list; `tests/unit/cli-help.test.js` checks this.
 - **Bin wiring.** `bin/sbot.js` destructures its requires at the top, and `tests/unit/bin-wiring.test.js` checks that calls match exports. After changing the bin's wiring, always start the process for real once.
-- **Docs are bilingual.** English lives at the original path and Chinese under `docs/zh-CN/`; at the repo root, Chinese files use the `.zh-CN.md` suffix. When you change a doc that exists in both languages, update both. Some feature docs are still Chinese only.
+- **Docs are bilingual.** English lives at the original path and Chinese under `docs/zh-CN/`; at the repo root, Chinese files use the `.zh-CN.md` suffix. When you change a doc that exists in both languages, update both.
 
 ## Testing and verification
 
@@ -53,7 +53,7 @@ Architecture and key design decisions: [DESIGN.md](./DESIGN.md) (in Chinese). In
 ## Commits
 
 - One commit, one change; explain the "why" in the message.
-- Release-history entries (`CHANGELOG.json` / `.en.json`) are written for group members; see [docs/RELEASE.md](./docs/RELEASE.md) (in Chinese).
+- Release-history entries (`CHANGELOG.json` / `.en.json`) are written for group members; see [docs/RELEASE.md](./docs/RELEASE.md).
 
 ## License
 

@@ -28,7 +28,7 @@ src/*.js               配置、体检、插件、设计风格档、预览、服
 tests/unit/            单测(一个模块一个文件)
 ```
 
-架构与关键设计决策见 [DESIGN.md](./DESIGN.md);接口契约在 `src/core/interfaces.js`。
+架构与关键设计决策见 [DESIGN.md](./DESIGN.zh-CN.md);接口契约在 `src/core/interfaces.js`。
 
 ## 约定
 
@@ -38,7 +38,7 @@ tests/unit/            单测(一个模块一个文件)
 - **不硬编码密钥**,示例里用 `"env:VAR"`。
 - **出货物里不点名其他同类产品**(README、文档、注释、package.json)。
 - 每个 `sbot <子命令>` 都要能答 `--help`,并出现在 `sbot help` 的清单里(`tests/unit/cli-help.test.js` 会检查)。
-- **文档双语**:英文在原路径,中文在 `docs/zh-CN/`;仓库根目录的中文文件用 `.zh-CN.md` 后缀。改了中英都有的文档,两份一起改;部分功能文档目前只有中文。
+- **文档双语**:英文在原路径,中文在 `docs/zh-CN/`;仓库根目录的中文文件用 `.zh-CN.md` 后缀。改了中英都有的文档,两份一起改。
 - `bin/sbot.js` 顶部统一解构 require(`tests/unit/bin-wiring.test.js` 会检查调用与导出是否对得上);改了 bin 的接线,务必真起一次进程。
 
 ## 测试与验证
@@ -50,7 +50,7 @@ tests/unit/            单测(一个模块一个文件)
 ## 提交
 
 - 一个提交一件事;说明写清「为什么」。
-- 版本历史条目(`CHANGELOG.json` / `.en.json`)是写给群成员看的,见 [docs/RELEASE.md](./docs/RELEASE.md)。
+- 版本历史条目(`CHANGELOG.json` / `.en.json`)是写给群成员看的,见 [docs/RELEASE.md](./docs/zh-CN/RELEASE.md)。
 
 ## 许可
 

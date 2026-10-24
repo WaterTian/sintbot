@@ -81,8 +81,8 @@ With no `baseUrl` or `apiKey`, the provider uses the local `claude` login (run `
 `runner: "codex"` makes SintBot spawn `codex exec`. Authentication is the machine's `codex login` (a ChatGPT subscription), so no key goes in the config. **Choose this if you have a ChatGPT subscription.**
 
 - Permissions have only two levels: read-only and full access.
-- The example config also has a hidden `gpt` template for people with an OpenAI **platform API key**. It needs a local translation router (see [GPT-ROUTER.md](./GPT-ROUTER.md), in Chinese), and setup does not ask about it.
-- How it works: [CODEX-RUNNER.md](./CODEX-RUNNER.md) (in Chinese).
+- The example config also has a hidden `gpt` template for people with an OpenAI **platform API key**. It needs a local translation router (see [GPT-ROUTER.md](./GPT-ROUTER.md)), and setup does not ask about it.
+- How it works: [CODEX-RUNNER.md](./CODEX-RUNNER.md).
 
 ## Other fields
 

@@ -77,7 +77,7 @@
 "codex": { "runner": "codex", "reasoningEffort": "medium" }
 ```
 
-`runner: "codex"` ⇒ spawn `codex exec`。认证是本机的 `codex login`(ChatGPT 订阅),配置里不放 key。**用 ChatGPT 订阅就选这个。** 示例配置里另有一个隐藏的 `gpt` 模板,是给有 OpenAI **平台 API key** 的人准备的(要另装本机翻译代理,见 [GPT-ROUTER.md](../GPT-ROUTER.md)),setup 不会问它。权限只有「只读 ⇄ 完全访问」两档。机制见 [CODEX-RUNNER.md](../CODEX-RUNNER.md)。
+`runner: "codex"` ⇒ spawn `codex exec`。认证是本机的 `codex login`(ChatGPT 订阅),配置里不放 key。**用 ChatGPT 订阅就选这个。** 示例配置里另有一个隐藏的 `gpt` 模板,是给有 OpenAI **平台 API key** 的人准备的(要另装本机翻译代理,见 [GPT-ROUTER.md](./GPT-ROUTER.md)),setup 不会问它。权限只有「只读 ⇄ 完全访问」两档。机制见 [CODEX-RUNNER.md](./CODEX-RUNNER.md)。
 
 ## 其他字段
 

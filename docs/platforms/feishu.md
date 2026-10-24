@@ -23,7 +23,7 @@ SintBot supports the China edition of Feishu (open.feishu.cn). The international
    | `contact:department.base:readonly` | reading departments from the directory |
    | `contact:user.id:readonly` (optional) | looking people up by email or phone number |
 
-   The whiteboard features need whiteboard scopes as well; see [BOARD.md](../BOARD.md) (in Chinese).
+   The whiteboard features need whiteboard scopes as well; see [BOARD.md](../BOARD.md).
 
 3. Under **Data permissions** (权限管理 → 数据权限), set the contacts scope to **all members**. Otherwise listing people and showing real names fails with `40004`.
 4. Under **Events & callbacks → Event configuration** (事件与回调 → 事件配置), choose the **long connection** mode (no public address needed) and subscribe to:

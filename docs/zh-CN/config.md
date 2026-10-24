@@ -6,7 +6,7 @@
 
 **改了就生效**:守护进程会热重载配置文件,不用重启。日常的绑群、切模型、改权限建议在控制台(`sintbot ui`)里做,它会校验后再写回。
 
-**密钥**:任何密钥字段都可以写 `"env:变量名"`,从环境变量读。常驻服务里没有你 shell 的变量:`sintbot service install` 会点名哪些拿不到,加 `--pass-env` 把值写进服务定义(见 [install.md](./install.md#3-常驻sbot-service-install))。
+**密钥**:任何密钥字段都可以写 `"env:变量名"`,从环境变量读。常驻服务里没有你 shell 的变量:`sintbot service install` 会点名哪些拿不到,加 `--pass-env` 把值写进服务定义(见 [install.md](./install.md#3-常驻sintbot-service-install))。
 
 带完整注释的示例:[sbot.config.example.json](../../sbot.config.example.json)(`_` 开头的键是注释,程序忽略)。
 
@@ -23,9 +23,9 @@
 | `timezone` | 产品时区(IANA 名,默认 `Asia/Shanghai`):消息时间戳、定时任务、控制台时钟都按它,与主机时区无关 |
 | `brand` | 机器人在群里的名字(默认 SintBot) |
 | `alerts` | `{ chatId }`:运维告警群(不要绑项目) |
-| `ui` | 控制台:`publicUrl`(公网入口,见 [PUBLIC-ACCESS.md](../PUBLIC-ACCESS.md))· `auth`(由 `sintbot ui --set-password` 写入) |
-| `preview` | 群预览服务:端口段、闲置回收、监听地址,见 [PREVIEW.md](../PREVIEW.md) |
-| `browser` | `{ cdpUrl, takeoverMinutes }`:常驻浏览器地址与接管链接时效,见 [BROWSER.md](../BROWSER.md) |
+| `ui` | 控制台:`publicUrl`(公网入口,见 [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md))· `auth`(由 `sintbot ui --set-password` 写入) |
+| `preview` | 群预览服务:端口段、闲置回收、监听地址,见 [PREVIEW.md](./PREVIEW.md) |
+| `browser` | `{ cdpUrl, takeoverMinutes }`:常驻浏览器地址与接管链接时效,见 [BROWSER.md](./BROWSER.md) |
 | `instance` | 这台机器在反馈本里怎么自称(多台机器汇总时区分用) |
 
 ## 群

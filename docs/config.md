@@ -30,9 +30,9 @@ A fully annotated example: [sbot.config.example.json](../sbot.config.example.jso
 | `timezone` | The product time zone as an IANA name (default `Asia/Shanghai`). Message timestamps, scheduled tasks and the console clock follow it, whatever the host's time zone |
 | `brand` | The bot's name in the group (default: SintBot) |
 | `alerts` | `{ chatId }`: the ops alert group (do not bind it to a project) |
-| `ui` | The console: `publicUrl` is the public entry point (see [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md), in Chinese); `auth` is written by `sintbot ui --set-password` |
-| `preview` | Group preview servers: port range, idle cleanup and listen address. See [PREVIEW.md](./PREVIEW.md) (in Chinese) |
-| `browser` | `{ cdpUrl, takeoverMinutes }`: the address of the long-running browser and how long takeover links stay valid. See [BROWSER.md](./BROWSER.md) (in Chinese) |
+| `ui` | The console: `publicUrl` is the public entry point (see [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md)); `auth` is written by `sintbot ui --set-password` |
+| `preview` | Group preview servers: port range, idle cleanup and listen address. See [PREVIEW.md](./PREVIEW.md) |
+| `browser` | `{ cdpUrl, takeoverMinutes }`: the address of the long-running browser and how long takeover links stay valid. See [BROWSER.md](./BROWSER.md) |
 | `instance` | How this machine names itself in the feedback log, to tell machines apart when several report together |
 
 The `agent` keys:

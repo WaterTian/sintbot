@@ -165,8 +165,8 @@ sintbot help                      # 全部命令
 |---|---|
 | 上手 | [安装](./docs/zh-CN/install.md) · [模型](./docs/zh-CN/models.md) · [配置](./docs/zh-CN/config.md) · [安全](./docs/zh-CN/security.md) · [功能详解](./docs/zh-CN/features.md) |
 | 聊天平台 | [飞书](./docs/zh-CN/platforms/feishu.md) · [Slack](./docs/zh-CN/platforms/slack.md) · [企业微信](./docs/zh-CN/platforms/wecom.md) |
-| 功能 | [画板](./docs/BOARD.md) · [预览](./docs/PREVIEW.md) · [浏览器](./docs/BROWSER.md) · [图标](./docs/ICONS.md) · [Codex 后端](./docs/CODEX-RUNNER.md) · [控制台公网访问](./docs/PUBLIC-ACCESS.md) |
-| 项目 | [架构与设计(DESIGN.md)](./DESIGN.md) · [参与开发](./CONTRIBUTING.zh-CN.md) · [更新日志](./CHANGELOG.json) |
+| 功能 | [画板](./docs/zh-CN/BOARD.md) · [预览](./docs/zh-CN/PREVIEW.md) · [浏览器](./docs/zh-CN/BROWSER.md) · [图标](./docs/zh-CN/ICONS.md) · [Codex 后端](./docs/zh-CN/CODEX-RUNNER.md) · [控制台公网访问](./docs/zh-CN/PUBLIC-ACCESS.md) |
+| 项目 | [架构与设计(DESIGN.md)](./DESIGN.zh-CN.md) · [参与开发](./CONTRIBUTING.zh-CN.md) · [更新日志](./CHANGELOG.json) |
 
 ## 反馈
 

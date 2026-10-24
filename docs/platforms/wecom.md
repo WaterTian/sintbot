@@ -48,11 +48,11 @@ Or fill it in on the console under Settings → WeCom bot. The console's prechec
 - **It only replies when @-mentioned.** By the platform's design, the long connection only delivers messages that @ the bot.
   - Replying without an @ can be turned on (by polling group history, gated by rules or a cheap model), but it is **off by default**.
   - It runs into the official usage rules, and the API it needs is not yet open to organizations with more than 10 members.
-  - Details: [WECOM.md](../WECOM.md) (in Chinese).
+  - Details: [WECOM.md](../WECOM.md).
 - **Proactive messages** (scheduled tasks, upgrade notices) require someone to have messaged the bot in that conversation before.
 - **One bot per machine.** If two machines use the same Bot ID / Secret, the newer connection replaces the older one. After being replaced twice within 10 minutes, SintBot stops reconnecting, so the two machines do not keep kicking each other off; a restart brings it back.
 - **Not available:** recall events (so recalling a message does not stop its turn), whiteboards and emoji reactions.
 - **Markdown limits:** tables and multi-line code blocks do not render, so replies are rewritten automatically into a format that does.
 - **Long replies:** each streaming reply can last up to 10 minutes; a longer reply continues in a new message automatically.
 
-Full integration details, configuration and limits: [WECOM.md](../WECOM.md) (in Chinese).
+Full integration details, configuration and limits: [WECOM.md](../WECOM.md).

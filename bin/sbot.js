@@ -132,7 +132,7 @@ const SUBHELP = {
     + '      浏览器里的控制台(配置模式,不接 daemon):配置 / 健康 / provider 试跑 / 群绑定;默认 http://127.0.0.1:4600\n'
     + '      --host 0.0.0.0 对局域网开放 —— 必须先 --set-password 设过密码,否则拒绝启动;--host / --port 只管本次,不写进配置\n'
     + '      与 daemon 共宿的实时控制台是 sintbot start --ui\n'
-    + '      公网访问不走命令行参数:配置 ui.publicUrl + feishu.admins 名单,经 SSH 隧道与反代终结 HTTPS,公网上只认「用飞书登录」—— 见 https://github.com/sintlab/sintbot/blob/main/docs/PUBLIC-ACCESS.md',
+    + '      公网访问不走命令行参数:配置 ui.publicUrl + feishu.admins 名单,经 SSH 隧道与反代终结 HTTPS,公网上只认「用飞书登录」—— 见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/PUBLIC-ACCESS.md',
   doctor: '用法: sintbot doctor [--config <path>] [--kill-leftovers]\n'
     + '      体检:Node / 配置 / claude CLI 与旗子 / 各 provider 的 key 与端点 / 浏览器与 MCP / 飞书凭证与权限预检 / 项目根目录 / 各群目录 / 遗留进程\n'
     + '      --kill-leftovers  顺手结束「遗留进程」(agent 轮次结束后仍在跑的后台 shell,体检尾巴会列出来;不加只列不杀)\n'
@@ -142,7 +142,7 @@ const SUBHELP = {
     + '      飞书守护进程:群消息 → 绑定项目 → agent → 回群;配置文件改了热重载,不用重启\n'
     + '      --ui 同时提供实时控制台(默认 127.0.0.1:4600;对外绑定须先 sintbot ui --set-password;端口被占只提示,daemon 照常跑)\n'
     + '      前置:feishu.appId / appSecret 已配、claude CLI 可用;SIGTERM / Ctrl-C 优雅退出(会中止进行中的轮次)\n'
-    + '      公网入口(SSH 隧道 + 反代 + ui.publicUrl + 飞书登录名单)不在参数里,见 https://github.com/sintlab/sintbot/blob/main/docs/PUBLIC-ACCESS.md;launchd 常驻要带 --ui-host 0.0.0.0',
+    + '      公网入口(SSH 隧道 + 反代 + ui.publicUrl + 飞书登录名单)不在参数里,见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/PUBLIC-ACCESS.md;launchd 常驻要带 --ui-host 0.0.0.0',
   chat: '用法: sintbot chat [--workdir|-C <dir>] [--provider <名>] [--model <id>] [--allow <list>] [--deny <list>] [--config <path>]\n'
     + '      从终端逐行驱动引擎(不接飞书):每行 = 一条群消息;/help 看群内命令,/exit 退出\n'
     + '      --allow / --deny 逗号分隔的工具名,两个都不给 ⇒ 只读;会话状态落在 <workdir>/.sbot/',

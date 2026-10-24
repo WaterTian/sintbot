@@ -47,7 +47,7 @@ Everything else stays in `~/.sbot` on this machine: the turn ledger (sender and 
 
 - **Listen address.** By default it listens only on `127.0.0.1:4600`, and local access carries a token automatically.
 - **LAN access.** Before opening it to the LAN (`--ui-host 0.0.0.0`), you must run `sintbot ui --set-password`; otherwise it refuses to start. The password is stored with scrypt and is only exchanged for a session token.
-- **Public access** (optional; see [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md), in Chinese) runs through an SSH reverse tunnel and a reverse proxy that terminates HTTPS. On the public side, only Feishu sign-in is accepted, and only for the people listed in `feishu.admins`; the password login endpoint is refused there outright.
+- **Public access** (optional; see [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md)) runs through an SSH reverse tunnel and a reverse proxy that terminates HTTPS. On the public side, only Feishu sign-in is accepted, and only for the people listed in `feishu.admins`; the password login endpoint is refused there outright.
 - **Treat console access as the bot's highest privilege.** The console can change permissions, bind groups and read sessions. It can also run shell commands on this machine as your user: the plugin install box executes whatever command is typed into it. Anyone who can sign in to the console effectively has a terminal on this machine.
 
 ## Other features that open a door
