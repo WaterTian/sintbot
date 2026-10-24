@@ -1913,6 +1913,13 @@ function registerStyleI18n(list){
     if(s.description&&s.descriptionEn&&s.description!==s.descriptionEn)I18N_MAP.set(s.description,s.descriptionEn);
   }
 }
+/* 启动后在后台登记一次:群卡上的项目风格名多半照抄自内置预设,英文界面里也要换掉 —— 不能等人点开「模型 · 库」才登记。
+   只登记一次(styleLib 已有就跳过);取不到就算了,风格库那页打开时还会再取。 */
+let styleI18nAsked=false;
+function preloadStyleI18n(){
+  if(styleI18nAsked||styleLib)return; styleI18nAsked=true;
+  api('/api/design/styles').then(r=>{if(!styleLib)styleLib=r;registerStyleI18n(r.styles);if(langOf()==='en')applyI18n(document.body);}).catch(()=>{styleI18nAsked=false;});
+}
 function paintStyleLib(){
   const box=$('#styleLib'); if(!box||!styleLib)return;
   // 特征标签只标「有性格」的信号:衬线/深色/等宽/圆角值 —— 「无衬线」「直角」是大多数的常态,
@@ -3683,7 +3690,7 @@ $$('nav button').forEach(b=>b.onclick=()=>{
 });
 
 async function loadUsage(){try{usage=await api('/api/usage');renderProviders();}catch(e){}}
-async function load(){try{S=await api('/api/state');seedCodexStatus();await syncActivity(false);renderAll();startClock();loadUsage();autoVerifyCodex();autoVerifyClaude();warmCodexModels();}catch(e){if(e.message==='需要登录')return;$('#overview').innerHTML='<div class="empty" style="padding:48px;text-align:center;color:var(--fail)">✕ 加载失败:'+esc(e.message)+'<br><br><span class="faint">确认后台服务正在运行</span></div>';toast('加载失败:'+e.message,'err');}}
+async function load(){try{S=await api('/api/state');seedCodexStatus();await syncActivity(false);renderAll();startClock();loadUsage();autoVerifyCodex();autoVerifyClaude();warmCodexModels();preloadStyleI18n();}catch(e){if(e.message==='需要登录')return;$('#overview').innerHTML='<div class="empty" style="padding:48px;text-align:center;color:var(--fail)">✕ 加载失败:'+esc(e.message)+'<br><br><span class="faint">确认后台服务正在运行</span></div>';toast('加载失败:'+e.message,'err');}}
 $('#refresh').onclick=()=>{load();toast('已刷新','ok');};
 /* 主题切换:dark(默认,Mocha 调暗)↔ light(Catppuccin Latte)。独立于 renderAll —— 切主题不重渲染卡片。 */
 function themeOf(){return document.documentElement.dataset.theme||'dark';}
@@ -4484,7 +4491,7 @@ const I18N_EN=[
   ["开放平台","Open platform"],
   ["自建应用","custom app"],
   ["→ 「添加应用能力」加上"," → under \"Add app capability\" add a "],
-  ["机器人","bot"],
+  ["机器人","Bot"],
   ["(否则拉不进群、收不到消息)。建应用时"," (otherwise it cannot be pulled into groups and receives no messages). When creating the app, an "],
   ["图标必填","icon is required"],
   [",选一个内置图标即可。下面这套 scope 在开放平台里全部标「免审权限」,自建应用发版也免审(创建者即企业管理员时自动通过)——","; any built-in icon will do. Every scope below is marked \"no-review permission\" on the open platform, and publishing a custom app needs no review either (auto-approved when the creator is the org admin) — "],
@@ -4643,8 +4650,150 @@ const I18N_EN=[
   ["只列了机器人已加入的频道 —— 手填的频道 ID 若机器人不在频道里,绑了也收不到消息","Only channels the bot has joined are listed — if you type a channel ID the bot isn't in, binding it won't receive any messages"],
   ["Slack 频道:没有画布与表情回应,群内收发文件未接;控制面用 !命令 或 /sint","Slack channel: no canvas or reactions, in-channel file transfer not connected yet; use !commands or /sint for controls"],
   ["企业微信群:只收 @ 机器人的消息;没有画布、表情回应与撤回即停","WeCom group: only receives messages that @ the bot; no canvas, reactions or stop-on-recall"],
+  // 10-24 英文界面核对补齐:企业微信卡、健康明细、群卡输入提示、飞书登录未就绪原因、企业微信预检结果
+  ["GPT 订阅", "GPT subscription"],
+  ["已启用", "Enabled"],
+  ["每小时整点", "Every hour on the hour"],
+  ["未填公网地址", "no public address set"],
+  ["未配置飞书应用凭证", "Feishu app credentials are not set"],
+  ["管理员名单为空(只有名单里的人能登录)", "the admin list is empty (only people on it can sign in)"],
+  ["配置文件损坏,先修好它", "the config file is damaged; fix it first"],
+  ["如何在企业微信里开通", "How to set it up in WeCom"],
+  ["电脑端客户端「", "In the desktop client, open \""],
+  ["工作台 → 智能机器人 → 创建机器人 → 手动创建 → API 模式", "Workbench → Smart bots → Create bot → Create manually → API mode"],
+  ["」(手机端不能建;管理后台「安全与管理 → 管理工具 → 智能机器人」是同一个入口)。填名称 / 可见范围;", "\" (the mobile app can't create one; \"Security & Management → Management tools → Smart bots\" in the admin console is the same entry). Fill in the name and visibility, and "],
+  ["使用方式选「多人使用」", "set usage to \"Multi-person\""],
+  ["不需要企业认证", "No company verification is needed"],
+  [",免费注册的企业就能建。", ": any freely registered company can create one."],
+  ["API 配置页选「", "On the API settings page choose \""],
+  ["使用长连接", "Use long connection"],
+  ["」(免公网 / 域名 / 可信 IP),记下", "\" (no public address, domain or trusted IP needed), then copy the"],
+  ["与", "and"],
+  ["填到下面。保存时会弹一次使用规则确认。", "into the fields below. Saving asks you once to confirm the usage rules. "],
+  ["一个机器人只许一条长连接", "One bot allows only one long connection"],
+  ["—— 新连上的会把旧的踢下线,所以每台服务器各建各的机器人,别共用。", "— a new connection kicks the old one off, so create a separate bot for each server instead of sharing one."],
+  ["服务器上装官方命令行工具并用", "Install the official command-line tool on the server and authorize it with the "],
+  ["同一对 Bot ID / Secret", "same Bot ID / Secret"],
+  ["授权一次 —— 群里显示成员姓名、助手发图发文件、这里列出可绑定的群都靠它;没装只降级不报错。", " once — member names in groups, sending images and files, and listing the groups you can bind here all depend on it. Without it those features are simply off, with no errors."],
+  ["在企业微信里", "In WeCom, "],
+  ["建群 → 从群菜单把机器人加进群 → @ 它一次", "create a group → add the bot from the group menu → @ it once"],
+  [",再回「群·项目 → 配置群项目」选那个群。机器人没有建群 / 改名 / 解散的接口,这几步只能在企业微信里做;群里", ", then come back to \"Groups · Projects → Set up a group project\" and pick that group. The bot has no API to create, rename or disband groups, so these steps happen in WeCom. In a group it receives "],
+  ["只有 @ 机器人的消息", "only messages that @ the bot"],
+  ["它才收得到。", "."],
+  ["换了 Bot ID / Secret 之后必须重启守护进程", "After changing the Bot ID / Secret, restart the daemon"],
+  ["—— 长连接在启动时就绑死了凭据,这里保存只是热重载配置、不会重建连接。", "— the long connection binds its credentials at startup; saving here hot-reloads the config but does not rebuild the connection."],
+  ["凭据", "Credentials"],
+  ["预检", "Pre-check"],
+  ["核对凭据形状、命令行工具是否装好并授权、能列出几个可绑定的群(不另开连接)", "Checks the credential format, whether the command-line tool is installed and authorized, and how many groups can be bound (opens no extra connection)"],
+  ["身份与连接", "Identity and connection"],
+  ["未连接", "Not connected"],
+  ["长连接在线", "Long connection online"],
+  ["(未知)", "(unknown)"],
+  ["Bot ID 未填", "Bot ID not set"],
+  ["守护进程没有接企业微信(没起、或配置改了还没重启)", "The daemon isn't connected to WeCom (not running, or the config changed and it hasn't restarted)"],
+  ["已订阅", "Subscribed"],
+  ["已连上但还没订阅成功", "Connected but not subscribed yet"],
+  ["已存;点「刷新身份」可随时核对", "Saved; click \"Refresh identity\" to check it any time"],
+  ["还不知道它叫什么 —— 点「刷新身份」从命令行工具的身份接口取(没装工具时在群里 @ 它一句也能学到)", "Its name isn't known yet — click \"Refresh identity\" to read it from the command-line tool (without the tool, @ it once in a group and it learns the name)"],
+  ["刚从群里的 @ 学到,点「刷新身份」存下", "Just learned from an @ in a group; click \"Refresh identity\" to save it"],
+  ["扫最近几个群的历史,被 @ 最多的名字就是它", "Scans recent group history; the name @-mentioned most is the bot's"],
+  ["单聊欢迎语", "Direct-chat welcome"],
+  ["— 成员首次打开单聊时回的一句;留空不回", "— sent when a member first opens a direct chat; leave empty to send nothing"],
+  ["你好,我是这个项目的助手…", "Hi, I'm this project's assistant…"],
+  ["成员显示名", "Member display names"],
+  ["— 每行「账号 显示名」;企业微信只给账号,命令行工具装好后会自动查姓名,这里填的优先", "— one \"account name\" pair per line. WeCom only provides accounts; once the command-line tool is installed it looks names up, and names here take priority"],
+  ["ZhangSan 张三", "zhangsan Zhang San"],
+  ["不 @ 也回复", "Reply without @"],
+  ["不 @ 也回复 开", "Reply without @: on"],
+  ["默认关", "Off by default"],
+  [":企业微信的设计就是 @ 机器人才答,只推 @ 的消息。开了这项后每隔几秒拉一次群历史来补没 @ 的消息 —— 官方使用规则对自动化抓取和异常频率有限制,超过 10 人的企业官方还没开放这条接口,所以只建议小的测试群开。开着时:被 @ 或回复后一段时间内的消息、点了机器人名字的消息不 @ 也答;", ": WeCom is designed so the bot answers only when @-mentioned, and it only pushes @ messages. With this on, the daemon pulls group history every few seconds to catch messages without an @. The official usage rules limit automated fetching and unusual request rates, and WeCom hasn't opened this API to companies with more than 10 people yet, so turn it on only for small test groups. While it is on, the bot also answers without an @ for a while after an @ or a reply, and when a message names it; "],
+  ["真正耗额度的是喂给模型的每一条", "what really costs quota is every message fed to the model"],
+  [",默认只在「跟进窗口」内喂。", ", and by default only messages inside the follow-up window are fed."],
+  ["看群历史的间隔(秒)", "Group history interval (seconds)"],
+  ["默认 0 = 关(只答 @ 的)· 要开填 20 左右 —— 这是平时的间隔:刚聊过时 8 秒一看,久没人说话时 2 分钟一看;@ 它的消息不走这条,随时即答", "Default 0 = off (answers @ only) · to turn it on, enter about 20 — the normal interval: every 8 seconds right after a conversation, every 2 minutes when the group has been quiet. Messages that @ it skip this and are answered right away"],
+  ["跟进窗口(秒)", "Follow-up window (seconds)"],
+  ["默认 300 · 0 = 群里每一句都喂模型(很烧额度)", "Default 300 · 0 = feed every group message to the model (uses a lot of quota)"],
+  ["拿不准的先问一个便宜模型", "Ask a cheap model when unsure"],
+  ["不问(只按上面两条规则)", "Don't ask (use only the two rules above)"],
+  ["(已隐藏或缺密钥,仍按配置生效)", "(hidden or missing a key; still applied from the config)"],
+  ["没点名、也不在跟进窗口里的消息,先让它判一句「机器人该不该接」(每条只花几十 token、不带会话),说要才喂真正的模型。只能选配了接口地址和密钥的模型。", "For messages that don't name the bot and fall outside the follow-up window, it first asks this model whether the bot should answer (a few dozen tokens each, no session), and feeds the real model only if the answer is yes. Only models with an endpoint and a key can be chosen."],
+  ["门控用的型号", "Gate model"],
+  ["— 可选,留空用该模型的默认型号;建议填它最便宜的那款", "— optional; empty uses that provider's default model. Its cheapest model is a good choice"],
+  ["留空 = 默认型号", "Empty = default model"],
+  ["点名词", "Call words"],
+  ["— 群消息里出现这些词(或机器人名)就当是在叫它,不 @ 也答;逗号分隔;留空 = 「机器人、助手」", "— a group message containing one of these words (or the bot's name) counts as calling it and gets an answer without an @. Comma-separated; empty = \"机器人, 助手\" (bot, assistant)"],
+  ["命令行工具", "Command-line tool"],
+  ["成员姓名、助手发图发文件、列出可绑定的群、「不 @ 也回复」都靠服务器上装好并授权的官方命令行工具;没装只降级不报错(预检会说)。", "Member names, sending images and files, listing bindable groups and \"Reply without @\" all depend on the official command-line tool being installed and authorized on the server. Without it those features are simply off, with no errors (the pre-check tells you)."],
+  ["不用命令行工具", "Don't use the command-line tool"],
+  ["— 勾上后群里只显示成员账号、助手不能发图发文件、「不 @ 也回复」不生效", "— when checked, groups show member accounts only, the assistant can't send images or files, and \"Reply without @\" has no effect"],
+  ["保存企业微信", "Save WeCom"],
+  ["长连接 Secret", "Long-connection Secret"],
+  ["门控 无", "Gate: none"],
+  ["工具 开", "CLI tool: on"],
+  ["工具 关", "CLI tool: off"],
+  ["企业微信已保存", "WeCom saved"],
+  ["取中…", "Fetching…"],
+  ["没取到", "Nothing found"],
+  ["工具授权身份", "Tool authorization"],
+  ["通讯录授权", "Directory authorization"],
+  ["可绑定的群", "Bindable groups"],
+  ["Bot ID / Secret 已配(环境变量引用,由守护进程解析)", "Bot ID / Secret set (environment variable references, resolved by the daemon)"],
+  ["Bot ID / Secret 已配", "Bot ID / Secret set"],
+  ["缺 Secret", "Secret missing"],
+  ["缺 Bot ID", "Bot ID missing"],
+  ["缺 Bot ID 与 Secret", "Bot ID and Secret missing"],
+  ["配置里已关闭 — 群里只显示成员账号,助手不能发图发文件", "Turned off in the config — groups show member accounts only, and the assistant can't send images or files"],
+  ["已安装并授权", "Installed and authorized"],
+  ["未授权 — 用这里填的 Bot ID / Secret 给命令行工具授权一次", "Not authorized — authorize the command-line tool once with the Bot ID / Secret entered here"],
+  ["可查成员姓名(授权每 7 天一续,过期会进运维告警群)", "Member names available (the authorization renews every 7 days; expiry is reported to the ops alert group)"],
+  ["已过期 — 请机器人创建者在企业微信里点续期链接;过期期间群里只显示成员账号", "Expired — ask the bot's creator to click the renewal link in WeCom; until then groups show member accounts only"],
+  ["0 个 — 新群要先把机器人加进群并 @ 一次", "0 — add the bot to a new group and @ it once first"],
+  ["未安装 — 群里只显示成员账号、助手不能发图发文件、这里列不出群(装好后按机器人凭据授权一次即可)", "Not installed — groups show member accounts only, the assistant can't send images or files, and no groups can be listed here (after installing, authorize it once with the bot's credentials)"],
+  ["长连接只有守护进程连得上(一个机器人只许一条),连接状态看「概览 → 企业微信连接」那一行", "Only the daemon can hold the long connection (one per bot); see the \"Overview → WeCom connection\" row for its status"],
+  ["先在设置里填 appId/appSecret", "fill in appId/appSecret in Settings first"],
+  ["还没有机器人被 @ 过的群", "No group has @-mentioned the bot yet"],
+  ["bot 不在任何群 / 未配飞书", "The bot is in no group, or Feishu isn't configured"],
 ];
 const I18N_EN_RX=[
+  // ── 10-24 英文界面核对补齐 ──
+  // 插件可达性探测的结果句(src/plugins.js probeMcp 的全部句式),控制台拼在插件行的悬停提示里
+  [/^(.+):(\d+) 在听$/,"$1:$2 listening"],
+  [/^连不上 (\S+?)\((\w+) — 那个端口上没有服务在听\)$/,"Can't reach $1 ($2 — nothing is listening on that port)"],
+  [/^直连未通 (\S+?)\((\w+)\)$/,"Direct connection failed: $1 ($2)"],
+  [/^探测失败 (.+)$/,"Probe failed: $1"],
+  [/^(.+) 在,但没有可执行权限$/,"$1 exists but isn't executable"],
+  [/^(.+) 不在 PATH 上$/,"$1 is not on PATH"],
+  [/^找不到 (.+)$/,"Can't find $1"],
+  [/^([\s\S]*) · 仍会照常加载 —— 本机直连探测不走代理,探不通不代表它不可用$/,(a,d)=>trText(d)+" · still loaded as usual — the local probe connects directly without the proxy, so a failed probe doesn't mean it's unusable"],
+  // 健康 ·「可用模型」那一行:能用的个数(或「无可用模型」)+ 没登录 / 验证失败的名单
+  [/^(.+?);(.+) 没登录或验证失败$/,(a,head,names)=>trText(head)+"; "+names.split("、").join(", ")+" not signed in or failed verification"],
+  // 健康 · 平台凭据:上次预检失败的原因是服务端给的,能翻的照翻
+  // 原因是预检那一行的「检查项:说明」(src/core/verify.js recordPrecheck),两半各自查词典
+  [/^上次预检失败:([\s\S]+) — 去「设置」页改凭据后再预检$/,(a,why)=>"Last pre-check failed: "+why.replace(/^([^:]+):([\s\S]*)$/,(x,l,d)=>trText(l)+": "+trText(d))+" — fix the credentials on the Settings tab and check again"],
+  // 群卡 · 定时任务的周期说明(服务端 src/core/cron.js describeCron / describeAt 的全部句式)
+  [/^每 (\d+) 分钟$/,"Every $1 minutes"],
+  [/^每天 (\d{1,2}:\d{2})$/,"Daily $1"],
+  [/^工作日 (\d{1,2}:\d{2})$/,"Weekdays $1"],
+  [/^周末 (\d{1,2}:\d{2})$/,"Weekends $1"],
+  [/^每周([日一二三四五六](?:、[日一二三四五六])*) (\d{1,2}:\d{2})$/,(a,ds,t)=>"Every "+ds.split("、").map(d=>({日:"Sun",一:"Mon",二:"Tue",三:"Wed",四:"Thu",五:"Fri",六:"Sat"}[d])).join(", ")+" "+t],
+  [/^每月 (\d+) 号 (\d{1,2}:\d{2})$/,"Monthly on day $1, $2"],
+  [/^每年 (\d+) 月 (\d+) 日 (\d{1,2}:\d{2})$/,(a,m,d,t)=>"Yearly on "+["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1]+" "+d+", "+t],
+  [/^(\d{1,2})月(\d{1,2})日 (\d{1,2}:\d{2})$/,(a,m,d,t)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1]+" "+d+", "+t],
+  [/^(\d{4})年(\d{1,2})月(\d{1,2})日 (\d{1,2}:\d{2})$/,(a,y,m,d,t)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1]+" "+d+", "+y+", "+t],
+  // 企业微信卡 · 摘要行与身份连接条里的动态片段
+  [/^门控 (.+)$/,"Gate: $1"],
+  [/^最近回包 (\d+) 秒前$/,"Last ack $1 s ago"],
+  [/^最近回包 (\d+) 分钟前$/,"Last ack $1 min ago"],
+  [/^群里 @ 的是「(.+)」,与已存的不一致 —— 点「刷新身份」核对$/,"Groups @ it as \"$1\", which differs from the saved name — click \"Refresh identity\" to check"],
+  // 企业微信卡 · 「刷新身份」的结果提示(名字 + 取自哪里)
+  [/^(机器人名已更新为|仍是)「(.+?)」\((?:身份接口(?: · 授权用户 (.+))?|近 (\d+) 个群 · (\d+) 条 @ 里 (\d+) 条是它)\)$/,(a,verb,name,user,g,total,n)=>(verb==="仍是"?"Still \""+name+"\"":"Bot name updated to \""+name+"\"")+(g?" (from "+g+" groups: "+n+" of "+total+" @-mentions)":" (from the identity API"+(user?", authorized user "+user:"")+")")],
+  // 企业微信预检结果里的动态句
+  [/^授权给了另一个机器人\((.+)\)— 成员姓名照常,但助手发的图 \/ 文件和下面列出的群都属于那个机器人;请用这里的凭据重新授权$/,"Authorized for a different bot ($1) — member names still work, but images and files the assistant sends and the groups listed below belong to that bot; authorize again with the credentials here"],
+  [/^同一个机器人\((.+)\)$/,"Same bot ($1)"],
+  [/^查不到授权状态:([\s\S]*)$/,"Can't read the authorization status: $1"],
+  [/^查不通:([\s\S]*)$/,"Can't reach it: $1"],
+  [/^(\d+) 个\(机器人被 @ 过的群\)$/,"$1 (groups where the bot has been @-mentioned)"],
+  [/^已安装但调不通:([\s\S]*) — 多半是没用机器人凭据授权,或授权已过期$/,"Installed but not responding: $1 — most likely it wasn't authorized with the bot's credentials, or the authorization expired"],
   [/^1 条反馈待处理$/,"1 feedback item open"],
   [/^(\d+) 条反馈待处理$/,"$1 feedback items open"],
   [/^1 个后台进程还在跑$/,"1 background process still running"],
@@ -4653,7 +4802,7 @@ const I18N_EN_RX=[
   [/^1 项健康检查没通过$/,"1 health check failing"],
   [/^(\d+) 项健康检查没通过$/,"$1 health checks failing"],
   [/^(\d+) 个能用$/,"$1 usable"],
-  [/^(\d+) 个能用(含 Codex)$/,"$1 usable (Codex included)"],
+  [/^(\d+) 个能用\(含 Codex\)$/,"$1 usable (Codex included)"],
   [/^(\d+) 个已绑定$/,"$1 bound"],
   [/^命令前缀 (\S+)$/,"Command prefix $1"],
   [/^管理员 (\d+) 人$/,"$1 admins"],
@@ -4790,10 +4939,11 @@ const I18N_EN_RX=[
   [/^技能 (\d+) · 已启用 · MCP (\d+) · Skill (\d+)$/,"Skills $1 · Enabled · MCP $2 · Skill $3"],
   [/^项目 (\d+) · 技能 (\d+) · 已启用 · MCP (\d+)$/,"Project MCP $1 · Skills $2 · Enabled · MCP $3"],
   [/^项目 (\d+) · 技能 (\d+) · 已启用 · MCP (\d+) · Skill (\d+)$/,"Project MCP $1 · Skills $2 · Enabled · MCP $3 · Skill $4"],
-  [/^([\s\S]*) · 勾选了它的群这一轮会跳过它,不加载也不重试;服务起来后自动恢复$/,"$1 · groups that ticked it skip it this turn — not loaded, not retried; it comes back on its own once the service is up"],
-  [/^([\s\S]*) · 仍会照常加载 —— 本机直连探测不走代理,探不通不代表它不可用$/,"$1 · still loaded as usual — the local direct probe does not go through the proxy, so a failed probe does not mean it is unavailable"],
+  [/^([\s\S]*) · 勾选了它的群这一轮会跳过它,不加载也不重试;服务起来后自动恢复$/,(a,d)=>trText(d)+" · groups that ticked it skip it this turn — not loaded, not retried; it comes back on its own once the service is up"],
   [/^拉列表失败:([\s\S]+) · 可手动填 频道 ID$/,"Failed to load the list: $1 · you can enter a channel ID manually"],
-  [/^拉列表失败:([\s\S]+) · 可手动填 chatId$/,"Failed to load the list: $1 · you can enter a chatId manually"],
+  // 选群弹窗的空状态 / 失败:「原因 · 可手动填 chatId(Slack 是频道 ID)」。原来这条写成了「拉列表失败」,一次都没匹配上过
+  [/^拉群列表失败:([\s\S]+?) · 可手动填 (chatId|频道 ID)$/,(a,why,id)=>"Couldn't load the group list: "+trText(why)+" · you can enter a "+(id==="chatId"?"chatId":"channel ID")+" manually"],
+  [/^([\s\S]+?) · 可手动填 (chatId|频道 ID)$/,(a,why,id)=>trText(why)+" · you can enter a "+(id==="chatId"?"chatId":"channel ID")+" manually"],
   [/^须在 (.+) 或 (.+) 下$/,"Must be under $1 or $2"],
   [/^须在 (.+) 下$/,"Must be under $1"],
   [/^(.*)项目名$/,"$1project-name"],
@@ -4813,7 +4963,7 @@ const I18N_EN_RX=[
   [/^搜索姓名…\(共 (\d+) 人,点名即添加\)$/,"Search by name… ($1 people; click a name to add)"],
   [/^已加 (.+)$/,"Added $1"],
   [/^已配置 · (.+)$/,"Configured · $1"],
-  [/^飞书登录未就绪:([\s\S]*)$/,"Feishu sign-in is not ready: $1"],
+  [/^飞书登录未就绪:([\s\S]*)$/,(a,why)=>"Feishu sign-in is not ready: "+trText(why)],
   [/^运行中 (.+)$/,"Running $1"],
   [/^重连 (\d+)$/,"$1 reconnects"],
   [/^重建 (\d+)$/,"$1 rebuilds"],
@@ -4894,6 +5044,9 @@ function i18nAttr(el,a){
 }
 function i18nSkip(el){const t=(el.tagName||'').toUpperCase();
   return t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||!!(el.hasAttribute&&el.hasAttribute('data-i18n-skip'));}
+/* 多行输入框:里面的文字是人填的,不翻;但它的 placeholder / title 是界面文字,要翻(此前整个跳过,
+   群卡的 allowedTools 提示、企业微信的「成员显示名」示例在英文界面一直是中文) */
+const i18nAttrsOnly=el=>(el.tagName||'').toUpperCase()==='TEXTAREA'&&!(el.hasAttribute&&el.hasAttribute('data-i18n-skip'));
 function i18nElem(el){
   for(const a of I18N_ATTRS)if(el.hasAttribute&&el.hasAttribute(a))i18nAttr(el,a);
   if(el.tagName==='INPUT'&&/^(button|submit|reset)$/i.test(el.type||'')&&el.hasAttribute('value'))i18nAttr(el,'value');
@@ -4903,9 +5056,9 @@ function applyI18n(root){
   root=root||document.body; if(!root)return;
   if(root.nodeType===3){const p=root.parentElement; if(!p||!p.closest('script,style,textarea,[data-i18n-skip]'))i18nText(root); return;}
   if(root.nodeType!==1&&root.nodeType!==9&&root.nodeType!==11)return;
-  if(root.nodeType===1){if(i18nSkip(root))return;i18nElem(root);}
+  if(root.nodeType===1){if(i18nSkip(root)){if(i18nAttrsOnly(root))i18nElem(root);return;}i18nElem(root);}
   const w=document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT,{acceptNode(n){
-    return n.nodeType===1&&i18nSkip(n)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+    if(n.nodeType===1&&i18nSkip(n)){if(i18nAttrsOnly(n))i18nElem(n);return NodeFilter.FILTER_REJECT;}return NodeFilter.FILTER_ACCEPT;}});
   for(let n=w.nextNode();n;n=w.nextNode()){if(n.nodeType===1)i18nElem(n);else i18nText(n);}
 }
 /* 页面每次重渲染(SSE 心跳 / 切页 / 弹窗)都走这里补译。自触发防护:我们自己写进去的值记在
@@ -4916,7 +5069,7 @@ try{new MutationObserver((muts)=>{
     else if(m.type==='characterData'){const n=m.target,p=n.parentElement;
       if(!p||!p.closest('script,style,textarea,[data-i18n-skip]'))i18nText(n);}
     else if(m.type==='attributes'){const el=m.target;
-      if(el.nodeType===1&&!i18nSkip(el)&&el.hasAttribute(m.attributeName))i18nAttr(el,m.attributeName);}
+      if(el.nodeType===1&&(!i18nSkip(el)||i18nAttrsOnly(el))&&el.hasAttribute(m.attributeName))i18nAttr(el,m.attributeName);}
   }catch(e){}}
 }).observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:I18N_ATTRS});}catch(e){}
 /* 原生确认框 / 输入框的提示语也是界面文案。包一层原生实现,好过在十几个调用点各插一次
