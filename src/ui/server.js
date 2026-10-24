@@ -51,6 +51,7 @@ const DEFAULT_SESSIONS_FILE = () => path.join(os.homedir(), '.sbot', 'ui-session
 const CONSOLE_HTML = path.join(__dirname, 'console.html')
 const BROWSER_HTML = path.join(__dirname, 'browser.html') // 接管浏览器页(自包含单文件,群成员凭一次性链接也能进)
 const takeover = require('./takeover') // 接管链接的票据与 cookie(纯逻辑)
+const dashboard = require('./dashboard') // 「需要你处理」收件箱 + 活动流的账本回填(纯逻辑)
 const { createBrowserRoutes } = require('./browserroutes') // /api/browser/* 的实现;这里只裁决谁能进
 const PKG_VERSION = (() => { try { return 'v' + require('../../package.json').version } catch { return '' } })() // 顶栏版本徽章
 let changelogCache = null // 随包分发的版本历史,进程内读一次
@@ -207,7 +208,7 @@ function bindNoticeText(workdir, platform = 'feishu', cmd = '/help') {
   return `✅ 本群已绑定项目「${path.basename(String(workdir || '')) || '(未命名)'}」\n${platform === 'wecom' ? '@我 派单(只有 @ 我的消息我才收得到)' : '直接发消息或 @我 派单'};${cmd} 查看命令`
 }
 
-function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, control = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null, verifyFile = null } = {}) {
+function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, control = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, ledgerPath = null, inboxDismissPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null, verifyFile = null } = {}) {
   // wecomExec:企业微信命令行工具的执行器注入(只为可测;生产走默认 execFile)
   // verifyFile:凭据验证记录的落点注入(只为可测;生产 = ~/.sbot/verify.json)
   const vopts = verifyFile ? { file: verifyFile } : undefined
@@ -313,6 +314,28 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
     else { activityBuf.push(ev); if (activityBuf.length > ACT_MAX) activityBuf.shift() }
   }
   const recentActivity = () => activityBuf.slice().reverse() // newest-first for the console
+  // 账本落点注入**只为可测**(同反馈本):单测写默认路径会读到本机真实账本。
+  const ledgerFile = () => ledgerPath || path.join(os.homedir(), '.sbot', 'turns.jsonl')
+  // 启动即用账本最近的轮次垫底:此前 daemon 一重启(含每次发版)概览的活动流就是空的,
+  // 要等下一轮才有东西看。id 与引擎同形,之后真实事件进来只会原地覆盖、不会重复。
+  try {
+    let groupsRaw = {}
+    try { groupsRaw = readRaw().groups || {} } catch {}
+    for (const ev of dashboard.ledgerActivity(dashboard.readLedgerTail(ledgerFile()), groupsRaw, 20)) recordActivity(ev)
+  } catch { /* 回填是锦上添花,读不了就空着 */ }
+  const inboxDismiss = dashboard.createDismissStore({ file: inboxDismissPath || path.join(os.homedir(), '.sbot', 'inbox-dismissed.json'), log })
+  // 「需要你处理」:从已经算好的 state 各区取数(反馈本 / 预览 / 残留进程)+ 账本 + 接管票,不再各算一遍
+  const buildInboxFor = (state, raw) => {
+    try {
+      return dashboard.buildInbox({
+        ledgerRows: dashboard.readLedgerTail(ledgerFile()),
+        issues: state.issues, previews: state.previews, leftovers: state.leftovers,
+        takeovers: takeoverStore.pending(),
+        groups: (raw && raw.groups) || {},
+        dismissed: inboxDismiss.set(),
+      })
+    } catch (e) { log('inbox: 汇总失败(忽略): ' + (e && e.message)); return [] }
+  }
 
   // Disband hardening: server-enforced two-phase with a one-time
   // token — a bare &confirm=1 must never skip the in-group notice/cool-down.
@@ -462,7 +485,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       replyInThread: raw.slack.replyInThread !== false,
       commandAlias: raw.slack.commandAlias || '!',
     } : null
-    return {
+    const state = {
       configPath: cfg._path,
       health,
       providers,
@@ -571,6 +594,8 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         }
       })(),
     }
+    state.inbox = buildInboxFor(state, raw)
+    return state
   }
 
   async function testProvider(name, prompt) {
@@ -1608,6 +1633,14 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       }
       // 群预览服务:手动停一个(概览「预览服务」区的停止按钮)。控制台停 ⇒ **发群一行告知**
       // (群成员可能正开着那个链接,悄悄拔掉会让人以为 bot 坏了);记录由这里写 —— 「谁杀谁写」。
+      // 「需要你处理」里忽略一条。只有失败轮次能忽略:其余几类各有自己的处理路径(反馈本标已处理、
+      // 结束进程、停预览),在这里「忽略」只会把还在的问题藏起来。
+      if (p === '/api/inbox/dismiss' && req.method === 'POST') {
+        const { key } = await body(req)
+        if (typeof key !== 'string' || !key.startsWith('failed:') || key.length > 300) return sendJSON(res, 400, { error: '这一条不能忽略' })
+        inboxDismiss.add(key)
+        return sendJSON(res, 200, await buildState())
+      }
       if (p === '/api/previews/stop' && req.method === 'POST') {
         const { id } = await body(req)
         const dir = preview.previewDir()

@@ -1357,7 +1357,8 @@ class Engine {
       //   指纹是唯一能把「空轮 / 超时 / 模型报错 / 其实答了但没看见」分开的东西。此前 status
       //   说了「error」却说不出是什么错,拿到反馈的人还得再猜一遍。
       rt.lastTurn = { ts: startedAt, status: o.status, ms: Date.now() - startedAt, tokens: o.tokens || null, provider: o.provider || null, ...(errText ? { err: errText } : {}) }
-      this._activity({ ...meta, kind: 'done', status: o.status, ms: Date.now() - startedAt, tokens: o.tokens, preview: o.preview, reply: o.reply, tools: o.tools })
+      // err 与账本同一个值:控制台活动行出错时直接显示原因,不用再去翻账本
+      this._activity({ ...meta, kind: 'done', status: o.status, ms: Date.now() - startedAt, tokens: o.tokens, preview: o.preview, reply: o.reply, tools: o.tools, ...(errText ? { err: errText } : {}) })
       // ⚠ 账本此前只记 `status:"error"`,**一个字的原因都没有**;而日志那边又没有时间戳
       //   ⇒ 线上失败**事后无从查起**(2026-09-01 真机:生产群一周 15 次 error,一次都查不出
       //   原因 —— 两边各缺一半)。原因其实一直在手上(preview/subtype),只是落盘时被丢掉了。

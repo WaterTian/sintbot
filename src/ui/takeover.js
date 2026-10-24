@@ -73,6 +73,13 @@ function createTakeoverStore({ ttlMs = DEFAULT_TTL_MS, now = Date.now, onClaimed
     session(sid) { prune(); return sessions.get(String(sid || '')) || null },
     revokeSession(sid) { return endSession(String(sid || ''), 'ended') },
     revokeAll() { const n = sessions.size + links.size; for (const k of [...sessions.keys()]) endSession(k, 'ended'); for (const l of links.values()) if (l.timer) clearTimeout(l.timer); links.clear(); return n },
+    // 群里还挂着、没人来认领的票(控制台「需要你处理」用):只算挂了群卡的票 —— 那是 agent 在群里求助;
+    // 管理员自己在控制台签的没有卡,不算。只给元数据,不给令牌。
+    pending() {
+      prune()
+      return [...links.values()].filter((l) => !l.usedAt && l.meta && l.meta.chatId)
+        .map((l) => ({ id: l.id, at: l.at, exp: l.exp, chatId: l.meta.chatId, pageTitle: l.meta.pageTitle || '', pageUrl: l.meta.pageUrl || '' }))
+    },
     // 摘要(测试与排障用,不暴露令牌本身)
     stats() { prune(); return { links: links.size, unused: [...links.values()].filter((l) => !l.usedAt).length, sessions: sessions.size } },
   }

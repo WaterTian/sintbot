@@ -86,3 +86,17 @@ test('takeover: 会话结束回调 onEnded —— 主动结束 / 退出所有设
   assert.equal(s2.stats().sessions, 0); assert.deepEqual(ended[2], [{ cardId: 'c-exp' }, { reason: 'expired' }], '到期的会话结束时也回调')
   assert.equal(ended.length, 3)
 })
+
+test('takeover: pending() 只列挂了群卡、没人认领、没过期的票,且不带令牌', () => {
+  let t = 1000
+  const s = tk.createTakeoverStore({ ttlMs: 60_000, now: () => t })
+  const own = s.mint({ by: 'admin' })                    // 管理员自己签的:没有群卡 ⇒ 不算
+  const asked = s.mint({ by: 'local' }); s.attach(asked.id, { cardId: 'c1', chatId: 'oc_1', pageTitle: '登录', pageUrl: 'https://x.test/login' })
+  const used = s.mint({ by: 'local' }); s.attach(used.id, { cardId: 'c2', chatId: 'oc_2' }); s.consume(used.token)
+  const p = s.pending()
+  assert.deepEqual(p, [{ id: asked.id, at: 1000, exp: 61_000, chatId: 'oc_1', pageTitle: '登录', pageUrl: 'https://x.test/login' }])
+  assert.ok(!JSON.stringify(p).includes(asked.token), '不能带出令牌')
+  assert.ok(own.token)
+  t += 60_001
+  assert.deepEqual(s.pending(), [], '过期就不再列')
+})

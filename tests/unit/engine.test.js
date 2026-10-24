@@ -793,6 +793,22 @@ test('engine: 失败轮的账本带上原因(subtype + 人话),ok 轮一个字�
   assert.equal('err' in records[0], false, 'ok 轮不该出现 err 字段')
 })
 
+// 控制台活动行出错时直接显示原因:done 事件带的 err 与账本是同一个值;ok 轮不带
+test('engine: 失败轮的 done 活动事件带上与账本同一句原因,ok 轮不带', async () => {
+  const records = []; const done = []
+  let eng = new Engine(baseCfg(), { runner: okRunner(async () => ({ sessionId: 's', result: { isError: true, subtype: 'error_max_turns', text: '轮次上限' } })), store: mkStore(),
+    ledger: { append: (r) => records.push(r) }, onActivity: (a) => { if (a.kind === 'done') done.push(a) } })
+  await eng.handleMessage(mkMsg('do it'), mkPlatform()); await tick()
+  assert.equal(done[0].status, 'error')
+  assert.equal(done[0].err, records[0].err)
+  assert.match(done[0].err, /轮次上限/)
+  done.length = 0
+  eng = new Engine(baseCfg(), { runner: okRunner(async () => ({ sessionId: 's', result: { text: '干完了' } })), store: mkStore(), onActivity: (a) => { if (a.kind === 'done') done.push(a) } })
+  await eng.handleMessage(mkMsg('do it'), mkPlatform()); await tick()
+  assert.equal(done[0].status, 'ok')
+  assert.equal('err' in done[0], false)
+})
+
 // ⚠ 「字段缺席」与「记了但没拿到原因」必须分得开 —— 否则又是「没查过」和「查过没问题」
 //   长一模一样(本项目最贵的那条教训)。缺席 = 旧账本格式;通用句 = 我们记了、runner 没给。
 test('engine: 失败却拿不到原因时也写一句,不留空', async () => {

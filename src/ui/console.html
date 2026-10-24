@@ -999,7 +999,7 @@ function renderOverview(){
       ${liveOn?`<button class="iconbtn sm" data-ostop="${esc(g.chatId)}" title="停止当前任务(保留会话)" style="flex:none">${IC.square}</button>
       <button class="iconbtn sm" data-onew="${esc(g.chatId)}" title="开新会话 — 运行中会先中断当前任务并清空队列(同群内 /new)" style="flex:none">${IC.rotate}</button>`:''}</div>`).join('')
     :'<div class="empty">还没有群项目 · 去「群·项目」配置</div>';
-  $('#overview').innerHTML=`<div class="grid cols2 stagger">
+  $('#overview').innerHTML=`${inboxHtml()}<div class="grid cols2 stagger">
     <div class="card"><div class="lbl">健康</div>
       <span class="hpill ${healthClass(h)}" id="ovHealthPill"><span class="led"></span><span id="ovHealthTxt">${healthText(h)}</span></span>
       <div class="hrows" id="ovHrows">${h.rows.map(r=>`<div class="hrow" data-hk="${esc(r.label)}"><span class="dot ${r.status}"></span>
@@ -1022,6 +1022,7 @@ function renderOverview(){
   ${leftoversHtml()}`;
   lastActSig='';
   bindActivityClicks();
+  bindInbox();
   // 插话:入口挂在「群·项目」每一行的 ✎ 上 —— 动作长在对象身上,目标群由那一行决定,不必再选。
   $$('#overview [data-osay]').forEach(b=>b.onclick=()=>openSay(b.dataset.osay));
   // 反馈本:标记已处理 / 放回未处理。备注会跟着发回原群 —— 提的人看到的是「修好了什么」,
@@ -1072,7 +1073,7 @@ function issuesHtml(){
       ${i.fp?`<div class="hint" style="flex-basis:100%;margin:2px 0 0">上一轮 ${esc(i.fp)}${i.version?' · v'+esc(i.version):''}</div>`:''}
       ${done&&i.note?`<div class="hint" style="flex-basis:100%;margin:2px 0 0">处理:${esc(i.note)}</div>`:''}
     </div>`;
-  return `<h2 class="sec">反馈本${open.length?` <span class="tag" style="color:var(--warn);border-color:var(--warn)">${open.length} 条待处理</span>`:''}</h2>
+  return `<h2 class="sec" id="ovIssues">反馈本${open.length?` <span class="tag" style="color:var(--warn);border-color:var(--warn)">${open.length} 条待处理</span>`:''}</h2>
     <div class="card ovgroups">${open.map(i=>row(i,false)).join('')}${closed.map(i=>row(i,true)).join('')}
     <div class="hint" style="margin:10px 2px 0">群成员用 /issue 提的问题 · 标记已处理时会在原群回一句告诉他</div></div>`;
 }
@@ -1094,7 +1095,7 @@ function previewsHtml(){
       <a class="iconbtn sm" href="${esc(p.url)}" target="_blank" rel="noopener" title="在浏览器打开 ${esc(p.url)}" style="flex:none;text-decoration:none">${IC.ext}</a>
       <button class="iconbtn sm" data-pvstop="${esc(p.id)}" data-pvname="${esc(p.label)}" title="停止这个预览(群里会收到告知)" style="flex:none">${IC.square}</button>
     </div>`).join('');
-  return `<h2 class="sec">预览服务</h2><div class="card ovgroups">${rows}
+  return `<h2 class="sec" id="ovPreviews">预览服务</h2><div class="card ovgroups">${rows}
     <div class="hint" style="margin:10px 2px 0">群里让它起的局域网原型预览 · 闲置到点自动停并在群里告知 · HTTP 明文,仅可信内网</div></div>`;
 }
 /* 后台进程(v0.11.108):agent 在对话轮次里用后台方式起的 shell,轮次结束后没跟着退、还在跑。
@@ -1112,12 +1113,48 @@ function leftoversHtml(){
       <span class="mono faint" style="flex:none;font-size:11px" title="进程号">#${esc(p.pid)}</span>
       <button class="iconbtn sm" data-lvkill="${esc(p.pid)}" data-lvage="${esc(p.age)}" title="结束这个后台进程" style="flex:none">${IC.x}</button>
     </div>`).join('');
-  return `<h2 class="sec">后台进程 <span class="tag" style="color:var(--warn);border-color:var(--warn)">${rows.length} 个还在跑</span></h2>
+  return `<h2 class="sec" id="ovLeftovers">后台进程 <span class="tag" style="color:var(--warn);border-color:var(--warn)">${rows.length} 个还在跑</span></h2>
     <div class="card ovgroups">${items}
     <div class="inline" style="justify-content:space-between;align-items:center;margin:10px 2px 0;gap:12px">
       <div class="hint" style="margin:0">对话轮次已经结束,这些由它起的后台命令却还在跑 —— 可能在反复打接口、占着端口或白耗资源;看一眼在干什么,不该留的就结束</div>
       <button class="btn" data-lvkillall="1" title="结束上面列出的全部后台进程" style="flex:none;padding:5px 11px;font-size:12px">${IC.x} 全部结束</button>
     </div></div>`;
+}
+// 群名:活动事件只带 chatId 尾 8 位,这里按配置换成人认得的名字(群已解绑就退回尾号)
+function groupNameOf(chatId,fallback){const g=((S&&S.groups)||[]).find(x=>x.chatId===chatId);return (g&&g.name)||fallback||String(chatId||'').slice(-8);}
+// 「需要你处理」(汇总逻辑在 src/ui/dashboard.js):没事就不出现,有事放在概览最上面。
+// 只汇总、不另发通知 —— 群里该说的照旧在群里说。失败轮次可忽略;其余几类各有自己的处理区,点了滚过去。
+function inboxHtml(){
+  const items=(S&&S.inbox)||[];
+  if(!items.length) return '';
+  const go=(id,tip)=>`<button class="iconbtn sm" data-ibgo="${id}" title="${tip}" style="flex:none">${IC.down}</button>`;
+  const row=it=>{
+    const g=it.chatId?groupNameOf(it.chatId,it.group):'';
+    const line=(tag,col,title,act,more)=>`<div class="row" style="flex-wrap:wrap;align-items:baseline">
+      <span class="tag" style="color:var(${col});border-color:var(${col})">${tag}</span>
+      <span class="name" style="flex:none">${title}</span>
+      <span class="meta" style="min-width:0">${[g?esc(g):'',it.ts?fmtWhen(it.ts):''].filter(Boolean).join(' · ')}</span>
+      <span style="flex:1"></span>${act}${more||''}</div>`;
+    const full=(html,extra)=>`<div style="flex-basis:100%;margin:3px 0 0;word-break:break-word${extra||''}">${html}</div>`;
+    // 失败行与反馈本同形:谁 · 哪个群 · 几点,下面是原话和原因
+    if(it.kind==='failed')return line('失败','--fail',esc(it.sender||'?'),
+      `<button class="iconbtn sm" data-ibdis="${esc(it.key)}" title="忽略这一条(之后不再出现)" style="flex:none">${IC.x}</button>`,
+      full(esc(it.text||''))+(it.err?full(IC.warn+' '+esc(it.err),';color:var(--fail)'):''));
+    if(it.kind==='takeover')return line('接管','--warn','等人接管浏览器',
+      `<a class="iconbtn sm" href="/browser" target="_blank" rel="noopener" title="打开接管页" style="flex:none">${IC.ext}</a>`,
+      (it.pageTitle||it.pageUrl)?full(esc(it.pageTitle||it.pageUrl)):'');
+    if(it.kind==='issues')return line('反馈','--warn',`${it.count} 条反馈待处理`,go('ovIssues','滚到反馈本'));
+    if(it.kind==='leftovers')return line('进程','--warn',`${it.count} 个后台进程还在跑`,go('ovLeftovers','滚到后台进程'));
+    if(it.kind==='preview')return line('预览','--fail','预览在服务整个项目目录',go('ovPreviews','滚到预览服务'));
+    return '';
+  };
+  return `<h2 class="sec" id="ovInbox" style="margin-top:0">需要你处理 <span class="tag" style="color:var(--warn);border-color:var(--warn)">${items.length}</span></h2>
+    <div class="card ovgroups" style="margin-bottom:22px">${items.map(row).join('')}</div>`;
+}
+function bindInbox(){
+  $$('#overview [data-ibgo]').forEach(b=>b.onclick=()=>{const el=$('#'+b.dataset.ibgo);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
+  $$('#overview [data-ibdis]').forEach(b=>b.onclick=async()=>{
+    try{S=await api('/api/inbox/dismiss','POST',{key:b.dataset.ibdis});lastStateSig=stateSig(S);renderOverview();toast('已忽略','ok');}catch(e){toast(e.message,'err');}});
 }
 function activityHtml(){
   if(!activity.length) return '<div class="empty">服务启动后显示实时活动</div>';
@@ -1127,11 +1164,14 @@ function activityHtml(){
     const k=a.kind||'';const col=run?'color:var(--ember)':((k==='error'||k==='failed')?'color:var(--fail)':(k==='empty'?'color:var(--warn)':''));
     const tok=a.tokens?` <span class="faint">${IC.down}${fmtTok(a.tokens.out)}</span>`:'';
     const st=run?'<span class="spin"></span> running':(statusIcon(k)+' '+esc(a.sec||'')).trim();
-    const prev=(a.preview&&!run&&!a.open)?`<div class="apreview">${IC.corner} ${esc(a.preview)}</div>`:'';
+    // 出错的行直接把原因摆出来(与账本同一句);其余照旧显示回复摘要
+    const bad=k==='error'||k==='failed';
+    const prev=(bad&&a.err&&!a.open)?`<div class="apreview" style="color:var(--fail)">${IC.warn} ${esc(a.err)}</div>`
+      :((a.preview&&!run&&!a.open)?`<div class="apreview">${IC.corner} ${esc(a.preview)}</div>`:'');
     const exp=a.open?activityExpand(a):'';
     return `<div class="arow"><div class="aline" data-aid="${esc(a.id)}">
       <span class="num faint">${esc(a.t||'')}</span>
-      <span class="name" style="font-size:12px;font-weight:500">${esc(a.group||'')}</span>
+      <span class="name" style="font-size:12px;font-weight:500">${esc(groupNameOf(a.chatId,a.group))}</span>
       <span class="meta" style="flex:1;min-width:0">${esc(a.text||'')}</span>
       <span class="meta num" style="${col}">${st}${tok}</span></div>${prev}${exp}</div>`;}).join('');
 }
@@ -1142,6 +1182,7 @@ function activityExpand(a){
   const meta=[];
   if(a.sender)meta.push(`<span><b>sender</b> ${esc(a.sender)}</span>`);
   if(a.status)meta.push(`<span><b>status</b> ${esc(runLabel(a.status))}</span>`);
+  if(a.err)meta.push(`<span><b>原因</b> ${esc(a.err)}</span>`);
   if(a.ms)meta.push(`<span><b>耗时</b> ${(a.ms/1000).toFixed(1)}s</span>`);
   // ↑ = 输入侧总量(未命中 + 缓存读写,v0.11.17 起口径归一);有缓存字段时括号里给拆分
   if(a.tokens){const cr=a.tokens.cr||0,cw=a.tokens.cw||0;meta.push(`<span><b>tokens</b> ${IC.upArrow}${fmtTok((a.tokens.in||0)+cr+cw)} ${IC.down}${fmtTok(a.tokens.out)}${(cr||cw)?` <span class="faint">(缓存读 ${fmtTok(cr)} · 写 ${fmtTok(cw)})</span>`:''}</span>`);}
@@ -1207,11 +1248,12 @@ let autoTimer=null,lastStateSig=null;
    打断)。而这些数字是用 fmtDur 按**分钟**显示的 ⇒ 折成分钟后,签名恰好在显示文字会变时才变。
    live/conn/time 整块剔掉(它们走 3s 心跳,进签名会每帧变)。 */
 function stateSig(s){try{
-  const {live,conn,time,previews,...rest}=s||{};
+  const {live,conn,time,previews,inbox,...rest}=s||{};
   const pv=(previews||[]).map(p=>[p.id,p.port,p.label,p.serveRoot,p.projectRoot,p.reqCount,
     Math.round((p.upMs||0)/60000),p.lastReqMs==null?null:Math.round(p.lastReqMs/60000),
     p.idleLeftMs==null?null:Math.round(p.idleLeftMs/60000)]);
-  return JSON.stringify([rest,pv]);
+  const ib=(inbox||[]).map(i=>[i.key,i.count||0]); // 时间戳每次刷新都在走(进程年龄、预览时长),只签身份
+  return JSON.stringify([rest,pv,ib]);
 }catch{return null;}}
 function busyInteracting(){
   if($('#modalBg')&&$('#modalBg').classList.contains('show'))return true;      // 模态框开着
@@ -4310,6 +4352,20 @@ const I18N_EN=[
   ["退出所有设备","Sign out everywhere"],
   ["版本历史","Version history"],
   ["关于 SintBot","About SintBot"],
+  ["需要你处理","Needs you"],
+  ["接管","Takeover"],
+  ["等人接管浏览器","Waiting for someone to take over the browser"],
+  ["打开接管页","Open the takeover page"],
+  ["反馈","Feedback"],
+  ["进程","Process"],
+  ["预览在服务整个项目目录","A preview is serving the whole project directory"],
+  ["忽略这一条(之后不再出现)","Dismiss (it won't come back)"],
+  ["已忽略","Dismissed"],
+  ["滚到反馈本","Go to Feedback log"],
+  ["滚到后台进程","Go to Background processes"],
+  ["滚到预览服务","Go to Preview servers"],
+  ["原因","Reason"],
+  ["后台进程","Background processes"],
   ["SintBot 是在聊天群里干活的自托管 AI 助手:一个群绑一个项目,无头驱动 Claude Code 或 Codex,模型随时换、项目记忆不丢,全程在你自己的机器上。","SintBot is a self-hosted AI assistant that works from your group chats: one group per project, headless Claude Code or Codex, any model behind it, and one project memory that survives model switches — all on your own machine."],
   ["版本","Version"],
   ["官网","Website"],
@@ -4556,6 +4612,9 @@ const I18N_EN=[
   ["企业微信群:只收 @ 机器人的消息;没有画布、表情回应与撤回即停","WeCom group: only receives messages that @ the bot; no canvas, reactions or stop-on-recall"],
 ];
 const I18N_EN_RX=[
+  [/^(\d+) 条反馈待处理$/,"$1 feedback items open"],
+  [/^(\d+) 个后台进程还在跑$/,"$1 background processes still running"],
+  [/^(\d+) 个还在跑$/,"$1 still running"],
   [/^命令前缀 (\S+)$/,"Command prefix $1"],
   [/^管理员 (\d+) 人$/,"$1 admins"],
   [/^(\d+) 失败 · (\d+) 警告$/,"$1 failed · $2 warnings"],
@@ -4931,7 +4990,7 @@ enhanceSelects();
 // time) and a batch replay from /api/activity (下一步 ②). Preserves a row's expand state.
 function applyTurnEvent(a){
   if(!a||!a.id)return;
-  const entry={id:a.id,ts:a.ts,t:fmtHM(a.ts),group:a.group,sender:a.sender,text:a.text,status:a.kind==='start'?'running':statusLabel(a.status,a.ms),kind:a.kind==='start'?'running':(a.status||''),sec:a.ms?(a.ms/1000).toFixed(1)+'s':'',ms:a.ms,tokens:a.tokens,preview:a.preview,reply:a.reply,tools:a.tools};
+  const entry={id:a.id,ts:a.ts,t:fmtHM(a.ts),chatId:a.chatId,err:a.err||'',group:a.group,sender:a.sender,text:a.text,status:a.kind==='start'?'running':statusLabel(a.status,a.ms),kind:a.kind==='start'?'running':(a.status||''),sec:a.ms?(a.ms/1000).toFixed(1)+'s':'',ms:a.ms,tokens:a.tokens,preview:a.preview,reply:a.reply,tools:a.tools};
   // running 行记一个**浏览器本机**时刻,给上面那道自愈闸当基准。
   // ⚠ 不能拿 a.ts 当基准 —— 那是 daemon 那台机器的钟,与浏览器不是同一把(v0.11.12 同款陷阱)。
   if(entry.status==='running')entry.runAt=Date.now();
@@ -4964,7 +5023,9 @@ function startLive(){
     es.addEventListener('tick',ev=>{try{const d=JSON.parse(ev.data);if(S){if(d.live)S.live=d.live;if('conn' in d)S.conn=d.conn;}updateDaemon();updateOverviewLive();updateConnLive();}catch{}});
     startAutoRefresh();
     es.addEventListener('conn',ev=>{try{const c=JSON.parse(ev.data);if(S){S.conn=Object.assign({},connDict(S.conn),{[c.platform||'feishu']:c});updateConnLive();}}catch{}}); // 连接状态变化即时推(不等心跳);事件带 platform 名,落进字典对应槽
-    es.addEventListener('turn',ev=>{try{applyTurnEvent(JSON.parse(ev.data));updateOverviewLive();}catch(e){}});
+    es.addEventListener('turn',ev=>{try{const d=JSON.parse(ev.data);applyTurnEvent(d);updateOverviewLive();
+      // 收件箱跟着轮次走:刚失败的要尽快出现,重说成功的要尽快消失 —— 不等 60 秒的例行刷新
+      if(d.kind==='done'&&(d.status==='error'||d.status==='failed'||((S&&S.inbox)||[]).some(i=>i.kind==='failed')))autoRefresh();}catch(e){}});
     es.onerror=()=>{$('#conn').classList.remove('live');checkStaleAuth();};
   }catch(e){}
 }

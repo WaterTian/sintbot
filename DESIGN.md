@@ -65,7 +65,7 @@ src/platform/
   feishu.js · slack.js · wecom*.js · wswatchdog.js   the three platform adapters · the Feishu long-connection watchdog
   multi.js · cli.js                            several platforms combined into one Platform · a stub platform for driving the engine from a terminal
   board*.js · takeovercard.js                  Feishu whiteboards · browser takeover cards
-src/ui/                    the console: server.js (HTTP + REST + SSE) · console.html / browser.html (self-contained single files) · auth and sessions
+src/ui/                    the console: server.js (HTTP + REST + SSE) · console.html / browser.html (self-contained single files) · dashboard.js ("Needs you" and the ledger backfill) · auth and sessions
 src/*.js                   design style files · preview servers · plugins · repository linking · project-root fence · project memory · leftover processes · upgrade announcements · usage · CDP
 ```
 
@@ -156,7 +156,8 @@ A model that can't read images (a provider marked `vision:false`) fails the whol
 - Binding only to 127.0.0.1 isn't safe by itself (cross-site POSTs, DNS rebinding): each process injects a random token into the page, every `/api/*` checks it, and there is a loopback Host check on top. A broken config file is never written back.
 - Opening it to the LAN (`--ui-host`) **requires setting a password first**, or it refuses to start. The password is only exchanged for a session token (no cookies ⇒ no CSRF); local loopback needs no password, and loopback requests carrying `X-Forwarded-*` don't count as local.
 - The public entry point uses **Feishu sign-in** (the OAuth authorization code flow) and admits only the people on the `feishu.admins` list. Sessions are stored on disk for 30 days; removing someone from the list or changing the password voids old sessions immediately, based on identity hints recorded when they were issued. See [docs/PUBLIC-ACCESS.md](./docs/PUBLIC-ACCESS.md).
-- Live activity goes over SSE. SSE doesn't replay, so the server keeps recent turn events, and the page fetches and merges them on load and on every reconnect. The page refreshes itself every 60 seconds, without interrupting a form being filled in, an open dialog or a drag.
+- Live activity goes over SSE. SSE doesn't replay, so the server keeps recent turn events, and the page fetches and merges them on load and on every reconnect. That buffer lives in memory, so on start it is seeded from the most recent turns in the turn ledger (scheduled scripts excluded); otherwise every restart, including each upgrade, would leave the feed empty. The page refreshes itself every 60 seconds, without interrupting a form being filled in, an open dialog or a drag.
+- **"Needs you" sits at the top of Overview and appears only when something does.** It gathers what is waiting on a person: turns that failed in the last 72 hours (with the same reason the ledger records; one disappears by itself once the same person gets an answer in that group, or can be dismissed), takeover links an agent posted that nobody has claimed, open feedback, leftover background processes and previews serving a whole project. It only summarizes: nothing new is sent to any group, and the items that already have their own section link to it rather than being handled twice.
 
 ### 4.10 Other mechanisms
 

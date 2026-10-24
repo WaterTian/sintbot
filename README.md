@@ -82,7 +82,7 @@ Without a Claude subscription, Claude Code is only the agent framework and needs
 | **Design** | A per-project `DESIGN.md` style file the agent must read. Sixteen built-in styles. A check before every hand-off. Iterate by annotating Feishu whiteboards. |
 | **Images** | Generated with the machine's Codex subscription, so no API key is needed. Edit an existing image, repaint a masked region, or produce a transparent background. |
 | **Previews & browser** | HTML prototypes are served on your LAN for the group to see. When the bot's browser hits a login or captcha, a group member takes over through a one-time link. |
-| **Console** | One local page for every group: projects, models, permissions, design library, live activity and release history. Available in English or Chinese. |
+| **Console** | One local page for every group: a "Needs you" list (failed turns with their reason, takeover requests, open feedback), projects, models, permissions, design library, live activity and release history. Available in English or Chinese. |
 | **Operations** | Turns are capped at 30 minutes, and at most two run at once. Turns interrupted by a restart are redone automatically. Includes `sintbot doctor`, an ops alert group and quota warnings. |
 
 ## Everyday commands

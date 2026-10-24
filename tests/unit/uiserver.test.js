@@ -38,7 +38,7 @@ function rawReq(port, { method = 'GET', path: reqPath = '/', headers = {}, body 
 // Boot a server on a valid config, hand the extracted page token to the test body.
 async function withServer(configJson, fn) {
   const cfgPath = tmpConfig(configJson)
-  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), verifyFile: path.join(path.dirname(cfgPath), 'verify.json'), configPath: cfgPath, log: () => {} })
+  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), ledgerPath: path.join(path.dirname(cfgPath), 'turns.jsonl'), inboxDismissPath: path.join(path.dirname(cfgPath), 'inbox-dismissed.json'), verifyFile: path.join(path.dirname(cfgPath), 'verify.json'), configPath: cfgPath, log: () => {} })
   const port = await listen(ui)
   const page = await rawReq(port, { path: '/' })
   const m = page.body.match(/TOKEN='([0-9a-f]{32})'/)
@@ -473,7 +473,7 @@ test('ui: /api/plugins/exec runs a global library install command (整合自群�
 // /api/activity 载入/重连时补齐(id 去重、done 覆盖 start、按加入序封顶、conn 事件不入池)。
 test('ui: /api/activity replays buffered turn events, done supersedes start', async () => {
   const cfgPath = tmpConfig(VALID_CFG)
-  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), configPath: cfgPath, log: () => {} })
+  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), ledgerPath: path.join(path.dirname(cfgPath), 'turns.jsonl'), configPath: cfgPath, log: () => {} })
   const port = await listen(ui)
   try {
     const page = await rawReq(port, { path: '/' })
@@ -1127,5 +1127,51 @@ test('ui: POST /api/groups 对已绑定的群重存,没发来的群级字段原�
     assert.equal(await post({ chatId: 'oc_new', workdir: wd }), 200)
     assert.deepEqual(Object.keys(read('oc_new')).sort(), ['platform', 'provider', 'workdir']) // platform 是绑定时钉死的归属(双平台并存),不算凭空
     assert.equal(read('oc_new').provider, 'claude')
+  })
+})
+
+// 活动流开局用账本垫底(daemon 重启后概览不再是空的):定时脚本不进来,id 与引擎同形 ⇒ 同一轮的真实事件原地覆盖
+test('ui: activity is seeded from the turn ledger on start; script runs are skipped; a live event with the same id replaces it', async () => {
+  const cfgPath = tmpConfig(JSON.stringify({ agent: { maxConcurrent: 2 }, providers: { claude: {} }, groups: { oc_grp00000001: { name: '设计组', workdir: os.tmpdir() } } }))
+  const dir = path.dirname(cfgPath)
+  const ledger = [
+    { ts: 100, chatId: 'oc_grp00000001', sender: '甲', text: '改首页', status: 'ok', ms: 5 },
+    { ts: 150, chatId: 'oc_grp00000001', sender: '定时任务', text: 'python3 w.py', status: 'ok', script: true },
+    { ts: 200, chatId: 'oc_grp00000001', sender: '乙', text: '出图', status: 'error', ms: 9, err: '模型报错' },
+  ]
+  fs.writeFileSync(path.join(dir, 'turns.jsonl'), ledger.map((r) => JSON.stringify(r)).join('\n') + '\n')
+  const ui = createUiServer({ sessionsPath: path.join(dir, 'ui-sessions.json'), auditPath: path.join(dir, 'audit.jsonl'), ledgerPath: path.join(dir, 'turns.jsonl'), inboxDismissPath: path.join(dir, 'inbox-dismissed.json'), configPath: cfgPath, log: () => {} })
+  const port = await listen(ui)
+  try {
+    const page = await rawReq(port, { path: '/' })
+    const H = { 'X-Sbot-Token': page.body.match(/TOKEN='([0-9a-f]{32})'/)[1] }
+    let act = JSON.parse((await rawReq(port, { path: '/api/activity', headers: H })).body).activity
+    assert.deepEqual(act.map((a) => a.id), ['oc_grp00000001:200', 'oc_grp00000001:100'], '脚本行不进来,新的在上')
+    assert.equal(act[0].err, '模型报错'); assert.equal(act[0].fromLedger, true)
+    ui.pushEvent('turn', { id: 'oc_grp00000001:200', ts: 200, kind: 'done', status: 'error', err: '模型报错', reply: '' })
+    act = JSON.parse((await rawReq(port, { path: '/api/activity', headers: H })).body).activity
+    assert.equal(act.length, 2, '同 id 原地覆盖,不重复')
+    assert.ok(!act[0].fromLedger)
+  } finally { ui.close() }
+})
+
+// 「需要你处理」:失败轮次进 /api/state 的 inbox;忽略后消失且落盘;只有失败轮次能忽略
+test('ui: /api/state carries the inbox; a failed turn can be dismissed, other keys cannot', async () => {
+  await withServer(JSON.stringify({ agent: { maxConcurrent: 2 }, providers: { claude: {} }, groups: { oc_grp00000001: { name: '设计组', workdir: os.tmpdir() } } }), async ({ port, token, cfgPath }) => {
+    const dir = path.dirname(cfgPath)
+    const ts = Date.now() - 60_000
+    fs.writeFileSync(path.join(dir, 'turns.jsonl'), JSON.stringify({ ts, chatId: 'oc_grp00000001', sender: '乙', text: '出图', status: 'failed', err: '超时' }) + '\n')
+    const H = { 'X-Sbot-Token': token, 'Content-Type': 'application/json' }
+    let st = JSON.parse((await rawReq(port, { path: '/api/state', headers: H })).body)
+    const fail = st.inbox.find((i) => i.kind === 'failed')
+    assert.ok(fail, 'inbox 里有这条失败')
+    assert.equal(fail.group, '设计组'); assert.equal(fail.err, '超时')
+    const bad = await rawReq(port, { method: 'POST', path: '/api/inbox/dismiss', headers: H, body: JSON.stringify({ key: 'issues' }) })
+    assert.equal(bad.status, 400)
+    const ok = await rawReq(port, { method: 'POST', path: '/api/inbox/dismiss', headers: H, body: JSON.stringify({ key: fail.key }) })
+    assert.equal(ok.status, 200)
+    st = JSON.parse(ok.body)
+    assert.ok(!st.inbox.some((i) => i.key === fail.key), '忽略后不再出现')
+    assert.ok(JSON.parse(fs.readFileSync(path.join(dir, 'inbox-dismissed.json'), 'utf8')).keys[fail.key], '忽略落盘')
   })
 })
