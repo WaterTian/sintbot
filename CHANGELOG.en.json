@@ -1,5 +1,27 @@
 [
   {
+    "version": "1.0.8",
+    "name": "A clearer console, sharper style extraction",
+    "items": [
+      {
+        "t": "\"Needs you\" on the console",
+        "d": "The top of Overview lists what is waiting on you: failed tasks with their reason, browser takeovers nobody has claimed, open feedback, leftover background processes and failing health checks. It appears only when something does, and sends nothing extra to any group."
+      },
+      {
+        "t": "Activity survives restarts",
+        "d": "After a restart or an upgrade, live activity on Overview is filled back in from recent tasks, and failed tasks show their reason."
+      },
+      {
+        "t": "Sharper style extraction",
+        "d": "Extracting from a URL now reads stylesheets a site serves from other domains, so sites like Feishu and Bilibili work, and sites that need a proxy go through the configured one. Colors, fonts and radii are read more accurately, and anything it cannot read leaves your choices as they were."
+      },
+      {
+        "t": "English throughout",
+        "d": "The English console now covers the WeCom settings, health checks, scheduled-task descriptions and more, and the built-in design styles have English names and descriptions."
+      }
+    ]
+  },
+  {
     "version": "1.0.7",
     "name": "First official release",
     "items": [
