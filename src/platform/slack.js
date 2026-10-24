@@ -492,7 +492,7 @@ function createSlackApi(token, { log = () => {}, fetchImpl = null, sleepImpl = s
       if (!j || typeof j !== 'object') throw new SlackError('invalid_response', method, { status: res.status })
       if (!j.ok) throw new SlackError(j.error || 'unknown_error', method, j)
       const warn = j.warning || (j.response_metadata && j.response_metadata.warnings)
-      if (warn) log(`⚠ slack ${method} 有 warning(可能是静默失败,见 docs/SLACK.md「静默失败」): ${JSON.stringify(warn).slice(0, 200)}`)
+      if (warn) log(`⚠ slack ${method} 有 warning(可能是静默失败,见 https://github.com/sintlab/sintbot/blob/main/docs/SLACK.md「静默失败」): ${JSON.stringify(warn).slice(0, 200)}`)
       return j
     }
   }

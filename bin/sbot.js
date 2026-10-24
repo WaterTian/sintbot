@@ -132,7 +132,7 @@ const SUBHELP = {
     + '      浏览器里的控制台(配置模式,不接 daemon):配置 / 健康 / provider 试跑 / 群绑定;默认 http://127.0.0.1:4600\n'
     + '      --host 0.0.0.0 对局域网开放 —— 必须先 --set-password 设过密码,否则拒绝启动;--host / --port 只管本次,不写进配置\n'
     + '      与 daemon 共宿的实时控制台是 sintbot start --ui\n'
-    + '      公网访问不走命令行参数:配置 ui.publicUrl + feishu.admins 名单,经 SSH 隧道与反代终结 HTTPS,公网上只认「用飞书登录」—— 见 docs/PUBLIC-ACCESS.md',
+    + '      公网访问不走命令行参数:配置 ui.publicUrl + feishu.admins 名单,经 SSH 隧道与反代终结 HTTPS,公网上只认「用飞书登录」—— 见 https://github.com/sintlab/sintbot/blob/main/docs/PUBLIC-ACCESS.md',
   doctor: '用法: sintbot doctor [--config <path>] [--kill-leftovers]\n'
     + '      体检:Node / 配置 / claude CLI 与旗子 / 各 provider 的 key 与端点 / 浏览器与 MCP / 飞书凭证与权限预检 / 项目根目录 / 各群目录 / 遗留进程\n'
     + '      --kill-leftovers  顺手结束「遗留进程」(agent 轮次结束后仍在跑的后台 shell,体检尾巴会列出来;不加只列不杀)\n'
@@ -142,7 +142,7 @@ const SUBHELP = {
     + '      飞书守护进程:群消息 → 绑定项目 → agent → 回群;配置文件改了热重载,不用重启\n'
     + '      --ui 同时提供实时控制台(默认 127.0.0.1:4600;对外绑定须先 sintbot ui --set-password;端口被占只提示,daemon 照常跑)\n'
     + '      前置:feishu.appId / appSecret 已配、claude CLI 可用;SIGTERM / Ctrl-C 优雅退出(会中止进行中的轮次)\n'
-    + '      公网入口(SSH 隧道 + 反代 + ui.publicUrl + 飞书登录名单)不在参数里,见 docs/PUBLIC-ACCESS.md;launchd 常驻要带 --ui-host 0.0.0.0',
+    + '      公网入口(SSH 隧道 + 反代 + ui.publicUrl + 飞书登录名单)不在参数里,见 https://github.com/sintlab/sintbot/blob/main/docs/PUBLIC-ACCESS.md;launchd 常驻要带 --ui-host 0.0.0.0',
   chat: '用法: sintbot chat [--workdir|-C <dir>] [--provider <名>] [--model <id>] [--allow <list>] [--deny <list>] [--config <path>]\n'
     + '      从终端逐行驱动引擎(不接飞书):每行 = 一条群消息;/help 看群内命令,/exit 退出\n'
     + '      --allow / --deny 逗号分隔的工具名,两个都不给 ⇒ 只读;会话状态落在 <workdir>/.sbot/',
@@ -244,13 +244,15 @@ function printSubHelp(sub) {
 // ⚠ 派发表里每个子命令都必须以「sbot <名>」或「sintbot <名>」出现在这里(cli-help.test 钉着):否则 agent 无从知道它存在。
 // 给人用的(安装运维 / 本机试跑)写 sintbot;agent 用的基础技能写 sbot —— 权限白名单是 `Bash(sbot …)`,写成 sintbot 会被拦。
 function printHelp() {
-  process.stdout.write(`sintbot — 从聊天群驱动无头 Claude Code,模型大脑可换
+  process.stdout.write(`sintbot — 从聊天群驱动无头 Claude Code 与 Codex,模型大脑可换
 
   · 群即项目:一个群绑一个项目,多人在群里直接派活(改码 · 部署 · 查资料 · 出图 · 定时任务);每群独立会话、排队与权限
   · 记得住:项目约定与长期记忆存在项目目录里,长会话自动压缩,换模型不丢
   · 数据留在本机:项目、会话、记忆、账本全在本机硬盘,项目随 git 备份;出站自动脱敏,权限按群预设、无人值守不挂起
-  · 只换脑,不换框架:沿用 Claude Code 的工具 / 权限 / 插件体系;模型任选(Claude · DeepSeek · MiniMax · 火山 · GPT),群里 /model 即切
+  · 只换脑,不换框架:沿用 Claude Code 的工具 / 权限 / 插件体系;模型任选(Claude · GPT · DeepSeek · GLM · MiniMax,或任何兼容 Anthropic 接口的端点),群里 /model 即切
   · 各用所长:同一个项目里各模型干各自擅长的活 —— Claude 改码,GPT 出图(借本机 codex 订阅,零 API key)
+
+官网 https://sintbot.com · 源码与文档 https://github.com/sintlab/sintbot · 反馈问题 https://github.com/sintlab/sintbot/issues
 
 用法: sintbot <命令> [动作] [参数…]        每条命令都收 --help(输出走 stdout、退出码 0);sbot 是同一个命令的短名
 
@@ -1353,7 +1355,7 @@ async function cmdSetup(rest) {
         process.stdout.write(`  ${yellow('!')} 装好了,但当前 PATH 里找不到 ${binName} —— 把 ${dir} 加进 PATH,重开终端再跑一次 sintbot setup\n`)
         return null
       }
-      process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,做法见 docs/zh-CN/install.md「一键安装」\n`)
+      process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,做法见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/install.md「一键安装」\n`)
       return null
     }
     const claudeName = (raw.agent && raw.agent.bin) || 'claude'
@@ -1588,7 +1590,7 @@ async function cmdSetup(rest) {
     if (platIn !== 'none' && !plats.length) process.stdout.write(red('  没认出平台名(feishu / slack / wecom),先跳过 —— 之后可重跑 setup 或去控制台配') + '\n')
 
     if (plats.includes('feishu')) {
-      process.stdout.write(gray('  飞书:开放平台建「企业自建应用」→ 加机器人能力 → 事件订阅选长连接;权限清单见 docs/zh-CN/platforms/feishu.md') + '\n')
+      process.stdout.write(gray('  飞书:开放平台建「企业自建应用」→ 加机器人能力 → 事件订阅选长连接;权限清单见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/platforms/feishu.md') + '\n')
       raw.feishu = raw.feishu || { onlyWhenMentioned: false }
       // 从示例新建:示例里的 env: 占位不是用户的值 —— 当作没填,免得默认值显示成 env:FEISHU_APP_ID、还提示「留空=保持不变」
       if (seeded) for (const k of ['appId', 'appSecret']) if (String(raw.feishu[k] || '').startsWith('env:')) raw.feishu[k] = ''
@@ -1649,7 +1651,7 @@ async function cmdSetup(rest) {
     }
 
     if (plats.includes('slack')) {
-      process.stdout.write(gray('  Slack:api.slack.com/apps → Create New App → From a manifest,粘贴 docs/slack-app-manifest.yaml;') + '\n'
+      process.stdout.write(gray('  Slack:api.slack.com/apps → Create New App → From a manifest,粘贴 ' + path.join(__dirname, '..', 'docs', 'slack-app-manifest.yaml') + ' 的内容;') + '\n'
         + gray('         装进 workspace 后取 Bot Token(xoxb-),再在 Basic Information 建一个 App-Level Token(xapp-,勾 connections:write)') + '\n')
       raw.slack = raw.slack || {}
       raw.slack.botToken = (await askKey(`Slack Bot Token(xoxb-…)${raw.slack.botToken ? '(留空=保持不变)' : ''}`)) || raw.slack.botToken || ''
@@ -1669,7 +1671,7 @@ async function cmdSetup(rest) {
     }
 
     if (plats.includes('wecom')) {
-      process.stdout.write(gray('  企业微信:管理后台「智能机器人 → 新建 → API 模式 → 使用长连接」拿 Bot ID 与 Secret(docs/zh-CN/platforms/wecom.md)') + '\n')
+      process.stdout.write(gray('  企业微信:管理后台「智能机器人 → 新建 → API 模式 → 使用长连接」拿 Bot ID 与 Secret(见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/platforms/wecom.md)') + '\n')
       raw.wecom = raw.wecom || {}
       raw.wecom.botId = await ask('企业微信 Bot ID', realCreds(raw.wecom.botId) ? raw.wecom.botId : '')
       raw.wecom.secret = (await askKey(`企业微信 Secret${raw.wecom.secret ? '(留空=保持不变)' : ''}`)) || raw.wecom.secret || ''

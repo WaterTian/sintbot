@@ -152,7 +152,7 @@ function render(platform, spec) {
 function windowsHint(spec) {
   const cmd = [spec.nodeBin, ...spec.args].map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')
   return [
-    'Windows 上请用托管器把下面这条命令装成服务(任选其一,详见 docs/zh-CN/install.md):',
+    'Windows 上请用托管器把下面这条命令装成服务(任选其一,详见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/install.md):',
     '',
     `  命令:${cmd}`,
     '',

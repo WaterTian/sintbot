@@ -838,7 +838,7 @@ d.dataset.theme=t;if(l!=='en'&&l!=='zh')l=/^zh/i.test((navigator.language||''))?
 <body>
 <div class="app">
   <div class="top">
-    <div class="mark"><span class="word">Sint<i class="trace" aria-hidden="true"></i>Bot</span><span class="ver">__SBOT_VERSION__</span><small>控制台</small></div>
+    <div class="mark"><a class="word" href="https://sintbot.com" target="_blank" rel="noopener" title="SintBot 官网" style="color:inherit;text-decoration:none">Sint<i class="trace" aria-hidden="true"></i>Bot</a><span class="ver">__SBOT_VERSION__</span><small>控制台</small></div>
     <div class="spacer"></div>
     <div class="topright">
       <!-- 当前连着的飞书应用(名称 + 图标)。左边 .mark 是产品品牌、固定不变;这块是「这台机器
@@ -3145,6 +3145,15 @@ function renderSettings(){
     ${INJECTED_TOKEN?'':'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="logoutBtn" title="作废这次登录;其它设备上的登录不受影响">退出登录</button><button class="btn" id="logoutAllBtn" title="作废这台机器签发过的全部登录(所有设备都要重新登录),手机丢了用这个">退出所有设备</button></div>'}
     ${prSection}
   </div>`;
+  // 关于:一句话介绍 + 官网 / 源码与文档 / 反馈。版本号取顶栏徽章(服务端注入的 PKG_VERSION),与版本历史的「当前」同源。
+  const linkRow=(label,u,text)=>`<div class="kv"><span class="kk">${label}</span><span class="vv mono"><a href="${u}" target="_blank" rel="noopener" style="color:var(--ember-soft)">${text}</a></span></div>`;
+  const aboutCard=`<div class="card" style="grid-column:1/-1" id="aboutCard"><div class="lbl">关于 SintBot</div>
+    <div class="hint" style="margin:0 0 10px;color:var(--ink)">SintBot 是在聊天群里干活的自托管 AI 助手:一个群绑一个项目,无头驱动 Claude Code 或 Codex,模型随时换、项目记忆不丢,全程在你自己的机器上。</div>
+    <div class="kv"><span class="kk">版本</span><span class="vv mono">${esc((document.querySelector('.mark .ver')||{}).textContent||'')}</span></div>
+    ${linkRow('官网','https://sintbot.com','sintbot.com')}
+    ${linkRow('源码与文档','https://github.com/sintlab/sintbot','github.com/sintlab/sintbot')}
+    ${linkRow('反馈问题','https://github.com/sintlab/sintbot/issues','github.com/sintlab/sintbot/issues')}
+  </div>`;
   const verhistCard=`<div class="card" style="grid-column:1/-1" id="verhistCard"><div class="lbl">版本历史</div>
     <div id="verhistBox"><div class="empty">加载中…</div></div></div>`;
   $('#settings').innerHTML=`<div class="grid cols2 stagger">
@@ -3168,6 +3177,7 @@ function renderSettings(){
     ${fxFeishuCard(fe)}
     ${fxSlackCard(S.slack||null)}
     ${fxWecomCard(S.wecom||null)}
+    ${aboutCard}
     ${verhistCard}
   </div>`;
   loadChangelog();
@@ -3483,7 +3493,7 @@ function fxSlackCard(sl){
     <details class="fx-guide">
       <summary><span class="caret">${IC.chevronRight}</span><span>如何在 Slack 建这个应用</span><span class="sp"></span><a class="lnk" href="https://api.slack.com/apps" target="_blank" rel="noopener">Slack 应用后台 ↗</a></summary>
       <div class="fx-body">
-        <div class="fx-step"><span class="n">1</span><span class="t">后台点 <b>Create New App → From an app manifest</b>,粘贴随产品附带的 manifest 模板(<code>docs/slack-app-manifest.yaml</code>)。⚠ <b>每台机器各建一个应用</b> —— 长连接是随机分发不是广播,两台共用一个应用会让消息随机落到其中一台,表现为「时灵时不灵」。</span></div>
+        <div class="fx-step"><span class="n">1</span><span class="t">后台点 <b>Create New App → From an app manifest</b>,粘贴随产品附带的 manifest 模板(<a class="lnk2" href="https://github.com/sintlab/sintbot/blob/main/docs/slack-app-manifest.yaml" target="_blank" rel="noopener">slack-app-manifest.yaml</a>)。⚠ <b>每台机器各建一个应用</b> —— 长连接是随机分发不是广播,两台共用一个应用会让消息随机落到其中一台,表现为「时灵时不灵」。</span></div>
         <div class="fx-step"><span class="n">2</span><span class="t"><b>Basic Information → App-Level Tokens → Generate</b>,勾 <code>connections:write</code>,拿到 <code>xapp-</code> 开头那个(只用来建长连接)。</span></div>
         <div class="fx-step"><span class="n">3</span><span class="t"><b>OAuth &amp; Permissions → Install to Workspace</b>,拿到 <code>xoxb-</code> 开头那个(收发消息用的就是它)。</span></div>
         <div class="fx-step"><span class="n">4</span><span class="t">到要用的频道里发 <code>/invite @机器人</code>。<b>不做这步一条消息都收不到</b>,而且频道也不会出现在下面的绑定列表里。</span></div>
@@ -4299,6 +4309,13 @@ const I18N_EN=[
   ["作废这台机器签发过的全部登录(所有设备都要重新登录),手机丢了用这个","Invalidate every sign-in this machine has issued (all devices have to sign in again) — use this if you lose your phone"],
   ["退出所有设备","Sign out everywhere"],
   ["版本历史","Version history"],
+  ["关于 SintBot","About SintBot"],
+  ["SintBot 是在聊天群里干活的自托管 AI 助手:一个群绑一个项目,无头驱动 Claude Code 或 Codex,模型随时换、项目记忆不丢,全程在你自己的机器上。","SintBot is a self-hosted AI assistant that works from your group chats: one group per project, headless Claude Code or Codex, any model behind it, and one project memory that survives model switches — all on your own machine."],
+  ["版本","Version"],
+  ["官网","Website"],
+  ["源码与文档","Source & docs"],
+  ["反馈问题","Report an issue"],
+  ["SintBot 官网","SintBot website"],
   ["运行限制","Run limits"],
   ["并发上限","Max concurrent"],
   ["同时运行的群任务数 · 0 = 不限","How many group tasks run at once · 0 = unlimited"],

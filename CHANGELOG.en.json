@@ -1,119 +1,31 @@
 [
   {
-    "version": "1.0.6",
-    "name": "Notice corrections",
+    "version": "1.0.7",
+    "name": "First official release",
     "items": [
       {
-        "t": "Bundled notices match the license",
-        "d": "The third-party notices shipped with the package now state the license correctly, and the models guide has a shorter note on using personal subscriptions in multi-user groups. No functional changes."
-      }
-    ]
-  },
-  {
-    "version": "1.0.5",
-    "name": "License change",
-    "items": [
-      {
-        "t": "Now under the PolyForm Shield license",
-        "d": "Starting with this release, SintBot is licensed under the PolyForm Shield License: using it yourself, inside your team or company, or modifying it for your own use is unaffected; offering a product that competes with SintBot, paid or free, is not permitted. No functional changes."
-      }
-    ]
-  },
-  {
-    "version": "1.0.4",
-    "name": "Smoother group binding; clear fixes when a platform can't be reached",
-    "items": [
-      {
-        "t": "Listing errors explain the fix",
-        "d": "When the setup wizard can't list Feishu groups or Slack channels, it now says whether the credentials, a missing permission or the network is the problem and where to fix it, instead of showing a bare error code. The console's Slack precheck does the same."
+        "t": "One group, one project",
+        "d": "Bind a Feishu, Slack or WeCom group to a project and anyone in the group can hand it work; each group has its own session, queue and permissions."
       },
       {
-        "t": "A default project folder",
-        "d": "When binding a group, the setup wizard suggests a folder named after the group under your projects folder, so pressing Enter is enough. It no longer asks for a folder when no group was chosen."
+        "t": "Switch models anytime",
+        "d": "Claude, GPT (through Codex), DeepSeek, GLM, MiniMax or a custom endpoint — each group picks its own and can switch at any time without losing the project memory."
       },
       {
-        "t": "The repository moved to SintLab",
-        "d": "The project repository moved to the SintLab organization. Links in the docs are updated and the old address redirects. Bug reports and feature requests now use forms that ask for the version, system and chat platform."
-      }
-    ]
-  },
-  {
-    "version": "1.0.3",
-    "name": "Health checks that tell you what works; wrong keys fail in a second",
-    "items": [
-      {
-        "t": "Wrong keys fail in a second",
-        "d": "For models that use an API key, a wrong or revoked key now fails in about a second instead of after roughly three minutes of retries. Subscription logins are not affected."
+        "t": "Progress in the group",
+        "d": "Work in progress streams to a progress card in the group, and the result is posted back when it is done."
       },
       {
-        "t": "Health checks report what actually works",
-        "d": "The health check and the console overview now use the latest verification: a failed key test, a failed chat platform precheck or a signed-out Claude subscription is flagged instead of showing as fine just because it is filled in. Changing a key resets it to unverified."
+        "t": "Local console",
+        "d": "Manage groups, models and chat platforms in the browser, run a test turn and read the version history; it can also be opened to your LAN or reached through a public entry."
       },
       {
-        "t": "Project folders can start with ~",
-        "d": "The setup wizard and the console accept project folders starting with ~ and save the full path. Folders saved with ~ by older versions of the wizard are resolved against your home folder."
+        "t": "Easy to start",
+        "d": "One-line install; the setup wizard recommends a model based on the accounts you already have and tries it on the spot, and the health check reports honestly what works and what needs fixing."
       },
       {
-        "t": "Slack by default outside China; an English installer",
-        "d": "Outside mainland China the setup wizard recommends Slack and notes that the international Lark is not supported yet. The one-line installer speaks English or Chinese depending on your system language and, if you skip the background service, explains how to start the bot. Terminal hints now use the product name."
-      }
-    ]
-  },
-  {
-    "version": "1.0.2",
-    "name": "Security hardening: local data private to you, dependency updates",
-    "items": [
-      {
-        "t": "Local data private to you",
-        "d": "The data directory holding the chat ledger, audit log, group feedback and logs is now readable only by the system user running the bot, and files left by older versions are tightened at startup, so other users on the same machine cannot read group content."
-      },
-      {
-        "t": "Dependency updates",
-        "d": "The Feishu SDK and the HTTP library it uses are updated to versions with known vulnerabilities fixed."
-      }
-    ]
-  },
-  {
-    "version": "1.0.1",
-    "name": "English docs by default",
-    "items": [
-      {
-        "t": "English docs by default",
-        "d": "The README and the guides for install, models, configuration, security, features and the three chat platforms now have English versions, used by default. The Chinese versions are in README.zh-CN.md and docs/zh-CN/, and the setup wizard and the one-line installer link to them."
-      }
-    ]
-  },
-  {
-    "version": "1.0.0",
-    "name": "First public release, published on npm as sintbot",
-    "items": [
-      {
-        "t": "Public source",
-        "d": "The full source, docs and tests are public and downloadable; install it from npm as the sintbot package."
-      },
-      {
-        "t": "Three chat platforms at once",
-        "d": "Feishu, Slack and WeCom can all be online together, one project per group; the platform is inferred from the group id's shape, or named explicitly in the binding."
-      },
-      {
-        "t": "A setup wizard for the whole path",
-        "d": "The setup wizard checks the environment first (Node, Claude Code, Codex), then walks through models, the bot's name, chat platforms (with credential prechecks for Feishu and Slack), the projects root and a first group; the config is saved under your home directory, readable only by you."
-      },
-      {
-        "t": "Works without a Claude subscription",
-        "d": "The setup wizard first checks whether this machine is logged in to Claude or Codex; if neither, it recommends DeepSeek, runs a trial turn as soon as you paste the API key, and says plainly whether a failure is a wrong key, an empty balance or a network problem. Zhipu and MiniMax can use either their mainland-China or international site; in mainland China it recommends Feishu and only asks about a proxy when Claude or ChatGPT is in use."
-      },
-      {
-        "t": "One-line install",
-        "d": "On macOS / Linux one command does it all: checks for and installs Node 22+, installs sintbot, runs the setup wizard and optionally sets it up as a service; the wizard offers to install Claude Code when it is missing, and switches to a mirror when the official npm registry is unreachable."
-      },
-      {
-        "t": "One command to run as a service",
-        "d": "Runs as a launchd agent on macOS or a systemd user service on Linux: restarted on crash, started at login; there are commands to check status, restart, read logs and uninstall."
-      },
-      {
-        "t": "Default name: SintBot",
-        "d": "The bot introduces itself as SintBot and upgrade notices use that name; change brand in the config to call it something else."
+        "t": "Your data stays on your machine",
+        "d": "Projects, sessions and memory stay on your own machine, and messages sent to the group are redacted automatically."
       }
     ]
   }
