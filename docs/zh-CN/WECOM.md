@@ -1,5 +1,7 @@
 # 企业微信接入(智能机器人 · 长连接)
 
+[English](../WECOM.md) · 简体中文
+
 > 第二个聊天平台适配器:`src/platform/wecom.js`。engine 只多读平台的三个自描述字段(`skillCmd` / `features` / `chatLabel`,见 src/core/interfaces.js);与飞书**可同时接**(路由器 `src/platform/multi.js`,群级 `platform` 字段分流)。
 > 本文只写**接入事实与边界**(与飞书同时在线的形态逐项实测过)。
 

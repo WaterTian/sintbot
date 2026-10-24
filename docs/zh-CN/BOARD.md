@@ -1,5 +1,7 @@
 # 群设计画布(飞书画板)
 
+[English](../BOARD.md) · 简体中文
+
 > 群成员和 agent 共用一块**飞书画板**做生图呈现与标注迭代:agent 把图、图表放上画板,群成员在画板上画箭头、贴便签、写评论,回群里说一声,agent 就按标注改图(开了[自动感知](#自动感知轮询)时不用说,群里自动出一张反馈卡,点一下即可)。画板由飞书云托管,桌面和手机都能原生打开;SintBot 只出站调 API,不自托管页面、不需要公网入口。仅飞书可用。
 > 实现:`src/platform/board.js`(纯函数)· `boardwatch.js`(自动感知)· `boardnotice.js`(卡片回填)· `boardops.js`(自编辑留痕)· `bin/sbot.js` 的 `sbot feishu board-*`。
 
@@ -57,7 +59,7 @@ agent 写 Mermaid(优先)或 PlantUML 源码,存在 `design/diagrams/*.mmd` 进�
 
 ## 开通(飞书开放平台)
 
-除 [platforms/feishu.md](./zh-CN/platforms/feishu.md) 的基础权限外,画布还要这 12 个 scope(都开**应用身份**那一档),开完要发版:
+除 [platforms/feishu.md](./platforms/feishu.md) 的基础权限外,画布还要这 12 个 scope(都开**应用身份**那一档),开完要发版:
 
 `docx:document:create` · `docx:document:write_only` · `docs:document.media:upload` · `board:whiteboard:node:read` · `board:whiteboard:node:create` · `board:whiteboard:node:delete` · `docs:permission.member:create` · `drive:drive.metadata:readonly` · `im:chat.tabs:write_only` · `docs:document.comment:read` · `docs:document.comment:update` · `docs:document.media:download`
 

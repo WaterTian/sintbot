@@ -1,6 +1,8 @@
 # SintBot 设计文档
 
-> 写给要改代码的人:架构、模块边界和关键机制的「为什么」。怎么用见 [README.zh-CN.md](./README.zh-CN.md)(英文 [README.md](./README.md))与 [docs/](./docs/);开发约定见 [CONTRIBUTING.md](./CONTRIBUTING.zh-CN.md)。
+[English](./DESIGN.md) · 简体中文
+
+> 写给要改代码的人:架构、模块边界和关键机制的「为什么」。怎么用见 [README.zh-CN.md](./README.zh-CN.md)(英文 [README.md](./README.md))与 [docs/zh-CN/](./docs/zh-CN/);开发约定见 [CONTRIBUTING.md](./CONTRIBUTING.zh-CN.md)。
 
 ## 0. 核心思路
 
@@ -22,7 +24,7 @@
 | 状态 | JSON 文件 + 原子写(`store.js`) | 单机够用,崩溃安全 |
 | 常驻 | `sbot service`:macOS launchd · Linux systemd 用户服务 | Windows 只打印 NSSM / pm2 命令 |
 
-- **每轮怎么跑**:`claude -p … --resume <sid> --output-format stream-json`,从首个 `system/init` 事件拿到会话 id 存下,下一轮续接;codex 同理(`codex exec … resume <thread_id> --json`,见 [docs/CODEX-RUNNER.md](./docs/CODEX-RUNNER.md))。
+- **每轮怎么跑**:`claude -p … --resume <sid> --output-format stream-json`,从首个 `system/init` 事件拿到会话 id 存下,下一轮续接;codex 同理(`codex exec … resume <thread_id> --json`,见 [docs/CODEX-RUNNER.md](./docs/zh-CN/CODEX-RUNNER.md))。
 - **GPT 为什么走 codex 后端**:另写一个 runner 直接跑官方 `codex exec`,用的是原生协议、零翻译损耗,认证就是本机的 ChatGPT 订阅;把 GPT 经协议翻译代理塞进 `claude` 虽然能复用全部机制,但推理 + 工具 + 流式叠在一起时保真度打折,还要单独的平台 API key。代价是 codex 群的权限只有两档沙箱(§4.1)。
 - **长会话压缩**:续接的会话历史只增不减。每轮把 `agent.autocompactTokens`(默认 40 万,0 = 关)交给 runner:claude 翻成 `--autocompact`,codex 翻成 `-c model_auto_compact_token_limit=`,超限由 CLI 原地压缩,会话 id 不变。
 - **token 记账**一律记**本轮增量**;codex 报的是会话累计值,runner 声明 `usageCumulative` 后由 store 按基线求差(core 不认 runner 名)。
@@ -34,7 +36,7 @@
 | `claude` | 订阅登录 | 不填端点也不填 key;model 不写 = 跟随 CLI 默认 |
 | `glm` / `deepseek` / `minimax` / `volcano` | Anthropic 兼容端点 + API key | GLM-5.2 两个预设带 `vision:false` |
 | `codex` | `runner:"codex"` | 本机 `codex login` 的 ChatGPT 订阅;也是 claude 额度用完时的默认备用 |
-| `gpt` / `kimi` | 隐藏模板 | 翻译代理路线([docs/GPT-ROUTER.md](./docs/GPT-ROUTER.md))/ 在控制台「自定义」里加 |
+| `gpt` / `kimi` | 隐藏模板 | 翻译代理路线([docs/GPT-ROUTER.md](./docs/zh-CN/GPT-ROUTER.md))/ 在控制台「自定义」里加 |
 
 第三方模型的工具调用质量普遍不如 Claude,provider 用 `toolQuality` 标注;`--effort` / thinking 常被非 Claude 端点忽略。
 
@@ -142,7 +144,7 @@ src/*.js                   设计风格档 · 预览服务 · 插件 · 仓库�
 
 - 只绑 127.0.0.1 不等于安全(跨站 POST、DNS rebinding):每个进程一枚随机令牌注入页面,所有 `/api/*` 都校验,外加环回 Host 校验。配置文件坏了拒绝写回。
 - 对局域网开放(`--ui-host`)**必须先设密码**,否则拒绝启动。密码只用来换会话令牌(不用 cookie ⇒ 没有 CSRF);本机环回免密,带 `X-Forwarded-*` 的环回请求不算本机。
-- 公网入口用**飞书账号登录**(OAuth 授权码流程),只放行 `feishu.admins` 名单里的人;会话落盘 30 天,名单删人或换密码时旧会话按签发时的身份线索立刻失效。见 [docs/PUBLIC-ACCESS.md](./docs/PUBLIC-ACCESS.md)。
+- 公网入口用**飞书账号登录**(OAuth 授权码流程),只放行 `feishu.admins` 名单里的人;会话落盘 30 天,名单删人或换密码时旧会话按签发时的身份线索立刻失效。见 [docs/PUBLIC-ACCESS.md](./docs/zh-CN/PUBLIC-ACCESS.md)。
 - 实时活动走 SSE;SSE 不重放,所以服务端留最近的轮次事件,页面载入与每次重连都补拉合并。页面每 60 秒自动刷新,但不打断正在填的表、开着的弹窗和拖拽。
 
 ### 4.10 其它机制
@@ -150,7 +152,7 @@ src/*.js                   设计风格档 · 预览服务 · 插件 · 仓库�
 - **飞书长连接看门狗**(`wswatchdog.js`):开 SDK 的 pong 探活;接管连接事件维护健康快照;SDK 放弃重连或卡在重连太久就强制重建,指数退避。治的是「SDK 以为还连着、其实收不到事件」。
 - **时间口径**:顶层 `timezone`(默认 `Asia/Shanghai`)是全产品唯一口径,与主机时区无关。每条消息带 `[YYYY-MM-DD HH:mm 发送者]` 作为每轮的时间锚点;子进程注入 `TZ`;控制台顶栏另显示服务器主机自己的时区。
 - **仓库关联**(`gitrepo.js`):只做 `git init` 与设 `origin` 两件幂等的事,不 clone、不替 agent 提交推送。地址只收 SSH 写法(`ext::` 这类传输会执行命令);git 调用一律 `execFile` + `BatchMode`,无头下绝不等交互输入;状态直接读 `.git/config`,如实报「缺失 / 不一致」。
-- **设计画布、风格档与图标、预览服务**:各有独立文档 —— [docs/BOARD.md](./docs/BOARD.md) · [docs/ICONS.md](./docs/ICONS.md) · [docs/PREVIEW.md](./docs/PREVIEW.md)。预览的通则值得单列:**凡 agent 够得着的入口,输入一律不可信**,受理侧的围栏必须在执行侧再跑一遍。
+- **设计画布、风格档与图标、预览服务**:各有独立文档 —— [docs/BOARD.md](./docs/zh-CN/BOARD.md) · [docs/ICONS.md](./docs/zh-CN/ICONS.md) · [docs/PREVIEW.md](./docs/zh-CN/PREVIEW.md)。预览的通则值得单列:**凡 agent 够得着的入口,输入一律不可信**,受理侧的围栏必须在执行侧再跑一遍。
 - **单实例锁**:同一个状态目录只许一个 daemon,第二个直接报错退出 —— 两个 daemon 会抢同一个平台的消息。
 - **升级播报**:daemon 启动时比对 state 里记的版本号,变了就把 CHANGELOG 里新增的条目发到各群;预写 `lastVersion` 可压掉。
 - **遗留进程**:轮次结束后仍活着的后台 shell(父进程已退且存活 ≥ 1 小时)由 doctor 与控制台列出,可一键结束。

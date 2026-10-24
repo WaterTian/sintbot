@@ -1,5 +1,7 @@
 # 发版(维护者)
 
+[English](../RELEASE.md) · 简体中文
+
 包名 `sintbot`,发到公开 npm;运行时依赖只有飞书 SDK 与 `ws`。
 
 ## 检查清单

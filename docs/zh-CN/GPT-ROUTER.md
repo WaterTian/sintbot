@@ -1,5 +1,7 @@
 # 接入 GPT / OpenAI(翻译代理路线,用平台 API key)
 
+[English](../GPT-ROUTER.md) · 简体中文
+
 > ⚠️ **这是「平台 API key」路线**(CCR 打 `api.openai.com`,`sk-` key、按 token 付费)。
 > **只有 Codex / ChatGPT 订阅(coding plan)、没有平台 API key 的话,不用本文** —— 本项目的 GPT 走
 > **Codex CLI runner**(sbot spawn `codex exec` 吃订阅,`codex login` 授权、配置不放 key),见
@@ -7,7 +9,7 @@
 > (订阅驱动的 Codex 有额度限制,多人使用还涉及订阅条款;按量付费的平台 key 更可靠)。
 
 > 照着这份从上往下跑。目标:让某个群把主模型切成 **GPT-5.5** 并完成一轮真实任务。
-> GPT 为什么默认走 codex 后端见 [DESIGN.md §1](../DESIGN.md#1-技术选型);这里只讲**怎么装、怎么配、怎么验、坑怎么排**。
+> GPT 为什么默认走 codex 后端见 [DESIGN.md §1](../../DESIGN.zh-CN.md#1-技术选型);这里只讲**怎么装、怎么配、怎么验、坑怎么排**。
 
 ## 为什么 GPT 要多一层代理
 
@@ -29,7 +31,7 @@ sbot 侧**零特殊逻辑**:`gpt` provider 的 `baseUrl` 指向本机代理,和�
 
 | 要求 | 检查 | 说明 |
 |---|---|---|
-| sbot 已能跑 | `sintbot doctor` 里 `claude` 那行 ✓ | 先照 [install.md](./zh-CN/install.md) 把基础跑绿 |
+| sbot 已能跑 | `sintbot doctor` 里 `claude` 那行 ✓ | 先照 [install.md](./install.md) 把基础跑绿 |
 | Node ≥ 22 | `node -v` | SintBot 本身就要 |
 | OpenAI **平台** API key | 有 `sk-...` | platform.openai.com 签发、**按 token 付费**;放 CCR 配置里,别放 sbot |
 
@@ -166,7 +168,7 @@ sintbot agent run --provider gpt "用一句话自我介绍,并说出你的模型
 
 - **代理日志是第一现场:** CCR 前台窗口 / 日志会打印每次请求的翻译结果,tool-call、reasoning、流式出问题
   都在这里看。sbot 侧只看到「这一轮失败」,细节在代理。
-- **中文乱码 / 连接问题:** 参考 [install.md](./zh-CN/install.md) 的 Windows 与代理两节。
+- **中文乱码 / 连接问题:** 参考 [install.md](./install.md) 的 Windows 与代理两节。
 - **别把代理挂到系统代理后面:** 本机 `127.0.0.1` 应在 `NO_PROXY` 里(sbot `setup` 自动含 loopback),
   否则请求会被 HTTP 代理再绕一圈。
 

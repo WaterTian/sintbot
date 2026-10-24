@@ -1,6 +1,8 @@
 # Slack 适配器:机制与平台事实
 
-> 怎么建 App、怎么接入见 [platforms/slack.md](./zh-CN/platforms/slack.md);本文讲适配器怎么工作,以及写它时必须知道的 Slack 平台事实(均来自 [docs.slack.dev](https://docs.slack.dev) 官方文档,并在免费版 workspace 上实测过)。
+[English](../SLACK.md) · 简体中文
+
+> 怎么建 App、怎么接入见 [platforms/slack.md](./platforms/slack.md);本文讲适配器怎么工作,以及写它时必须知道的 Slack 平台事实(均来自 [docs.slack.dev](https://docs.slack.dev) 官方文档,并在免费版 workspace 上实测过)。
 > 实现:`src/platform/slack.js`(适配器,零 Slack SDK)· `src/core/proxy.js`(出网代理)· `tests/unit/slack.test.js`。端到端自测:`node docs/slack-probe.js echo`(只跑适配器,不经引擎)。
 
 ## 形态
@@ -85,7 +87,7 @@ Slack 把 `/` 开头的输入当成它的斜杠命令处理掉,`/status` 根本�
 
 ## scope 与 manifest
 
-- 完整可粘的 manifest 在 [`slack-app-manifest.yaml`](./slack-app-manifest.yaml)(细节与理由写在它的注释里,这里不复制一份):17 个 bot scope(含斜杠命令要的 `commands`);事件是 4 个 `message.*` + `agent_session_stopped`(原生 Stop)+ `app_home_opened`(App Home);`socket_mode_enabled: true`、`features.agent_view`、总入口 `/sint`。
+- 完整可粘的 manifest 在 [`slack-app-manifest.yaml`](../slack-app-manifest.yaml)(细节与理由写在它的注释里,这里不复制一份):17 个 bot scope(含斜杠命令要的 `commands`);事件是 4 个 `message.*` + `agent_session_stopped`(原生 Stop)+ `app_home_opened`(App Home);`socket_mode_enabled: true`、`features.agent_view`、总入口 `/sint`。
 - 前缀语义:`channels:` 公开频道 · `groups:` 私有频道 · `im:` 单聊 · `mpim:` 多人私聊,**四者互不覆盖** —— 被拉进私有频道却没有 `groups:history`,一条消息都收不到。`mpim:history` 也不蕴含 `mpim:read`。
 - 故意不要的:`app_mentions:read`(见上)。`im:write` 只在主动发起新的私信会话时才需要,收 / 回私信用 `im:history` + `chat:write` 就够。**不开 token rotation**:它是单向开关,开了关不掉,且 access token 12 小时过期。
 - App-level token(`xapp-`)要带 `connections:write`,并且必须放在 `Authorization` 头里。
