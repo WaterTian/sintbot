@@ -1,6 +1,8 @@
 ---
 name: 装饰艺术
 description: 近黑棕底上的金色细双线、阶梯轮廓与日出放射——贵气来自字距与几何,不是金属贴图
+name_en: "Art Deco"
+description_en: "Fine gold double rules, stepped outlines and sunbursts on near-black brown. The luxury comes from letter spacing and geometry, not metallic textures."
 suits: "品牌门面 · 活动推广"
 colors:
   bg: "#12100E"

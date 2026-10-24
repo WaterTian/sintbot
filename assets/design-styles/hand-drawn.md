@@ -1,6 +1,8 @@
 ---
 name: 手绘温度
 description: 旅行手账与刊物插画小品的手绘感——铅笔线稿加水彩淡彩,松弛、真诚、有呼吸
+name_en: "Hand-drawn"
+description_en: "The hand-drawn feel of travel journals and small editorial illustrations: pencil linework with light watercolor washes. Relaxed, sincere and unhurried."
 suits: "生图插画 · 内容阅读"
 colors:
   paper: "#FAF7F2"

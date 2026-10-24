@@ -1,6 +1,8 @@
 ---
 name: 液态玻璃
 description: 半透明材质浮在真实内容之上——模糊加折射、边缘内高光、同心圆角,清透但不牺牲可读
+name_en: "Liquid Glass"
+description_en: "Translucent material floating over real content: blur and refraction, inner edge highlights and concentric corners. Clear, without giving up legibility."
 suits: "工具产品 · 品牌门面"
 colors:
   bg: "#E8EDF4"

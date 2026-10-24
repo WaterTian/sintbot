@@ -1,6 +1,8 @@
 ---
 name: 瑞士网格
 description: 国际主义排版风格——严格网格、大量留白、单一强调色,冷静克制的现代主义
+name_en: "Swiss Grid"
+description_en: "The International Typographic Style: a strict grid, plenty of white space and a single accent color. Calm, restrained modernism."
 suits: "内容阅读 · 品牌门面"
 colors:
   primary: "#111418"

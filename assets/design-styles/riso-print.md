@@ -1,6 +1,8 @@
 ---
 name: 复古印刷
 description: Riso 孔版双色印刷——真实油墨色、网点纹理、轻微套印错位,独立 zine 的粗粝浪漫
+name_en: "Riso Print"
+description_en: "Two-color Risograph printing: real ink colors, halftone texture and slight misregistration. The rough romance of an indie zine."
 suits: "生图插画 · 活动推广"
 colors:
   paper: "#F3EEE2"

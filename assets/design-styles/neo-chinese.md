@@ -1,6 +1,8 @@
 ---
 name: 新中式
 description: 民国书局与笺谱的克制东方——宣纸底、墨色字、朱砂一点,是文人气不是影楼中国风
+name_en: "Neo-Chinese"
+description_en: "The restrained East of Republican-era bookshops and letter-paper albums: rice-paper ground, ink-black text and a single touch of cinnabar. Scholarly, not photo-studio chinoiserie."
 suits: "内容阅读 · 品牌门面"
 colors:
   paper: "#F5F0E6"

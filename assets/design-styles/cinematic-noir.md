@@ -1,6 +1,8 @@
 ---
 name: 暗场影像
 description: 碳黑底上的满幅影像与巨字——胶片颗粒、四角暗角、骨白文字,像放映厅而不是控制台
+name_en: "Cinematic Noir"
+description_en: "Full-bleed imagery and huge type on carbon black, with film grain, corner vignettes and bone-white text. A screening room, not a dashboard."
 suits: "品牌门面 · 生图插画"
 colors:
   bg: "#08090A"

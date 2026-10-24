@@ -1,6 +1,8 @@
 ---
 name: 精密仪表
 description: 开发者工具那种密而准的界面——发丝线分区、等宽数字对齐、4px 小圆角,没有一处多余装饰
+name_en: "Precision Mono"
+description_en: "The dense, exact interface of developer tools: hairline dividers, aligned monospaced numbers and 4px corners, with not one ornament to spare."
 suits: "工具产品"
 colors:
   bg: "#FAFAFA"

@@ -32,15 +32,15 @@ const styleDoc = (name, desc) => `---\nname: ${name}\ndescription: ${desc}\ncolo
 
 test('parseStyleMeta:裸值 / 双引号 / 单引号都取到,值里的冒号不被截断', () => {
   const text = '---\nname: "极简 · 黑白"\ndescription: \'干净、留白多:排版驱动\'\ncolors:\n  bg: "#fff"\n---\n正文\n'
-  assert.deepEqual(parseStyleMeta(text), { name: '极简 · 黑白', description: '干净、留白多:排版驱动', suits: '', platform: '' })
+  assert.deepEqual(parseStyleMeta(text), { name: '极简 · 黑白', description: '干净、留白多:排版驱动', suits: '', platform: '', nameEn: '', descriptionEn: '' })
 })
 
 test('parseStyleMeta:缺字段给空串,不编内容', () => {
-  assert.deepEqual(parseStyleMeta('---\ncolors:\n  bg: "#fff"\n---\n'), { name: '', description: '', suits: '', platform: '' })
+  assert.deepEqual(parseStyleMeta('---\ncolors:\n  bg: "#fff"\n---\n'), { name: '', description: '', suits: '', platform: '', nameEn: '', descriptionEn: '' })
 })
 
 test('parseStyleMeta:没有 front matter ⇒ 两个空串(不去正文里瞎猜)', () => {
-  assert.deepEqual(parseStyleMeta('# 架构设计\n\nname: 不算\n'), { name: '', description: '', suits: '', platform: '' })
+  assert.deepEqual(parseStyleMeta('# 架构设计\n\nname: 不算\n'), { name: '', description: '', suits: '', platform: '', nameEn: '', descriptionEn: '' })
 })
 
 test('parseStyleMeta:只认行首顶层键,缩进的同名子键不算', () => {
@@ -2959,4 +2959,15 @@ test('design doctor ⑤: 16 份内置档首选字体全都不是系统自带 —
   const rep = design.formatSpecReport(one)
   assert.match(rep, /首选字体不是系统自带/); assert.match(rep, /headline「Canela」/); assert.match(rep, /data「Futura」◆/, '仅一边自带要标 ◆')
   assert.match(rep, /body「Inter」◇/, '免费可得要标 ◇')
+})
+
+// 控制台英文界面:内置预设各写一行英文名与一句话;agent 读的仍是中文那两行
+test('parseStyleMeta:name_en / description_en 读得到;16 套内置预设都写了', () => {
+  assert.deepEqual(parseStyleMeta('---\nname: 科技深色\nname_en: "Tech Dark"\ndescription_en: "A dark: console"\ncolors:\n  bg: "#000"\n---\n'),
+    { name: '科技深色', description: '', suits: '', platform: '', nameEn: 'Tech Dark', descriptionEn: 'A dark: console' })
+  const dir = path.join(__dirname, '..', '..', 'assets', 'design-styles')
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
+    const m = parseStyleMeta(fs.readFileSync(path.join(dir, f), 'utf8'))
+    assert.ok(m.nameEn && m.descriptionEn, f + ' 缺英文名或英文描述')
+  }
 })

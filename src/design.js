@@ -46,7 +46,7 @@ function _unquote(v) {
 // 预设/风格档的展示元信息。缺字段给 ''(调用方决定怎么兜底,避免这里编内容)。
 function parseStyleMeta(text) {
   const fm = _frontMatter(text) || []
-  const out = { name: '', description: '', suits: '', platform: '' }
+  const out = { name: '', description: '', suits: '', platform: '', nameEn: '', descriptionEn: '' }
   for (const line of fm) {
     // suits(v0.9.5)= 适用场景标签。风格库涨到二十几种之后,agent 只看名字和一句话
     // 根本挑不准 —— 它得先知道「这套适合做什么」才筛得出该给用户看哪几个。
@@ -55,8 +55,11 @@ function parseStyleMeta(text) {
     // 阅读向,两者不互斥,混进一张词表日后必然筛别扭。**留空 = 载体无关**,这是常态 ——
     // 内置那批(瑞士网格、新中式…)本来就不挑载体,一个都不用补标;只有明确绑死某个载体
     // 的档(某项目的小程序档 / 后台档)才写,那时它是**真信息**而不是凑出来的标签。
-    const m = /^(name|description|suits|platform):\s*(.*)$/.exec(line) // 行首=顶层键;缩进的同名子键不算
-    if (m && !out[m[1]]) out[m[1]] = _unquote(m[2])
+    // name_en / description_en = 控制台英文界面用的名字与一句话(内置预设都写了;自建档可不写,不写就显示原文)。
+    // 只给人看:agent 挑风格、出图照旧读中文那两行。
+    const m = /^(name|description|suits|platform|name_en|description_en):\s*(.*)$/.exec(line) // 行首=顶层键;缩进的同名子键不算
+    const k = m && ({ name_en: 'nameEn', description_en: 'descriptionEn' }[m[1]] || m[1])
+    if (m && !out[k]) out[k] = _unquote(m[2])
   }
   return out
 }
@@ -1080,6 +1083,8 @@ function styleCard(text, extra = {}, { withForm = true } = {}) {
     // 说清「这份管哪块」—— 一个项目多份档时,这是唯一能把它们分开的字段。
     suits: meta.suits,
     platform: meta.platform,
+    nameEn: meta.nameEn,             // 英文界面用(前端登记进翻译表,中英切换两个方向都走那一套)
+    descriptionEn: meta.descriptionEn,
     serif: spec.serif,
     mono: spec.mono,
     cjkKinds: cjkKinds, // 这套中文走哪一路(16 套现在不是同一条栈)

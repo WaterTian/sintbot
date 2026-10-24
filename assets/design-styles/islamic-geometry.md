@@ -1,6 +1,8 @@
 ---
 name: 伊斯兰几何
 description: girih 拼块的 36° 体系与交错编织——全库唯一能自动判对错的风格:角度画错了图案就拼不上
+name_en: "Islamic Geometry"
+description_en: "The 36° system and interlacing of girih tiles. The only style in the library that can be checked automatically: get an angle wrong and the pattern will not close."
 suits: "品牌门面 · 生图插画"
 colors:
   paper: "#F1EBDF"

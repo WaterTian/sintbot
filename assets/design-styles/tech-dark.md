@@ -1,6 +1,8 @@
 ---
 name: 科技深色
 description: 克制的深色科技界面——石墨蓝底、高可读文字、一点数据青,像专业监控台而非霓虹夜店
+name_en: "Tech Dark"
+description_en: "A restrained dark technical interface: graphite-blue ground, highly legible text and a hint of data cyan. A professional monitoring console, not a neon nightclub."
 suits: "工具产品"
 colors:
   bg: "#0B0E14"

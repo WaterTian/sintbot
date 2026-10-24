@@ -1,6 +1,8 @@
 ---
 name: 酸性荧光
 description: 灰白底上的荧光二次色与铬金属——挤压变宽字、2px 硬描边、贴纸式拼贴,吵得有纪律
+name_en: "Acid Pop"
+description_en: "Fluorescent secondaries and chrome on off-white: extended type, 2px hard outlines and sticker-style collage. Loud, but disciplined."
 suits: "活动推广 · 品牌门面"
 colors:
   bg: "#F5F4F2"

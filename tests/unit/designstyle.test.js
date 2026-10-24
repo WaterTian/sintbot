@@ -101,7 +101,7 @@ test('suggestSlug:ASCII 名字才给建议,中文名不硬转', () => {
 test('composeStyleDoc:出的是合规风格档 —— 认帧过、元信息读得回、五语义键在', () => {
   const doc = composeStyleDoc(FORM)
   assert.equal(isStyleDoc(doc), true, 'front matter 里必须有顶层 colors,否则落盘那侧会拒收')
-  assert.deepEqual(parseStyleMeta(doc), { name: '品牌紫', description: '干净、克制:大留白 + 一点紫', suits: '品牌门面 · 工具产品', platform: '' })
+  assert.deepEqual(parseStyleMeta(doc), { name: '品牌紫', description: '干净、克制:大留白 + 一点紫', suits: '品牌门面 · 工具产品', platform: '', nameEn: '', descriptionEn: '' })
   const t = parseStyleTokens(doc)
   // ⭐ 只许语义键名。line 是第五个(v0.11.21 修):它不显式写下来,styleRoles 的兜底会
   // 「从没被认领的色里挑一个」当分割线,而补充色恰恰是那批没被认领的 —— 见下面那条用例。

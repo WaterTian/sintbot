@@ -1,6 +1,8 @@
 ---
 name: 档案索引
 description: 策展目录那种密排列表——纯白纸、纯黑衬线、未经修饰的超链接蓝,容器是表格行不是卡片
+name_en: "Archive Index"
+description_en: "The dense list of a curated catalogue: plain white paper, black serif text and untouched hyperlink blue. Containers are table rows, not cards."
 suits: "内容阅读"
 colors:
   bg: "#FFFFFF"

@@ -1,6 +1,8 @@
 ---
 name: 几何构成
 description: 包豪斯与风格派的几何撞色——三原色纪律、大形状、平涂无渐变,明快而有秩序
+name_en: "Geometric Pop"
+description_en: "The bold geometry of Bauhaus and De Stijl: strict primary colors, large shapes and flat fills with no gradients. Bright and orderly."
 suits: "活动推广 · 生图插画"
 colors:
   cream: "#F6EFE3"

@@ -1,6 +1,8 @@
 ---
 name: 静奢
 description: 巨大的衬线标题、微型全大写标签、一屏只说一件事——不装饰不发光,贵在敢空
+name_en: "Quiet Luxury"
+description_en: "Huge serif headlines, tiny all-caps labels and one idea per screen. No ornament and no glow: the luxury is in daring to leave space empty."
 suits: "品牌门面"
 colors:
   bg: "#FFF8EF"

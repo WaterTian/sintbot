@@ -1901,8 +1901,17 @@ let styleLib=null;
 async function loadStyleLib(){
   const box=$('#styleLib'); if(!box)return;
   if(styleLib){paintStyleLib();return;}
-  try{const _r=await api('/api/design/styles');styleLib=_r;paintStyleLib();}
+  try{const _r=await api('/api/design/styles');styleLib=_r;registerStyleI18n(_r.styles);paintStyleLib();}
   catch(e){box.innerHTML=`<div class="card"><div class="hint">风格库读取失败:${esc(e.message)}</div></div>`;}
+}
+/* 风格的英文名与一句话写在各自的风格档里(name_en / description_en),这里登记进翻译表 ——
+   卡片照旧按中文渲染,英文界面由那套 MutationObserver 逐节点换掉,切回中文也是同一条路。
+   「适合 · 内容阅读 · 品牌门面」那行按 · 分段逐段译,场景词的译文在 I18N_EN 里。 */
+function registerStyleI18n(list){
+  for(const s of list||[]){
+    if(s.name&&s.nameEn&&s.name!==s.nameEn)I18N_MAP.set(s.name,s.nameEn);
+    if(s.description&&s.descriptionEn&&s.description!==s.descriptionEn)I18N_MAP.set(s.description,s.descriptionEn);
+  }
 }
 function paintStyleLib(){
   const box=$('#styleLib'); if(!box||!styleLib)return;
@@ -3955,10 +3964,11 @@ const I18N_EN=[
   ["新建风格」配一套自己的(比如把公司品牌色配成一款)· 已经在某个项目里打磨好的那份,可在「群·项目」页那个群的「设计风格」行收录进来","New style\" creates one of your own (e.g. your company brand color as a style) · a style already polished in a project can be collected from the \"Design style\" row of that group on the Groups · Projects page"],
   ["已移除 · 同名的内置风格重新可用","Removed · the built-in style with the same identifier is available again"],
   ["已从风格库移除","Removed from the style library"],
-  ["内容阅读","Reading content"],
+  ["适合","Good for"],
+  ["内容阅读","Reading"],
   ["品牌门面","Brand showcase"],
-  ["工具产品","Tool product"],
-  ["活动推广","Campaign promo"],
+  ["工具产品","Product UI"],
+  ["活动推广","Campaigns"],
   ["生图插画","Image & illustration"],
   ["小程序","Mini program"],
   ["后台网站","Admin site"],
@@ -4712,14 +4722,14 @@ const I18N_EN_RX=[
   [/^语义名 (\d+) 条$/,"$1 semantic names"],
   [/^装上 (.+) 后这里会出样张$/,"Install $1 and samples will appear here"],
   [/^风格库读取失败:(.+)$/,"Failed to load the style library: $1"],
-  [/^中文((?:宋体|圆体|手写|黑体)(?:·(?:宋体|圆体|手写|黑体))+)$/,"Chinese: $1"],
+  // 三种及以上的组合(上面成对的穷举只到两种):逐个换成英文名,别留半句中文(「手绘温度」是宋体·黑体·手写)
+  [/^中文((?:宋体|圆体|手写|黑体)(?:·(?:宋体|圆体|手写|黑体))+)$/,(all,k)=>"Chinese: "+k.split("·").map(x=>({宋体:"serif",圆体:"rounded",手写:"handwritten",黑体:"sans"}[x])).join("·")],
   [/^圆角 (\d+(?:\.\d+)?)px$/,"Radius $1px"],
   [/^这套风格里图标的画法:实心 · 描边 (\S+) · 端点 (\S+) · 尺寸档 (\d+) 个。图形从哪来是另一件事,由项目的图标系统决定$/,"How this style draws icons: filled · stroke $1 · caps $2 · $3 size steps. Where the shapes come from is a separate matter, decided by the project icon system"],
   [/^这套风格里图标的画法:线性 · 描边 (\S+) · 端点 (\S+) · 尺寸档 (\d+) 个。图形从哪来是另一件事,由项目的图标系统决定$/,"How this style draws icons: outlined · stroke $1 · caps $2 · $3 size steps. Where the shapes come from is a separate matter, decided by the project icon system"],
   [/^这套风格里图标的画法:实心 · 描边 (\S+) · 端点 (\S+)。图形从哪来是另一件事,由项目的图标系统决定$/,"How this style draws icons: filled · stroke $1 · caps $2. Where the shapes come from is a separate matter, decided by the project icon system"],
   [/^这套风格里图标的画法:线性 · 描边 (\S+) · 端点 (\S+)。图形从哪来是另一件事,由项目的图标系统决定$/,"How this style draws icons: outlined · stroke $1 · caps $2. Where the shapes come from is a separate matter, decided by the project icon system"],
   [/^图标描边 (\S+)$/,"Icon stroke $1"],
-  [/^适合 · (.+)$/,"Suits · $1"],
   [/^(\d+) 套 · 这台机器上配的 · 全部群都能用$/,"$1 styles · configured on this machine · available to all groups"],
   [/^1 套$/,"1 style"],
   [/^(\d+) 套$/,"$1 styles"],

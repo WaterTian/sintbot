@@ -1,6 +1,8 @@
 ---
 name: 圆融亲和
 description: 消费品与教育产品的温软圆润——奶白底、珊瑚与薄荷、大圆角,亲切但不幼稚
+name_en: "Soft & Friendly"
+description_en: "The soft roundness of consumer and education products: milk-white ground, coral and mint, and generous corners. Warm without being childish."
 suits: "工具产品 · 品牌门面"
 colors:
   cream: "#FFFDF8"

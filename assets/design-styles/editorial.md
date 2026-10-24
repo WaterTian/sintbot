@@ -1,6 +1,8 @@
 ---
 name: 杂志编辑
 description: 独立生活杂志的版式——大图、衬线大标题、不对称留白,安静而有故事感
+name_en: "Editorial"
+description_en: "The layout of an independent lifestyle magazine: big images, large serif headlines and asymmetric white space. Quiet, with a story to tell."
 suits: "内容阅读"
 colors:
   paper: "#FBF9F4"
