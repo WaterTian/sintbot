@@ -316,20 +316,22 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
   const recentActivity = () => activityBuf.slice().reverse() // newest-first for the console
   // 账本落点注入**只为可测**(同反馈本):单测写默认路径会读到本机真实账本。
   const ledgerFile = () => ledgerPath || path.join(os.homedir(), '.sbot', 'turns.jsonl')
+  const ledgerTail = dashboard.createLedgerTail(ledgerFile()) // 按文件大小与修改时刻缓存:账本只在一轮结束时才变
   // 启动即用账本最近的轮次垫底:此前 daemon 一重启(含每次发版)概览的活动流就是空的,
   // 要等下一轮才有东西看。id 与引擎同形,之后真实事件进来只会原地覆盖、不会重复。
   try {
     let groupsRaw = {}
     try { groupsRaw = readRaw().groups || {} } catch {}
-    for (const ev of dashboard.ledgerActivity(dashboard.readLedgerTail(ledgerFile()), groupsRaw, 20)) recordActivity(ev)
+    for (const ev of dashboard.ledgerActivity(ledgerTail.rows(), groupsRaw, 20)) recordActivity(ev)
   } catch { /* 回填是锦上添花,读不了就空着 */ }
   const inboxDismiss = dashboard.createDismissStore({ file: inboxDismissPath || path.join(os.homedir(), '.sbot', 'inbox-dismissed.json'), log })
-  // 「需要你处理」:从已经算好的 state 各区取数(反馈本 / 预览 / 残留进程)+ 账本 + 接管票,不再各算一遍
-  const buildInboxFor = (state, raw) => {
+  let lastHealth = null // 最近一次 buildState 的健康检查,给只算收件箱的 /api/inbox 用(那里不重跑探针)
+  // 「需要你处理」:从 state 各区取数(反馈本 / 预览 / 残留进程 / 健康)+ 账本 + 接管票,不再各算一遍
+  const buildInboxFor = ({ issues, previews, leftovers, health }, raw) => {
     try {
       return dashboard.buildInbox({
-        ledgerRows: dashboard.readLedgerTail(ledgerFile()),
-        issues: state.issues, previews: state.previews, leftovers: state.leftovers,
+        ledgerRows: ledgerTail.rows(),
+        issues, previews, leftovers, health,
         takeovers: takeoverStore.pending(),
         groups: (raw && raw.groups) || {},
         dismissed: inboxDismiss.set(),
@@ -365,6 +367,62 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
     const val = await codexAgent.probeVersion()
     codexProbeCache = { val, ts: Date.now() }
     return val
+  }
+
+  // 运行中的群预览服务(`sbot preview`)。**必须在概览里看得见** —— v0.8.1 那个 agent 私装的
+  // 静态服务在局域网上挂了一周才被人肉发现,「operator 看不见」正是本技能要治的三个软肋之一。
+  // 纯读 ~/.sbot/preview/ 的记录文件(不 spawn、不探网),每个 API 响应都跑得起。
+  const previewsState = (raw) => {
+    try {
+      const t = Date.now()
+      // 只列 **running**:'starting' 期间端口还没绑定,列出来等于给一个可能打不开的 URL
+      return preview.listRecords(preview.previewDir()).filter((r) => r.status === 'running' && preview.isLive(r)).map((r) => ({
+        id: r.id, chatId: r.chatId, name: (raw.groups && raw.groups[r.chatId] && raw.groups[r.chatId].name) || r.chatId,
+        label: r.label || r.entry, port: r.port, entry: r.entry,
+        serveRoot: preview.displayRoot(r), // 展示用相对路径(与 CLI/doctor 同一份实现)
+        single: !!r.single,                 // 只服务 entry 这一个文件(文件形态)
+        served: preview.displayServed(r),   // 实际服务到的位置:single ⇒ 到文件,目录 ⇒ 到目录
+        projectRoot: !!r.projectRoot, // 服务整个项目目录 ⇒ 前端标风险色
+        upMs: t - (r.startedAt || t), lastReqMs: r.lastReqAt ? t - r.lastReqAt : null, reqCount: r.reqCount || 0,
+        idleLeftMs: r.idleMs > 0 ? Math.max(0, r.idleMs - (t - (r.lastReqAt || r.startedAt || t))) : null,
+        url: preview.buildUrl(r, preview.hostForUrl(r, lanIPv4())),
+      }))
+    } catch { return [] }
+  }
+
+  // 群内反馈本(群里 /issue 提的)。**未处理的必须在概览里看得见** —— 与上面的预览服务
+  // 同一条道理:这本账存在的全部意义是「反馈不会不声不响地消失」,而它要是只躺在本机
+  // 文件里没人看,和消失没区别。纯读一个小 JSONL(不 spawn、不探网),与 previews 同量级。
+  // ⚠ open 封顶 50 条:正常一天几条,封顶是防「这里有一天变成拖垮每个 API 响应的地方」。
+  const issuesState = (raw) => {
+    try {
+      const book = createIssues(issuesFile(), { host: raw.instance || undefined })
+      const all = book.list({ all: true })
+      const open = all.filter((i) => i.status === 'open').reverse() // 新的在上:反馈按「最近发生什么」读
+      const closed = all.filter((i) => i.status === 'closed').reverse()
+      const trim = (i) => ({ id: i.id, ts: i.ts, chatId: i.chatId, group: i.group, sender: i.sender, text: i.text, version: i.version, note: i.note, fp: fingerprint(i.turn) })
+      return { host: book.host, open: open.slice(0, 50).map(trim), closed: closed.slice(0, 5).map(trim), openCount: open.length, closedCount: closed.length }
+    } catch { return { host: '', open: [], closed: [], openCount: 0, closedCount: 0 } }
+  }
+
+  // 遗留进程(v0.11.108):agent 在对话轮次里用后台方式起的 shell,轮次结束后挂到 pid 1 下继续跑。
+  // **必须在概览里看得见** —— 与预览服务 / 反馈本同一条道理:2026-10-09 在生产机翻出一条每 5 秒
+  // 打线上云函数的循环,零 CPU、零报警地跑了 35 天。走 30 秒 TTL 缓存(每次 /api/state 都问,ps 一次
+  // 几十毫秒,不必每次都跑)。⚠ **不下发完整 command**:它带 shell 快照路径、/tmp 落点等机器布局
+  // (零工具名约束),页面只需要 summary(agent 真正写的那条命令)+ 年龄 + pid。
+  // supported:false(Windows 没有 ps 也没有这套快照)⇒ rows 为空,前端一个字不出现。
+  const leftoversState = async () => {
+    try {
+      const r = await leftover.cachedList()
+      return { supported: !!r.supported, rows: (r.rows || []).map((x) => ({ pid: x.pid, ageSec: x.ageSec, age: x.age, summary: x.summary })), error: r.error || null }
+    } catch { return { supported: false, rows: [], error: null } }
+  }
+
+  // 只算收件箱(轮次结束、忽略之后控制台来取这一块):不走 buildState —— 那里有 CLI 探针、
+  // 逐群读项目插件与设计卡,一轮一次全量太重。健康检查借上一次 buildState 的结果(概览每分钟刷新一次)。
+  const inboxOnly = async () => {
+    const raw = readRaw()
+    return buildInboxFor({ issues: issuesState(raw), previews: previewsState(raw), leftovers: await leftoversState(), health: lastHealth }, raw)
   }
 
   async function buildState() {
@@ -447,6 +505,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       }),
     ]
     const health = { rows, fails: rows.filter((r) => r.status === 'fail').length, warns: rows.filter((r) => r.status === 'warn').length }
+    lastHealth = health
     const feishu = raw.feishu ? {
       appId: isEnvRef(raw.feishu.appId) ? '' : (raw.feishu.appId || ''),
       appIdRef: isEnvRef(raw.feishu.appId) ? raw.feishu.appId.slice(4) : '',
@@ -518,54 +577,11 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       proxy: raw.proxy && raw.proxy.http ? { http: raw.proxy.http, noProxy: raw.proxy.noProxy || '' } : null,
       live: getLiveState ? getLiveState() : { running: false },
       conn, // 各平台连接健康度字典 { feishu, wecom }(daemon 运行时);未运行为 null
-      // 运行中的群预览服务(`sbot preview`)。**必须在概览里看得见** —— v0.8.1 那个 agent 私装的
-      // 静态服务在局域网上挂了一周才被人肉发现,「operator 看不见」正是本技能要治的三个软肋之一。
-      // 纯读 ~/.sbot/preview/ 的记录文件(不 spawn、不探网),每个 API 响应都跑得起。
-      previews: (() => {
-        try {
-          const t = Date.now()
-          // 只列 **running**:'starting' 期间端口还没绑定,列出来等于给一个可能打不开的 URL
-          return preview.listRecords(preview.previewDir()).filter((r) => r.status === 'running' && preview.isLive(r)).map((r) => ({
-            id: r.id, chatId: r.chatId, name: (raw.groups && raw.groups[r.chatId] && raw.groups[r.chatId].name) || r.chatId,
-            label: r.label || r.entry, port: r.port, entry: r.entry,
-            serveRoot: preview.displayRoot(r), // 展示用相对路径(与 CLI/doctor 同一份实现)
-            single: !!r.single,                 // 只服务 entry 这一个文件(文件形态)
-            served: preview.displayServed(r),   // 实际服务到的位置:single ⇒ 到文件,目录 ⇒ 到目录
-            projectRoot: !!r.projectRoot, // 服务整个项目目录 ⇒ 前端标风险色
-            upMs: t - (r.startedAt || t), lastReqMs: r.lastReqAt ? t - r.lastReqAt : null, reqCount: r.reqCount || 0,
-            idleLeftMs: r.idleMs > 0 ? Math.max(0, r.idleMs - (t - (r.lastReqAt || r.startedAt || t))) : null,
-            url: preview.buildUrl(r, preview.hostForUrl(r, lanIPv4())),
-          }))
-        } catch { return [] }
-      })(),
+      previews: previewsState(raw),
 
-      // 群内反馈本(群里 /issue 提的)。**未处理的必须在概览里看得见** —— 与上面的预览服务
-      // 同一条道理:这本账存在的全部意义是「反馈不会不声不响地消失」,而它要是只躺在本机
-      // 文件里没人看,和消失没区别。纯读一个小 JSONL(不 spawn、不探网),与 previews 同量级。
-      // ⚠ open 封顶 50 条:正常一天几条,封顶是防「这里有一天变成拖垮每个 API 响应的地方」。
-      issues: (() => {
-        try {
-          const book = createIssues(issuesFile(), { host: raw.instance || undefined })
-          const all = book.list({ all: true })
-          const open = all.filter((i) => i.status === 'open').reverse() // 新的在上:反馈按「最近发生什么」读
-          const closed = all.filter((i) => i.status === 'closed').reverse()
-          const trim = (i) => ({ id: i.id, ts: i.ts, chatId: i.chatId, group: i.group, sender: i.sender, text: i.text, version: i.version, note: i.note, fp: fingerprint(i.turn) })
-          return { host: book.host, open: open.slice(0, 50).map(trim), closed: closed.slice(0, 5).map(trim), openCount: open.length, closedCount: closed.length }
-        } catch { return { host: '', open: [], closed: [], openCount: 0, closedCount: 0 } }
-      })(),
+      issues: issuesState(raw),
 
-      // 遗留进程(v0.11.108):agent 在对话轮次里用后台方式起的 shell,轮次结束后挂到 pid 1 下继续跑。
-      // **必须在概览里看得见** —— 与预览服务 / 反馈本同一条道理:2026-10-09 在生产机翻出一条每 5 秒
-      // 打线上云函数的循环,零 CPU、零报警地跑了 35 天。走 30 秒 TTL 缓存(每次 /api/state 都问,ps 一次
-      // 几十毫秒,不必每次都跑)。⚠ **不下发完整 command**:它带 shell 快照路径、/tmp 落点等机器布局
-      // (零工具名约束),页面只需要 summary(agent 真正写的那条命令)+ 年龄 + pid。
-      // supported:false(Windows 没有 ps 也没有这套快照)⇒ rows 为空,前端一个字不出现。
-      leftovers: await (async () => {
-        try {
-          const r = await leftover.cachedList()
-          return { supported: !!r.supported, rows: (r.rows || []).map((x) => ({ pid: x.pid, ageSec: x.ageSec, age: x.age, summary: x.summary })), error: r.error || null }
-        } catch { return { supported: false, rows: [], error: null } }
-      })(),
+      leftovers: await leftoversState(),
 
       codexStatus: codexStatusCache ? { login: codexStatusCache.login, usage: codexStatusCache.usage } : null, // 前端加载回填,codex 卡片刷新不丢
       claudeStatus: claudeStatusCache ? claudeStatusCache.login : null, // 同上,Claude 订阅登录态
@@ -777,6 +793,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         return
       }
       if (p === '/api/state' && req.method === 'GET') return sendJSON(res, 200, await buildState())
+      if (p === '/api/inbox' && req.method === 'GET') return sendJSON(res, 200, { inbox: await inboxOnly() })
       // Recent activity for the console to seed/merge on load + SSE reconnect (下一步 ②).
       // Lightweight + kept off /api/state so mutations don't re-ship it every write.
       if (p === '/api/activity' && req.method === 'GET') return sendJSON(res, 200, { activity: recentActivity() })
@@ -1631,16 +1648,16 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
           : '🔒 本群已恢复数据遮盖:回复里的手机号/邮箱将显示为遮盖标记')
         return sendJSON(res, 200, await buildState())
       }
-      // 群预览服务:手动停一个(概览「预览服务」区的停止按钮)。控制台停 ⇒ **发群一行告知**
-      // (群成员可能正开着那个链接,悄悄拔掉会让人以为 bot 坏了);记录由这里写 —— 「谁杀谁写」。
       // 「需要你处理」里忽略一条。只有失败轮次能忽略:其余几类各有自己的处理路径(反馈本标已处理、
-      // 结束进程、停预览),在这里「忽略」只会把还在的问题藏起来。
+      // 结束进程、停预览),在这里「忽略」只会把还在的问题藏起来。只回收件箱,前端只重画这一块。
       if (p === '/api/inbox/dismiss' && req.method === 'POST') {
         const { key } = await body(req)
         if (typeof key !== 'string' || !key.startsWith('failed:') || key.length > 300) return sendJSON(res, 400, { error: '这一条不能忽略' })
         inboxDismiss.add(key)
-        return sendJSON(res, 200, await buildState())
+        return sendJSON(res, 200, { inbox: await inboxOnly() })
       }
+      // 群预览服务:手动停一个(概览「预览服务」区的停止按钮)。控制台停 ⇒ **发群一行告知**
+      // (群成员可能正开着那个链接,悄悄拔掉会让人以为 bot 坏了);记录由这里写 —— 「谁杀谁写」。
       if (p === '/api/previews/stop' && req.method === 'POST') {
         const { id } = await body(req)
         const dir = preview.previewDir()

@@ -43,6 +43,22 @@ function readLedgerTail(file, maxBytes = 512 * 1024) {
   } catch { return [] } finally { if (fd !== undefined) try { fs.closeSync(fd) } catch {} }
 }
 
+// 账本尾巴按 (大小, 修改时刻) 缓存:收件箱每次刷新都要读,账本却只在一轮结束时才变 ——
+// 本机尾部 512 KB 约 2,400 行,没变也每次解析一遍是白干。返回的数组是共享的,调用方别改它。
+function createLedgerTail(file, maxBytes) {
+  let key = null
+  let rows = []
+  return {
+    rows() {
+      let st
+      try { st = fs.statSync(file) } catch { key = null; rows = []; return rows }
+      const k = `${st.size}:${st.mtimeMs}`
+      if (k !== key) { rows = readLedgerTail(file, maxBytes); key = k }
+      return rows
+    },
+  }
+}
+
 // 账本行 → 活动事件(形状对齐引擎的 done 事件)。定时脚本行跳过:它没有模型、没有 token,
 // 本机 30 天里占了 93%,混进来活动流就只剩脚本了。返回从旧到新(与活动缓冲同序)。
 function ledgerActivity(rows, groups, n = 20) {
@@ -84,7 +100,8 @@ function failedTurns(rows, now) {
 //   issues     反馈本里没处理的(一行汇总,点了滚到反馈本)
 //   leftovers  残留的后台进程(同上)
 //   preview    服务整个项目目录的预览(全部代码都在局域网上可读)
-function buildInbox({ ledgerRows = [], issues = null, previews = [], leftovers = null, takeovers = [], groups = {}, dismissed = new Set(), now = Date.now() } = {}) {
+//   health     健康检查没通过的项(一行汇总,排最前:它是「现在就坏着」,没有发生时刻可排)
+function buildInbox({ ledgerRows = [], issues = null, previews = [], leftovers = null, health = null, takeovers = [], groups = {}, dismissed = new Set(), now = Date.now() } = {}) {
   const items = []
   for (const f of failedTurns(ledgerRows, now)) {
     items.push({ key: `failed:${f.chatId}:${f.ts}`, kind: 'failed', chatId: f.chatId, group: groupLabel(groups, f.chatId), ts: f.ts,
@@ -108,7 +125,9 @@ function buildInbox({ ledgerRows = [], issues = null, previews = [], leftovers =
     if (!p || !p.projectRoot) continue
     items.push({ key: `preview:${p.id}`, kind: 'preview', chatId: p.chatId, group: p.name || groupLabel(groups, p.chatId), ts: now - (Number(p.upMs) || 0), port: p.port })
   }
-  return items.filter((it) => !dismissed.has(it.key)).sort((a, b) => (b.ts || 0) - (a.ts || 0))
+  const sorted = items.filter((it) => !dismissed.has(it.key)).sort((a, b) => (b.ts || 0) - (a.ts || 0))
+  const bad = health && Array.isArray(health.rows) ? health.rows.filter((r) => r && r.status === 'fail') : [] // warn 不算:那是「可以更好」,不是「在等你」
+  return bad.length ? [{ key: 'health', kind: 'health', count: bad.length, labels: bad.map((r) => String(r.label || '')) }, ...sorted] : sorted
 }
 
 // 「忽略」记在盘上(daemon 重启不复活),7 天后清、最多 200 条 —— 失败轮次本身 72 小时就出窗口了,
@@ -143,4 +162,4 @@ function createDismissStore({ file, now = Date.now, log = () => {} } = {}) {
   }
 }
 
-module.exports = { FAIL_WINDOW_MS, readLedgerTail, ledgerActivity, failedTurns, buildInbox, createDismissStore }
+module.exports = { FAIL_WINDOW_MS, readLedgerTail, createLedgerTail, ledgerActivity, failedTurns, buildInbox, createDismissStore }

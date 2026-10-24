@@ -999,8 +999,8 @@ function renderOverview(){
       ${liveOn?`<button class="iconbtn sm" data-ostop="${esc(g.chatId)}" title="停止当前任务(保留会话)" style="flex:none">${IC.square}</button>
       <button class="iconbtn sm" data-onew="${esc(g.chatId)}" title="开新会话 — 运行中会先中断当前任务并清空队列(同群内 /new)" style="flex:none">${IC.rotate}</button>`:''}</div>`).join('')
     :'<div class="empty">还没有群项目 · 去「群·项目」配置</div>';
-  $('#overview').innerHTML=`${inboxHtml()}<div class="grid cols2 stagger">
-    <div class="card"><div class="lbl">健康</div>
+  $('#overview').innerHTML=`<div id="ovInboxWrap">${inboxHtml()}</div><div class="grid cols2 stagger">
+    <div class="card" id="ovHealth"><div class="lbl">健康</div>
       <span class="hpill ${healthClass(h)}" id="ovHealthPill"><span class="led"></span><span id="ovHealthTxt">${healthText(h)}</span></span>
       <div class="hrows" id="ovHrows">${h.rows.map(r=>`<div class="hrow" data-hk="${esc(r.label)}"><span class="dot ${r.status}"></span>
         <span class="k">${esc(r.label)}</span><span class="v" title="${esc(r.detail)}">${esc(r.detail)}</span></div>`).join('')}</div>
@@ -1146,6 +1146,9 @@ function inboxHtml(){
     if(it.kind==='issues')return line('反馈','--warn',`${it.count} 条反馈待处理`,go('ovIssues','滚到反馈本'));
     if(it.kind==='leftovers')return line('进程','--warn',`${it.count} 个后台进程还在跑`,go('ovLeftovers','滚到后台进程'));
     if(it.kind==='preview')return line('预览','--fail','预览在服务整个项目目录',go('ovPreviews','滚到预览服务'));
+    // 每个检查项单独一个节点:英文界面按整段文字逐个翻译
+    if(it.kind==='health')return line('健康','--fail',`${it.count} 项健康检查没通过`,go('ovHealth','滚到健康'),
+      full((it.labels||[]).map(l=>`<span>${esc(l)}</span>`).join(' · ')));
     return '';
   };
   return `<h2 class="sec" id="ovInbox" style="margin-top:0">需要你处理 <span class="tag" style="color:var(--warn);border-color:var(--warn)">${items.length}</span></h2>
@@ -1154,7 +1157,14 @@ function inboxHtml(){
 function bindInbox(){
   $$('#overview [data-ibgo]').forEach(b=>b.onclick=()=>{const el=$('#'+b.dataset.ibgo);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
   $$('#overview [data-ibdis]').forEach(b=>b.onclick=async()=>{
-    try{S=await api('/api/inbox/dismiss','POST',{key:b.dataset.ibdis});lastStateSig=stateSig(S);renderOverview();toast('已忽略','ok');}catch(e){toast(e.message,'err');}});
+    try{const r=await api('/api/inbox/dismiss','POST',{key:b.dataset.ibdis});S.inbox=r.inbox||[];paintInbox();toast('已忽略','ok');}catch(e){toast(e.message,'err');}});
+}
+// 只重画收件箱这一块(轮次结束 / 忽略之后):概览其它区不动,展开着的活动行和滚动位置都不丢。
+// 签名跟着重算 ⇒ 下一次例行刷新不会因为这块变了再把整页重画一遍。
+function paintInbox(){const w=$('#ovInboxWrap');if(!w)return;w.innerHTML=inboxHtml();bindInbox();lastStateSig=stateSig(S);tabSig.overview=lastStateSig;}
+async function refreshInbox(){
+  if(!S||!TOKEN||document.visibilityState!=='visible')return;
+  try{const r=await api('/api/inbox');S.inbox=r.inbox||[];paintInbox();}catch{/* 下一次例行刷新会补上 */}
 }
 function activityHtml(){
   if(!activity.length) return '<div class="empty">服务启动后显示实时活动</div>';
@@ -4364,6 +4374,13 @@ const I18N_EN=[
   ["滚到反馈本","Go to Feedback log"],
   ["滚到后台进程","Go to Background processes"],
   ["滚到预览服务","Go to Preview servers"],
+  ["滚到健康","Go to Health"],
+  ["可用模型","Usable models"],
+  ["可用群 / 项目","Groups / projects"],
+  ["飞书凭据","Feishu credentials"],
+  ["Slack 凭据","Slack credentials"],
+  ["无可用模型 — 去「模型 · 库」页添加 / 测试","No usable model — add or test one on the Models · Library tab"],
+  ["无绑定群/项目 — 去「群·项目」页创建","No group bound yet — create one on the Groups · Projects tab"],
   ["原因","Reason"],
   ["后台进程","Background processes"],
   ["SintBot 是在聊天群里干活的自托管 AI 助手:一个群绑一个项目,无头驱动 Claude Code 或 Codex,模型随时换、项目记忆不丢,全程在你自己的机器上。","SintBot is a self-hosted AI assistant that works from your group chats: one group per project, headless Claude Code or Codex, any model behind it, and one project memory that survives model switches — all on your own machine."],
@@ -4612,9 +4629,16 @@ const I18N_EN=[
   ["企业微信群:只收 @ 机器人的消息;没有画布、表情回应与撤回即停","WeCom group: only receives messages that @ the bot; no canvas, reactions or stop-on-recall"],
 ];
 const I18N_EN_RX=[
+  [/^1 条反馈待处理$/,"1 feedback item open"],
   [/^(\d+) 条反馈待处理$/,"$1 feedback items open"],
+  [/^1 个后台进程还在跑$/,"1 background process still running"],
   [/^(\d+) 个后台进程还在跑$/,"$1 background processes still running"],
   [/^(\d+) 个还在跑$/,"$1 still running"],
+  [/^1 项健康检查没通过$/,"1 health check failing"],
+  [/^(\d+) 项健康检查没通过$/,"$1 health checks failing"],
+  [/^(\d+) 个能用$/,"$1 usable"],
+  [/^(\d+) 个能用(含 Codex)$/,"$1 usable (Codex included)"],
+  [/^(\d+) 个已绑定$/,"$1 bound"],
   [/^命令前缀 (\S+)$/,"Command prefix $1"],
   [/^管理员 (\d+) 人$/,"$1 admins"],
   [/^(\d+) 失败 · (\d+) 警告$/,"$1 failed · $2 warnings"],
@@ -5024,8 +5048,8 @@ function startLive(){
     startAutoRefresh();
     es.addEventListener('conn',ev=>{try{const c=JSON.parse(ev.data);if(S){S.conn=Object.assign({},connDict(S.conn),{[c.platform||'feishu']:c});updateConnLive();}}catch{}}); // 连接状态变化即时推(不等心跳);事件带 platform 名,落进字典对应槽
     es.addEventListener('turn',ev=>{try{const d=JSON.parse(ev.data);applyTurnEvent(d);updateOverviewLive();
-      // 收件箱跟着轮次走:刚失败的要尽快出现,重说成功的要尽快消失 —— 不等 60 秒的例行刷新
-      if(d.kind==='done'&&(d.status==='error'||d.status==='failed'||((S&&S.inbox)||[]).some(i=>i.kind==='failed')))autoRefresh();}catch(e){}});
+      // 收件箱跟着轮次走:刚失败的要尽快出现,重说成功的要尽快消失 —— 不等 60 秒的例行刷新;只取这一块,不拉整份 state
+      if(d.kind==='done')refreshInbox();}catch(e){}});
     es.onerror=()=>{$('#conn').classList.remove('live');checkStaleAuth();};
   }catch(e){}
 }

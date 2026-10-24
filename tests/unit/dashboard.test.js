@@ -85,3 +85,26 @@ test('createDismissStore: 忽略落盘、重开读回;7 天后清掉;文件坏�
   fs.writeFileSync(file, '{坏')
   assert.equal(db.createDismissStore({ file, now: () => t }).set().size, 0)
 })
+
+test('buildInbox: 健康检查没通过的排最前,只算 fail 不算 warn', () => {
+  const now = Date.now()
+  const health = { rows: [{ status: 'ok', label: 'Claude CLI' }, { status: 'warn', label: '可用群 / 项目' }, { status: 'fail', label: '飞书凭据' }] }
+  const items = db.buildInbox({ health, issues: { openCount: 1, open: [{ ts: now }] }, now })
+  assert.deepEqual(items.map((i) => i.key), ['health', 'issues'])
+  assert.equal(items[0].count, 1); assert.deepEqual(items[0].labels, ['飞书凭据'])
+  assert.deepEqual(db.buildInbox({ health: { rows: [{ status: 'warn', label: 'x' }] }, now }), [])
+})
+
+test('createLedgerTail: 账本没变就不重读;追加后读到新行;文件没了给空', () => {
+  const file = path.join(tmpDir(), 'turns.jsonl')
+  const tail = db.createLedgerTail(file)
+  assert.deepEqual(tail.rows(), [])
+  fs.writeFileSync(file, JSON.stringify({ ts: 1, chatId: 'g1' }) + '\n')
+  const a = tail.rows()
+  assert.equal(a.length, 1)
+  assert.equal(tail.rows(), a, '没变 ⇒ 同一份(没重新解析)')
+  fs.appendFileSync(file, JSON.stringify({ ts: 2, chatId: 'g1' }) + '\n')
+  assert.equal(tail.rows().length, 2)
+  fs.rmSync(file)
+  assert.deepEqual(tail.rows(), [])
+})
