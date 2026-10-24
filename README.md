@@ -79,7 +79,7 @@ Without a Claude subscription, Claude Code is only the agent framework and needs
 | **Commands** | `/help` · `/status` · `/model <name>` · `/stop` · `/skip` · `/new` · `/hud` · `/issue`. On Slack, use a `!` prefix because Slack consumes messages that start with `/`. |
 | **Permissions** | Set per group, read-only by default. Thirteen secret and PII patterns are masked before a message reaches the group. |
 | **Scheduled tasks** | Cron, aliases such as `daily`, or plain "every day at 09:00". A task can wake the agent, post a reminder or run a script. |
-| **Design** | A per-project `DESIGN.md` style file the agent must read. Sixteen built-in styles. A check before every hand-off. Iterate by annotating Feishu whiteboards. |
+| **Design** | Distill a style from a site, a project folder or an image you like, or start from sixteen built-in styles. The result is a per-project `DESIGN.md` the agent must read, and every hand-off is checked against it. Iterate by annotating Feishu whiteboards. |
 | **Images** | Generated with the machine's Codex subscription, so no API key is needed. Edit an existing image, repaint a masked region, or produce a transparent background. |
 | **Previews & browser** | HTML prototypes are served on your LAN for the group to see. When the bot's browser hits a login or captcha, a group member takes over through a one-time link. |
 | **Console** | One local page for every group: a "Needs you" list (failed turns with their reason, takeover requests, open feedback), projects, models, permissions, design library, live activity and release history. Available in English or Chinese. |

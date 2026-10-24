@@ -755,22 +755,30 @@ test('extractFormFromTexts:JS 主题对象的字体值到闭合引号为止,不�
 
 // ── 从参考提炼:网址 ─────────────────────────────────────────────────────────
 
-test('parseHtmlStyleRefs:内联 <style> 全收;<link> 只跟同源,协议与数量都封顶', () => {
+test('parseHtmlStyleRefs:内联 <style> 全收;<link> 跨域名也跟(同域名排前),认 preload as=style,非 http(s) 不跟', () => {
   const html = `<link rel="stylesheet" href="/a.css">
     <link rel=stylesheet href=https://cdn.other.com/b.css>
     <link rel="preload stylesheet" href="https://ex.com/c.css">
+    <link rel="preload" as="style" href="https://static.ex.com/d.css#x">
+    <link rel="preload" as="script" href="/e.js">
     <link rel="icon" href="/f.ico">
     <link rel="stylesheet" href="javascript:alert(1)">
     <style>body{color:#fff}</style><style>  </style>`
   const r = parseHtmlStyleRefs(html, 'https://ex.com/p/x')
   assert.deepEqual(r.inline, ['body{color:#fff}'], '空的 <style> 不收')
-  assert.deepEqual(r.links, ['https://ex.com/a.css', 'https://ex.com/c.css'], '跨站与非 http(s) 一律不跟')
+  // 大多数站点的样式表在 CDN 域名上:只认同源时飞书 / B 站 / Stripe 一份都读不到
+  assert.deepEqual(r.links, ['https://ex.com/a.css', 'https://ex.com/c.css', 'https://static.ex.com/d.css', 'https://cdn.other.com/b.css'],
+    '同域名 → 同站子域 → 其他域名;预载脚本、图标、非 http(s) 一律不跟')
 })
 
-test('parseHtmlStyleRefs:总份数封顶(内联 + 外链一起算)', () => {
+test('parseHtmlStyleRefs:内联与外链各自封顶 —— 一堆小块 <style> 不许吃掉外链名额', () => {
   const html = '<style>a{}</style><style>b{}</style>' + Array.from({ length: 10 }, (_, i) => `<link rel=stylesheet href="/s${i}.css">`).join('')
   const r = parseHtmlStyleRefs(html, 'https://ex.com/', { max: 4 })
-  assert.equal(r.inline.length + r.links.length, 4)
+  assert.equal(r.inline.length, 2)
+  assert.deepEqual(r.links, ['/s0.css', '/s1.css', '/s2.css', '/s3.css'].map((x) => 'https://ex.com' + x), '按文档顺序截到 max')
+  const many = parseHtmlStyleRefs('<style>a{}</style>'.repeat(8) + '<link rel=stylesheet href=/x.css>', 'https://ex.com/', { max: 4 })
+  assert.equal(many.inline.length, 4)
+  assert.deepEqual(many.links, ['https://ex.com/x.css'])
 })
 
 // ⚠ 这条守的是**墙钟兜不住的那一类卡死**:正则一旦跑起来就不可中断,tick 只在两次调用之间
@@ -811,7 +819,7 @@ test('parseHtmlStyleRefs:墙钟传得进去 —— 病态输入在解析这一�
   assert.ok(parseHtmlStyleRefs('<style>a{}</style>', 'https://ex.com/').inline.length, '对照组:不掐墙钟时这一页解析得出来')
 })
 
-test('extractFromUrl:抓 HTML + 同源样式表 → 候选 + 证据(fetch 注入,不走网络)', async () => {
+test('extractFromUrl:抓 HTML + 样式表 → 候选 + 证据(fetch 注入,不走网络)', async () => {
   const seen = []
   const fake = async (u) => {
     seen.push(u)
@@ -1171,8 +1179,8 @@ test('deriveExtraTokens:字号是成对项 —— 正文与标题缺一个就一
 test('describeExtract:纯事实拼句,零气质词;有则拼、无则省;一段都拼不出就回空串', () => {
   assert.equal(
     describeExtract({ dark: true, serif: true, radius: 14, bg: '#0F1117', accent: '#E8590C', origin: 'example.com' }),
-    '深色底 · 衬线标题 · 圆角 14px · 主色 #0F1117 / #E8590C(提自 example.com)')
-  assert.equal(describeExtract({ dark: false, bg: '#FFFFFF' }), '浅色底 · 主色 #FFFFFF', '衬线/圆角/出处都没有 ⇒ 那几段整段不出现')
+    '深色底 · 衬线标题 · 圆角 14px · 底色 #0F1117 · 强调色 #E8590C(提自 example.com)')
+  assert.equal(describeExtract({ dark: false, bg: '#FFFFFF' }), '浅色底 · 底色 #FFFFFF', '衬线/圆角/出处都没有 ⇒ 那几段整段不出现')
   assert.equal(describeExtract({ dark: true, pill: true, radius: 6 }), '深色底 · 胶囊圆角', '胶囊是语义,不报数值')
   assert.equal(describeExtract({}), '', '什么都没读到就不给建议 —— 空串让前端什么都不填,而不是填一句「未知风格」')
   assert.doesNotMatch(describeExtract({ dark: true, serif: true, radius: 14, bg: '#0F1117' }), /高级|克制|现代|简洁|优雅|大气/, '气质词是群里对话的事,这里只说事实')
@@ -1186,7 +1194,7 @@ test('extractFormFromTexts:suggest 三样一起回 —— 描述带出处 · 补
     .card{border:2px solid #2A2F3A;border-radius:14px;padding:32px}
     .btn{background:#E8590C;padding:8px}.b2{color:#E8590C}.b3{color:#E8590C}
     .t{color:#4C6EF5}.t2{color:#4C6EF5}.g{color:#2A2F3A}`], { origin: 'example.com' })
-  assert.equal(suggest.description, '深色底 · 圆角 14px · 主色 #0F1117 / #E8590C(提自 example.com)')
+  assert.equal(suggest.description, '深色底 · 圆角 14px · 底色 #0F1117 · 强调色 #E8590C(提自 example.com)')
   assert.deepEqual(suggest.extraTokens, { letterSpacing: 0.08, borderWidth: 2, spacingUnit: 8, lineHeight: 1.55, headlineSize: 40, bodySize: 16 })
   const four = new Set(Object.values(form.colors))
   assert.ok(suggest.extraColors.length > 0, '四角色之外还在反复出现的色要作为补充色交出来')
@@ -1400,7 +1408,7 @@ test('extractFromUrl:suggest 跟着回,描述里的出处是域名', async () =>
     throw new Error('unexpected ' + u)
   }
   const r = await extractFromUrl('https://ex.com/', { fetchImpl: fake })
-  assert.match(r.suggest.description, /^深色底 · 圆角 14px · 主色 #0F1117 \/ #E8590C（?\(提自 ex\.com\)/)
+  assert.match(r.suggest.description, /^深色底 · 圆角 14px · 底色 #0F1117 · 强调色 #E8590C（?\(提自 ex\.com\)/)
   assert.ok(Array.isArray(r.suggest.extraColors))
   assert.equal(typeof r.suggest.extraTokens, 'object')
 })
@@ -1448,4 +1456,134 @@ test('风格档往返: 旧档没有多余段 / 不是风格档时,原样返回�
   assert.equal(withKeptSections(plain, plain), plain)
   assert.equal(withKeptSections(plain, '不是风格档,连 front matter 都没有'), plain)
   assert.equal(withKeptSections(plain, ''), plain)
+})
+
+// ── 从参考提炼:10-24 真站回归里撞出来的几条(飞书 / B 站 / Stripe / apple.com.cn / sintbot.com / 小程序)──
+
+test('extractFromUrl:CDN 上的样式表照样拉;解析到内网的那一份被拒、其余照常', async () => {
+  const seen = []
+  const fake = async (u) => {
+    seen.push(u)
+    if (u === 'https://ex.com/') return { ok: true, status: 200, text: async () => '<link rel=stylesheet href="https://cdn.ex-static.net/a.css"><link rel=stylesheet href="https://evil.example/b.css">' }
+    if (u === 'https://cdn.ex-static.net/a.css') return { ok: true, status: 200, text: async () => 'body{background:#F7F8FA;color:#1F2329}.b{color:#3370FF}.c{color:#3370FF}' }
+    throw new Error('unexpected ' + u)
+  }
+  const lookup = async (h) => (h === 'evil.example' ? [{ address: '192.168.0.1', family: 4 }] : [{ address: '93.184.216.34', family: 4 }])
+  const r = await extractFromUrl('https://ex.com/', { fetchImpl: fake, lookup })
+  assert.deepEqual(seen, ['https://ex.com/', 'https://cdn.ex-static.net/a.css'], '解析到内网的域名连请求都不发')
+  assert.equal(r.form.colors.bg, '#F7F8FA')
+  assert.equal(r.evidence.sheets, 1)
+  await assert.rejects(() => extractFromUrl('https://evil.example/', { fetchImpl: fake, lookup }), /本机或内网/, '首个地址解析到内网同样拒')
+  // 解析不了(墙内本机解析不出海外域名很常见)不拦:交给连接去报错
+  seen.length = 0
+  await extractFromUrl('https://ex.com/', { fetchImpl: fake, lookup: async () => { throw new Error('ENOTFOUND') } })
+  assert.ok(seen.includes('https://evil.example/b.css'), '解析失败 ⇒ 照常发请求')
+})
+
+test('extractFromUrl:引用了样式表却一份都没取到 ≠ 页面里没有样式表,两种话分开说', async () => {
+  const fake = async (u) => {
+    if (u === 'https://ex.com/') return { ok: true, status: 200, text: async () => '<link rel=stylesheet href="https://cdn.x/a.css"><link rel=stylesheet href="/b.css">' }
+    throw new TypeError('fetch failed')
+  }
+  await assert.rejects(() => extractFromUrl('https://ex.com/', { fetchImpl: fake }), /引用了 2 份样式表,一份都没取到/)
+})
+
+test('parseCssCandidates:变量跨文件展开 —— 字体与圆角读得出真值,衬线认得出来', () => {
+  const tokens = ':root{--f-display:"Fraunces", Georgia, serif;--f-ui:"Inter", sans-serif;--r-card:12px}'
+  const use = 'h1{font-family:var(--f-display)}p{font-family:var(--f-ui)}.card{border-radius:var(--r-card)}'
+  const r = extractFormFromTexts([tokens, use])
+  assert.ok(r.evidence.fonts.includes('"Fraunces", Georgia, serif'), '证据里是字体本身,不是变量名')
+  assert.equal(r.evidence.serif, true)
+  assert.deepEqual(r.evidence.radii, [12])
+})
+
+test('parseCssCandidates:圆角单位折算 —— rpx 折半(750 设计稿)、rem 按 16px、calc() 当没写', () => {
+  assert.deepEqual(parseCssCandidates(['.a{border-radius:24rpx}.b{border-radius:.5rem}.c{border-radius:calc(var(--x) - 2px)}.d{border-radius:6px}']).radii, [12, 8, 6])
+})
+
+test('parseCssCandidates:小程序的 page 是根;夜间媒体查询里的根声明不算底色', () => {
+  const mp = parseCssCandidates(['page{background-color:#F7F8FA;color:#1F2329}.card{background:#FFFFFF}.x{background:#FFFFFF}'])
+  assert.equal(mp.rootBg, '#F7F8FA', '飞书风格的灰底在 page 上,不能被卡片白顶掉')
+  const site = parseCssCandidates(['body{background:#FFFFFF;color:#1D1D1F}@media (prefers-color-scheme: dark){:root{--bg:#000000}body{background:#000000;color:#F5F5F7}}'])
+  assert.equal(site.rootBg, '#FFFFFF')
+  assert.equal(site.rootInk, '#1D1D1F')
+})
+
+test('parseCssCandidates:变量名要像「页面底色」才算 —— 导航栏、夜间、悬停这类组件变量不算', () => {
+  const c = parseCssCandidates([':root{--globalnav-background-opened-dark:#161617;--nav-bg:#222222;--btn-hover-bg:#333333;--sk-body-background-color:rgb(255,255,255)}'])
+  assert.equal(c.rootBg, '#FFFFFF', 'apple.com.cn 实测:组件的夜间色被当成整页底色,白底站判成深色')
+})
+
+test('extractFormFromTexts:半透明描边不进色板;深色站的次要色是灰,不是白色描边', () => {
+  const r = extractFormFromTexts([`:root{--bone:#F3EEE5}
+    body{background:#0A0A0A;color:var(--bone)}
+    .a{border:1px solid rgba(255,255,255,.1)}.b{border-color:rgba(255,255,255,.12)}.c{outline:1px solid rgba(255,255,255,.1)}
+    .d{color:#D68F44}.e{color:#D68F44}.m{color:#8A867F}.m2{color:#8A867F}`])
+  assert.ok(!r.evidence.colors.some((c) => c.hex === '#FFFFFF'), 'alpha 0.1 的白是描边,不是一个颜色')
+  assert.equal(r.form.colors.bg, '#0A0A0A')
+  assert.equal(r.form.colors.ink, '#F3EEE5')
+  assert.equal(r.form.colors.accent, '#D68F44')
+  assert.equal(r.form.colors.muted, '#8A867F', 'sintbot.com 实测:次要色曾被判成纯白')
+})
+
+test('extractFormFromTexts:「等宽小字」按占比判 —— 只给 code 配了等宽族不算,证据里照实记出现过', () => {
+  const codeOnly = extractFormFromTexts(['body{font-family:Inter,sans-serif}h1{font-family:Inter,sans-serif}p{font-family:Inter,sans-serif}code{font-family:"JetBrains Mono",monospace}'])
+  assert.equal(codeOnly.evidence.mono, true, '事实:样式里出现过等宽族')
+  assert.ok(!/等宽/.test(codeOnly.suggest.description), '但这不是这套设计的性格')
+  const monoSite = extractFormFromTexts(['.k{font-family:"JetBrains Mono",monospace}.l{font-family:"JetBrains Mono",monospace}body{font-family:Inter,sans-serif}'])
+  assert.match(monoSite.suggest.description, /等宽小字/)
+})
+
+test('extractFormFromTexts:一个颜色都没读到 ⇒ colorsFound=false(前端据此不动表单里的颜色)', () => {
+  assert.equal(extractFormFromTexts(['.a{border-radius:4px}']).evidence.colorsFound, false)
+  assert.equal(extractFormFromTexts(['body{background:#FFFFFF;color:#111111}']).evidence.colorsFound, true)
+})
+
+test('_readCapped:声明超限但能边读边截(可读流 / 代理已封顶)⇒ 照常读前 maxBytes,不整次拒收', async () => {
+  const head = '<link rel=stylesheet href="/s.css">' + ' '.repeat(50)
+  const css = { ok: true, status: 200, text: async () => 'body{background:#FAF9F6;color:#1A1A1A}' }
+  const capped = async (u) => (u.endsWith('/s.css') ? css
+    : { ok: true, status: 200, capped: true, headers: { get: (k) => (String(k).toLowerCase() === 'content-length' ? '999999999' : null) }, text: async () => head })
+  const r = await extractFromUrl('https://ex.com/', { fetchImpl: capped })
+  assert.equal(r.form.colors.bg, '#FAF9F6', 'linear.app / stripe.com 实测:HTML 超过 512KB,样式表链接却全在 <head> 里')
+})
+
+test('parseCssCandidates:区块命名的底色变量不算整页底色,页面级命名才算', () => {
+  assert.equal(parseCssCandidates([':root{--first-screen-bg:rgba(227,234,255,1)}']).rootBg, null, '飞书实测:首屏浅蓝被当成整页底色')
+  for (const name of ['--bg', '--page-bg', '--bg-body', '--color-background', '--sk-body-background-color']) {
+    assert.equal(parseCssCandidates([`:root{${name}:#FAFAFA}`]).rootBg, '#FAFAFA', name)
+  }
+})
+
+test('extractFormFromTexts:强调色与正文色按用得多少挑 —— 一处亮金顶不掉到处在用的品牌色,纯黑顶不掉真正文色', () => {
+  const r = extractFormFromTexts([`body{background:#FFFFFF}
+    .a{color:#1F2329}.b{color:#1F2329}.c{color:#1F2329}.d{color:#000000}
+    .e{color:#D68F44}.f{color:#D68F44}.g{color:#D68F44}.h{color:#FFD000}
+    .m{color:#646A73}.m2{color:#646A73}`])
+  assert.equal(r.form.colors.ink, '#1F2329')
+  assert.equal(r.form.colors.accent, '#D68F44')
+  assert.equal(r.form.colors.muted, '#646A73')
+})
+
+test('parseCssCandidates:图标字体不进字体名单', () => {
+  const fonts = parseCssCandidates(['.i{font-family:"iconfont" !important}.j{font-family:FontAwesome}body{font-family:"PingFang SC",sans-serif}']).fonts.map((f) => f.stack)
+  assert.deepEqual(fonts, ['"PingFang SC",sans-serif'])
+})
+
+test('parseCssCandidates:变量按出处取值 —— 夜间主题写在前面也不算,默认主题的根规则优先;三层引用展得开', () => {
+  const css = `:root[data-ud-theme-mode=dark]{--bg-body:var(--N50);--text-title:var(--N900)}
+    :root[data-ud-theme-mode=dark]{--N50:#1A1A1A;--N900:#EBEBEB}
+    :root{--bg-body:var(--N00);--text-title:var(--N900)}
+    :root{--N00:#FFFFFF;--N900:#1F2329}
+    body{background-color:var(--bg-body);color:var(--text-title)}`
+  const c = parseCssCandidates([css])
+  assert.equal(c.rootBg, '#FFFFFF', '飞书实测:先到先得时白底站判成了 #1A1A1A')
+  assert.equal(c.rootInk, '#1F2329')
+})
+
+test('parseCssCandidates:超过 4000 字的 :root 块照样读得到(大站的主题变量块)', () => {
+  const pad = Array.from({ length: 400 }, (_, i) => `--pad-${i}:${i}px`).join(';')
+  const c = parseCssCandidates([`:root{${pad};--bg:#FAFAFA}body{background:var(--bg);color:#111111}`])
+  assert.equal(c.rootBg, '#FAFAFA')
+  assert.equal(c.rootInk, '#111111')
 })

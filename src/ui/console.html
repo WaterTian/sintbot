@@ -2091,14 +2091,18 @@ function nsPreview(){
     }catch(e){const el=$('#nsPrev'); if(el)el.innerHTML='<span class="hint">预览暂时出不来</span>';}
   },240);
 }
-/* 提炼回填:只覆盖「参考里读得出来」的那几项(色板/衬线/等宽/圆角),名称与描述留着不动 ——
-   那两项是人写的,被一次提炼冲掉最恼人。 */
-function nsFill(f){
+/* 提炼回填:只覆盖「参考里读得出来」的那几项(色板/圆角),名称与描述留着不动 ——
+   那两项是人写的,被一次提炼冲掉最恼人。
+   ⚠ 读不到的项**不动表单**:一个颜色都没读到时 form.colors 是模板默认值、没读到圆角时 rounded 是兜底的「微圆」,
+   照填就是把默认值当成提炼结果,还冲掉人已经选好的(实测 linear.app)。字重提炼器根本不读,
+   只有目录里本来就有风格档(styledoc)时才是真值。 */
+function nsFill(f,ev){
   if(!f)return;
-  for(const [k] of NS_CKEYS){const v=nsNormHex((f.colors||{})[k]);if(!v)continue;
+  const e=ev||{};
+  if(e.colorsFound!==false)for(const [k] of NS_CKEYS){const v=nsNormHex((f.colors||{})[k]);if(!v)continue;
     $('#nsCol_'+k).value=v;$('#nsHex_'+k).value=v;}
-  $$('#nsRound button').forEach(b=>b.classList.toggle('on',b.dataset.v===f.rounded));
-  $$('#nsWeight button').forEach(b=>b.classList.toggle('on',b.dataset.v===f.weight));
+  if(e.roundedFound!==false&&f.rounded)$$('#nsRound button').forEach(b=>b.classList.toggle('on',b.dataset.v===f.rounded));
+  if((!ev||e.source==='styledoc')&&f.weight)$$('#nsWeight button').forEach(b=>b.classList.toggle('on',b.dataset.v===f.weight));
   /* ⚠ 字体不在表单里,提炼回填也就无从谈起(提色器本来也读不出中文族) */
   nsHexCheck();
 }
@@ -2162,9 +2166,10 @@ function nsEvidence(ev){
   else if(ev.source==='dir')rows.push('扫了 '+(ev.files||0)+' 个样式文件');
   const sw=(ev.colors||[]).map(c=>`<span class="sw" style="background:${esc(c.hex)}"></span>${esc(c.hex)}${c.count?'<span class="faint"> ×'+c.count+'</span>':(c.role?'<span class="faint"> '+esc(c.role)+'</span>':'')}`).join('　');
   if(sw)rows.push('提到最多的颜色 · '+sw);
+  else if(ev.colorsFound===false)rows.push('没读到颜色,四个颜色保持原样');
   if((ev.fonts||[]).length)rows.push('字体族 · '+ev.fonts.map(f=>esc(f)).join(' / '));
   if((ev.radii||[]).length)rows.push('圆角取值 · '+ev.radii.join(' / ')+'px');
-  else if(ev.roundedFound===false)rows.push('没读到圆角设定,先按「微圆」给');
+  else if(ev.roundedFound===false)rows.push('没读到圆角设定,圆角保持原样');
   const ts=nsTokensSummary(nsTokens);
   if(ts)rows.push('还读到 · '+ts);
   /* 三样属性也要如实报(v0.11.22):它们已经把表单上的档位改掉了,不说一声就是「悄悄替人做主」。
@@ -2174,7 +2179,7 @@ function nsEvidence(ev){
   if(tr.elevation)trs.push('投影 '+({none:'一处都没有 ⇒ 无',flat:'很浅 ⇒ 轻',soft:'明显',color:'带颜色 ⇒ 彩色'}[tr.elevation]||tr.elevation));
   if(tr.gradientTo)trs.push('渐变到 <span class="sw" style="background:'+esc(tr.gradientTo)+'"></span>'+esc(tr.gradientTo));
   if(tr.statusColors)trs.push('状态色 '+Object.keys(tr.statusColors).map(k=>({success:'成功',warning:'警告',danger:'危险'}[k]||k)+' <span class="sw" style="background:'+esc(tr.statusColors[k])+'"></span>').join(' '));
-  if(trs.length)rows.push('还读到 · '+trs.join(' · ')+'<span class="faint">(没提到的那几样保持原样)</span>');
+  if(trs.length)rows.push('还读到 · '+trs.join(' · ')+' <span class="faint">(没提到的那几样保持原样)</span>');
   if(nsExtra.length)rows.push('补充色(勾上的会一起写进这套风格)· '+nsChipsHtml('nsExtraChips'));
   if(nsSug&&nsSug.description)rows.push('这一句只说事实,可以直接当描述 · <span class="dim">'+esc(nsSug.description)
     +'</span> <button type="button" class="btn nsmini" id="nsUseDesc">用这句</button>');
@@ -2312,7 +2317,7 @@ function openStyleModal(form,opt){
     if(!ref){toast('先填一个网址,或本机上项目所在目录的绝对路径','err');return;}
     const b=$('#nsExtract');b.disabled=true;const old=b.textContent;b.innerHTML='<span class="spin"></span>';
     /* 顺序要紧:先把建议收进状态(nsApplySuggest),证据区才画得出补充色勾选与那句描述 */
-    try{const r=await api('/api/design/extract','POST',{ref});nsFill(r.form);nsFillTraits(r.suggest&&r.suggest.traits);nsApplySuggest(r.suggest);nsEvidence(r.evidence);nsPreview();
+    try{const r=await api('/api/design/extract','POST',{ref});nsFill(r.form,r.evidence);nsFillTraits(r.suggest&&r.suggest.traits);nsApplySuggest(r.suggest);nsEvidence(r.evidence);nsPreview();
       toast('已给出一套起点 —— 逐项改到满意为止','ok');}
     catch(e){toast(e.message,'err');}
     finally{if(document.body.contains(b)){b.disabled=false;b.textContent=old;}}
@@ -3987,7 +3992,8 @@ const I18N_EN=[
   ["次要不是合法的颜色值 —— 写成 #RRGGBB 或 #RGB","Muted is not a valid color — use #RRGGBB or #RGB"],
   ["预览暂时出不来","Preview unavailable right now"],
   ["提到最多的颜色 ·","Most-used colors ·"],
-  ["没读到圆角设定,先按「微圆」给","No radius setting found; defaulting to \"Subtle\""],
+  ["没读到圆角设定,圆角保持原样","No radius setting found; the radius stays as it was"],
+  ["没读到颜色,四个颜色保持原样","No colors found; the four colors stay as they were"],
   ["还读到","Also read"],
   ["投影 一处都没有 ⇒ 无","Shadow: none anywhere ⇒ None"],
   ["投影 很浅 ⇒ 轻","Shadow: very faint ⇒ Light"],
@@ -4725,7 +4731,9 @@ const I18N_EN_RX=[
   [/^行高 (\S+)$/,"Line height $1"],
   [/^投影 (\w+)$/,"Shadow $1"],
   [/^这个目录里已经有一份风格档\((.+)\)—— 直接取了它的设定,没有再去猜$/,"This folder already has a style profile ($1) — its settings were used directly, no guessing"],
+  [/^读了 1 份样式表$/,"Read 1 stylesheet"],
   [/^读了 (\d+) 份样式表$/,"Read $1 stylesheets"],
+  [/^扫了 1 个样式文件$/,"Scanned 1 style file"],
   [/^扫了 (\d+) 个样式文件$/,"Scanned $1 style files"],
   [/^字体族 · (.+)$/,"Font families · $1"],
   [/^圆角取值 · (.+)px$/,"Radius values · $1px"],

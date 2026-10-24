@@ -301,7 +301,8 @@ test('server: extract 回的 suggest 三样齐全(描述建议 / 补充色 / 更
     assert.match(j.suggest.description, /深色底/)
     assert.match(j.suggest.description, /提自 ref-site/)
     assert.ok(!j.suggest.description.includes(dir), '出处只给目录名,不许把绝对路径回给前端')
-    assert.deepEqual(j.suggest.extraColors, [{ hex: '#2A2F3A', count: 2 }])
+    // #4C6EF5 是第二个强调蓝:不再被当成「次要文字色」(那一档要灰),归进补充色
+    assert.deepEqual(j.suggest.extraColors, [{ hex: '#2A2F3A', count: 2 }, { hex: '#4C6EF5', count: 2 }])
     assert.deepEqual(j.suggest.extraTokens, { letterSpacing: 0.08, borderWidth: 2, spacingUnit: 8, lineHeight: 1.55, headlineSize: 40, bodySize: 16 })
     assert.equal(j.evidence.source, 'dir', '对照组:证据照旧在,suggest 是加出来的一份,不是换掉了它')
   })

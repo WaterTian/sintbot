@@ -192,7 +192,7 @@ class TunnelAgent extends https.Agent {
 // ── fetch 形状的响应(只实现调用方真用到的那几个成员)──────────────────────────────
 // ⚠ 刻意不做成"完整的 Response 垫片":假装完整反而会让某天用到未实现成员的人拿到
 //   `undefined` 而不是报错。用到什么补什么,缺的当场就炸得出来。
-function makeResponse(status, rawHeaders, buf, url) {
+function makeResponse(status, rawHeaders, buf, url, flags = null) {
   const lower = new Map()
   for (const [k, v] of Object.entries(rawHeaders || {})) {
     lower.set(String(k).toLowerCase(), Array.isArray(v) ? v.join(', ') : String(v))
@@ -205,6 +205,7 @@ function makeResponse(status, rawHeaders, buf, url) {
     async text() { return buf.toString('utf8') },
     async json() { return JSON.parse(buf.toString('utf8')) },
     async arrayBuffer() { return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) },
+    ...(flags || {}),
   }
 }
 
@@ -308,9 +309,24 @@ function createProxyFetch(proxyUrl, { noProxy = '', agent: injectedAgent = null,
           }
           return resolve(request(next, nextInit, depth + 1))
         }
+        // init.maxBytes(非标准,fetch 会忽略它):响应体边收边数,到线就**截断**并断开 —— 这条路把整个响应
+        // 攒进内存,不封顶的话一个几百 MB 的响应就能把 daemon 撑爆(风格提炼会替人去拉任意公网页面)。
+        // 截断而不是报错:要的往往只是开头(HTML 的 <head> 里就是全部样式表链接)。响应带 capped / truncated 两个标记。
         const chunks = []
-        res.on('data', (c) => chunks.push(c))
-        res.on('end', () => resolve(makeResponse(status, res.headers, Buffer.concat(chunks), u.toString())))
+        let got = 0
+        const cap = Number(init.maxBytes) > 0 ? Number(init.maxBytes) : 0
+        const flags = cap ? { capped: true, truncated: false } : null
+        res.on('data', (c) => {
+          if (flags && flags.truncated) return
+          if (cap && got + c.length > cap) {
+            chunks.push(c.subarray(0, cap - got)); got = cap; flags.truncated = true
+            try { res.destroy() } catch {}
+            return resolve(makeResponse(status, res.headers, Buffer.concat(chunks), u.toString(), flags))
+          }
+          got += c.length
+          chunks.push(c)
+        })
+        res.on('end', () => resolve(makeResponse(status, res.headers, Buffer.concat(chunks), u.toString(), flags)))
         res.on('error', (e) => reject(wrap(e))) // 半截响应 / 中途断线走这条,也得点名代理
       })
 

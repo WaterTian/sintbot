@@ -36,7 +36,7 @@ The built-in skills allow list (`Bash(sbot feishu|wecom|cron|imagen|design|previ
   Full mechanics and tested behavior: [BOARD.md](./BOARD.md).
 - **Design style file**, `sbot design`. `DESIGN.md` at the project root holds the design tokens: palette, typography (a Latin family plus Chinese fallbacks), radii, status colors, gradients, shadows and icons, plus Do's and Don'ts.
   - **Several surfaces:** a project can keep several files as `design/styles/<surface>.md`, where the front matter's `platform:` says whether a file covers a mini program or an admin panel.
-  - **Presets and library:** there are sixteen built-in presets. In the console you can create your own, copy one, distill one from a reference URL or a local directory, or ingest a project's file into the global library.
+  - **Presets and library:** there are sixteen built-in presets. In the console you can create your own, copy one, distill one from a reference URL or a local directory (it reads the page's stylesheets, CDN-hosted ones included, through the configured proxy; what it finds comes back with its evidence, and anything it cannot read leaves the form as it was), or ingest a project's file into the global library.
   - **Delivery to the agent:** the tokens go straight into the briefing every turn, rather than as a path to read.
   - **Four independent checks:**
     - `check` compares the page against the style file: palette, radii, fonts, font availability, and icon parameters and sources.

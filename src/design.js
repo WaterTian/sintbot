@@ -418,7 +418,7 @@ const ROLE_KEYS = {
 // (primary/neutral/line · paper/ink/muted · bg/surface/warn · cream/blue/yellow/red),用户自己
 // 写的更没谱 —— 图标要对所有风格档都画得出来,就不能要求作者按某套键名写。
 // 返回 null 表示一个合法颜色都没有(调用方决定怎么兜底,这里不编颜色)。
-function styleRoles(colors) {
+function styleRoles(colors, { fromExtract = false } = {}) {
   const entries = []
   for (const [k, v] of Object.entries(colors || {})) {
     if (v && typeof v === 'object') continue // 嵌套子段不是颜色
@@ -448,7 +448,9 @@ function styleRoles(colors) {
   const bg = _rgb(roles.bg)
   if (!roles.ink) {
     const pool = free().length ? free() : entries.filter((e) => e.hex !== roles.bg)
-    const pick = pickBy(pool, (e) => _contrast(e.rgb, bg))
+    // 从参考提炼(fromExtract):传进来的顺序就是频次 ⇒ 先取「对比够当正文(≥7)里用得最多的」——
+    // 只看对比的话纯黑总会赢,哪怕站点正文其实是 #1F2329(飞书实测)。风格档自己的色板照旧按对比挑。
+    const pick = (fromExtract && pool.find((e) => _contrast(e.rgb, bg) >= 7)) || pickBy(pool, (e) => _contrast(e.rgb, bg))
     claim('ink', pick)
     if (!roles.ink) roles.ink = _hex(...(_lum(bg) > 0.5 ? [17, 17, 17] : [240, 240, 240])) // 只有一个颜色:黑白兜底
   }
@@ -457,11 +459,19 @@ function styleRoles(colors) {
     // 强调色 = 最鲜艳的那个。彩度门槛挡掉纯灰(灰色当强调块等于没强调),够不着门槛就退回
     // 「对比最强的剩余色」,再不行就用文字色(宁可朴素也不能画个看不见的块)。
     const pool = free().filter((e) => _chroma(e.rgb) > 0.08)
-    claim('accent', pickBy(pool, (e) => _chroma(e.rgb)) || pickBy(free(), (e) => _contrast(e.rgb, bg)))
+    // 从参考提炼:彩色里**用得最多**的那个,不是最鲜艳的 —— 一处点缀的亮金会顶掉站点到处在用的品牌铜色(sintbot.com 实测)
+    claim('accent', (fromExtract ? pool[0] : pickBy(pool, (e) => _chroma(e.rgb))) || pickBy(free(), (e) => _contrast(e.rgb, bg)))
     if (!roles.accent) roles.accent = roles.ink
   }
   if (!roles.muted) {
-    claim('muted', pickBy(free(), (e) => _contrast(e.rgb, bg)))
+    if (fromExtract) {
+      // 从参考提炼:次要色 = 底与正文之间那一档灰 —— 对比够读(≥2.5)又明显弱于正文(不到正文的六成)。
+      // 不取对比最强的剩余色:参考站点的白色描边 / 高光会因此当选,「次要信息」比正文还亮。
+      // 候选按传入顺序取第一个(提炼传进来的顺序就是频次)。风格档自己的色板不走这条:
+      // 「几何构成」拿蓝当次要色是设计意图,不能按灰阶规则改掉。
+      const inkC = _contrast(ink, bg)
+      claim('muted', free().find((e) => _chroma(e.rgb) <= 0.08 && _contrast(e.rgb, bg) >= 2.5 && _contrast(e.rgb, bg) < inkC * 0.6))
+    } else claim('muted', pickBy(free(), (e) => _contrast(e.rgb, bg)))
     if (!roles.muted) roles.muted = _hex(..._mix(bg, ink, 0.55))
   }
   if (!roles.line) {
@@ -1859,9 +1869,9 @@ function deleteUserStyle(slug, { dir = userStylesDir(), builtinDir = BUILTIN_STY
 // ── 从参考提炼(确定性提取器,不过模型)────────────────────────────────────────
 // 定位要说清楚:这是**起点**不是成品 —— 抓 CSS 里的色值/字族/圆角按频次排序,喂给 styleRoles
 // 推四角色回填表单,用户再手调。深度提炼(读懂气质、写 prose)是群里对话那条路的事。
-// ⚠ 不做代理支持:Node 的全局 fetch 不认 HTTP_PROXY/HTTPS_PROXY 环境变量(与 undici 的
-//   ProxyAgent 是两回事),要支持得引依赖 —— 这是零依赖守则不换的东西。内网/需代理的站抓不到,
-//   报人话即可。
+// 出网走配置里的代理(core/proxy 的隧道 fetch,与 Slack 适配器同一份):Node 的全局 fetch 不读
+//   HTTP_PROXY 一类环境变量,墙内机器直连海外站点是 8 秒超时(实测 sintbot.com:直连超时,走代理 1.7s)。
+//   没配代理才退回全局 fetch。
 const MAX_CSS_CHARS = 512 * 1024
 const EXTRACT_MAX_SHEETS = 6
 const EXTRACT_TIMEOUT_MS = 8000
@@ -1904,22 +1914,61 @@ function stripCssComments(src) {
   return out
 }
 
-// 自定义属性表:`--brand-bg: #0F1117` 这类定义**全文收集**(不限于 root 规则)。
-// 不做这一步,`:root{--bg:#0F1117} body{background:var(--bg)}` 这种写法(深色站的主流写法)
-// 的底色一个都记不到 —— bgHits 空 ⇒ 底色退回「色板里最浅的那个」⇒ 深色站整个判成亮色站。
-function _collectCssVars(src) {
-  const map = new Map()
-  for (const m of src.matchAll(/(--[\w-]+)\s*:\s*([^;{}]{1,200})/g)) {
-    const k = m[1].toLowerCase()
-    if (!map.has(k)) map.set(k, m[2].trim()) // 先定义的算数(后面多半是主题覆盖块)
+// 规则块切分 → [{ sel, body, at }]。单趟 indexOf 扫描(O(N)),不走正则 —— 原来那条
+// `([^{}]{0,400})\{([^{}]{0,4000})\}` 对超过 4000 字的声明体整块跳过,而大站的 :root 变量块动辄上万字
+// (飞书、Tailwind 主题),根规则上的声明就这样一个都看不见。@media / @supports 这类分组只是往里走一层;
+// 声明体里再出现 `{`(CSS 嵌套写法)就整块跳到它真正闭合的地方。
+const ROOT_SEL = /(^|,)\s*(html|body|:root|page)\s*(,|$)/i
+const DARK_SEL = /dark|night/i
+function _cssRules(src, tick = _noTick) {
+  const out = []
+  let i = 0
+  while (i < src.length) {
+    if ((out.length & 255) === 0) tick()
+    const ob = src.indexOf('{', i)
+    if (ob < 0) break
+    let sel = src.slice(i, ob)
+    sel = sel.slice(Math.max(sel.lastIndexOf('}'), sel.lastIndexOf(';')) + 1).trim()
+    if (sel.startsWith('@')) { i = ob + 1; continue } // 分组 at-rule:往里走一层
+    const cb = src.indexOf('}', ob + 1)
+    if (cb < 0) break
+    const inner = src.indexOf('{', ob + 1)
+    if (inner >= 0 && inner < cb) {
+      let depth = 1
+      let j = ob + 1
+      while (j < src.length && depth > 0) { const c = src.charCodeAt(j); if (c === 123) depth++; else if (c === 125) depth--; j++ }
+      i = j
+      continue
+    }
+    out.push({ sel: sel.slice(-400), body: src.slice(ob + 1, cb), at: ob })
+    i = cb + 1
   }
-  return map
+  return out
 }
-// 值里的 var(--x) 展开。depth 封顶 2:自定义属性允许互相引用,`--a:var(--b); --b:var(--a)`
-// 不封顶就是死循环;两层足够覆盖「语义变量指向色板变量」这一条真实链路。
+
+// 自定义属性表:`--brand-bg: #0F1117` 这类定义按出处分三档,同名取档位最靠前的那一份(同档先到先得):
+//   0 = 根规则(:root / html / body / page),且不在夜间媒体查询里 —— 站点的默认主题
+//   1 = 其他普通规则
+//   2 = 夜间主题(选择器带 dark / night,或在 prefers-color-scheme: dark 里)
+// 不收这张表,`:root{--bg:#0F1117} body{background:var(--bg)}`(深色站的主流写法)的底色一个都记不到;
+// 只按先到先得的话,飞书把 `:root[data-ud-theme-mode=dark]{--bg-body:…}` 写在默认主题前面,白底站的底色就成了夜间色。
+function _rankCssVars(rules, inDark, into = new Map()) {
+  for (const r of rules) {
+    if (r.body.indexOf('--') < 0) continue
+    const rank = (DARK_SEL.test(r.sel) || inDark(r.at)) ? 2 : ROOT_SEL.test(r.sel) ? 0 : 1
+    for (const m of r.body.matchAll(/(--[\w-]+)\s*:\s*([^;]{1,200})/g)) {
+      const k = m[1].toLowerCase()
+      const cur = into.get(k)
+      if (!cur || rank < cur.rank) into.set(k, { v: m[2].trim(), rank })
+    }
+  }
+  return into
+}
+// 值里的 var(--x) 展开。depth 封顶 4:自定义属性允许互相引用,`--a:var(--b); --b:var(--a)`
+// 不封顶就是死循环;四层覆盖「语义变量 → 主题变量 → 色板变量」这类真实链路(飞书:--bg-body → --N00 → #fff)。
 function _resolveCssVars(val, vars, depth = 0) {
   const s = String(val == null ? '' : val)
-  if (depth >= 2 || !/var\(/i.test(s)) return s
+  if (depth >= 4 || !/var\(/i.test(s)) return s
   const next = s.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)/gi,
     (all, name, fb) => { const v = vars.get(name.toLowerCase()); return v != null ? v : (fb == null ? '' : fb) })
   return next === s ? s : _resolveCssVars(next, vars, depth + 1)
@@ -1968,28 +2017,29 @@ function _oklchToHex(L, C, H) {
 }
 
 // 一段文本里的颜色字面量 → 归一后的 #RRGGBB 数组(按出现顺序,允许重复 —— 频次就是从这来的)。
-// 近乎全透明的色不算(alpha < 0.1):它是「没有颜色」的写法,不是一个色。
-function colorLiterals(text) {
+// 近乎全透明的色不算(alpha < minAlpha,默认 0.1):它是「没有颜色」的写法,不是一个色。
+// 统计色板时门槛要更高(见 PALETTE_MIN_ALPHA);投影、渐变照旧用默认值 —— 投影本来就是半透明的。
+function colorLiterals(text, { minAlpha = 0.1 } = {}) {
   const src = String(text == null ? '' : text)
   const out = []
   // 长度优先匹配 + \b:`#1234567890` 这种既不是 8 位也不是 6 位的串整体不认,避免截出假色
   for (const m of src.matchAll(/#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g)) {
     const h = m[1]
-    if (h.length === 8 && parseInt(h.slice(6), 16) / 255 < 0.1) continue
+    if (h.length === 8 && parseInt(h.slice(6), 16) / 255 < minAlpha) continue
     const hex = _normHex('#' + (h.length === 8 ? h.slice(0, 6) : h))
     if (hex) out.push(hex)
   }
   for (const m of src.matchAll(/\brgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[,/]\s*([\d.%]+))?\s*\)/gi)) {
-    if (m[4] != null && _alphaNum(m[4]) < 0.1) continue
+    if (m[4] != null && _alphaNum(m[4]) < minAlpha) continue
     out.push(_hex(_clamp255(+m[1]), _clamp255(+m[2]), _clamp255(+m[3])))
   }
   for (const m of src.matchAll(/\bhsla?\(\s*([\d.-]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%\s*(?:[,/]\s*([\d.%]+))?\s*\)/gi)) {
-    if (m[4] != null && _alphaNum(m[4]) < 0.1) continue
+    if (m[4] != null && _alphaNum(m[4]) < minAlpha) continue
     out.push(_hslToHex(m[1], m[2], m[3]))
   }
   // oklch(L C H) —— L 收小数也收百分比,H 可带 deg,可选 `/ alpha`。色相缺省 0(灰阶写法)。
   for (const m of src.matchAll(/\boklch\(\s*([\d.]+%?)[\s,]+([\d.]+%?)(?:[\s,]+([\d.-]+)(?:deg)?)?\s*(?:\/\s*([\d.%]+))?\s*\)/gi)) {
-    if (m[4] != null && _alphaNum(m[4]) < 0.1) continue
+    if (m[4] != null && _alphaNum(m[4]) < minAlpha) continue
     const L = m[1].endsWith('%') ? parseFloat(m[1]) / 100 : parseFloat(m[1])
     const C = m[2].endsWith('%') ? parseFloat(m[2]) * 0.004 : parseFloat(m[2]) // 百分比口径:100% = 0.4
     const hex = _oklchToHex(L, C, m[3] == null ? 0 : m[3])
@@ -2019,6 +2069,42 @@ const HEAD_SIZE_MIN = 24
 const GRID_MIN_SAMPLES = 4 // 少于 4 个间距值不下结论 —— 一两个 16px 说明不了这是不是网格
 const GRID_RATIO = 0.7
 const SPACE_PROP = /^(margin|padding)(-(top|right|bottom|left))?$/
+// 色板只认 alpha ≥ 0.5 的色:`rgba(255,255,255,.1)` 那类是描边与叠层,不该算进色板。
+// 记进频次的话,深色站的白色描边会当选「次要文字色」(实测 sintbot.com:次要色判成纯白)。
+const PALETTE_MIN_ALPHA = 0.5
+// 变量名在说「这是页面的底色 / 文字色」:**以 bg / background / text / ink 收尾**,且不带组件或状态词。
+// 只要名字里带 background 就算的话,`--globalnav-background-opened-dark` 这种导航栏夜间色会被当成
+// 整页底色(实测 apple.com.cn:白底站被判成深色)。
+const ROOT_VAR_SKIP = /(dark|night|invers|invert|overlay|hover|active|focus|opened|selected|disabled|nav|header|footer|menu|button|btn|card|modal|dialog|popover|tooltip|input|code|badge|tag|chip|banner|toast)/
+// 命名形状:可带一段 ≤4 字母的厂商前缀(`sk-`)+ 页面级修饰词(page/body/app/color…)+ bg/text 本体 + 可选的
+// default/primary 一类后缀。`--first-screen-bg`(飞书首屏区块的浅蓝)这种区块名不算,否则整页底色判成浅蓝。
+const ROOT_VAR_WORDS = '(?:(?:color|colors|page|body|app|site|main|global|base|theme|default)-)*'
+const ROOT_BG_VAR = new RegExp(`^(?:[a-z0-9]{1,4}-)?${ROOT_VAR_WORDS}(?:bg|background)(?:-colou?r)?(?:-(?:body|page|base|default|primary|main))?$`)
+const ROOT_INK_VAR = new RegExp(`^(?:[a-z0-9]{1,4}-)?${ROOT_VAR_WORDS}(?:ink|text|fg|foreground)(?:-colou?r)?(?:-(?:body|page|base|default|primary|main|title))?$`)
+
+// 圆角值 → px。rpx 按 750 设计稿折半(小程序),rem/em 按 16px 折算(Tailwind 的 rounded-lg 就是 0.5rem);
+// 裸数字按 px(JS 主题对象的写法)。认不出(calc()、关键字)⇒ null,当没写。
+function _radiusPx(v) {
+  const m = /^(-?\d*\.?\d+)(px|rpx|rem|em)?(?![\w.])/i.exec(String(v == null ? '' : v).trim())
+  if (!m) return null
+  const n = parseFloat(m[1])
+  if (!Number.isFinite(n)) return null
+  const u = (m[2] || '').toLowerCase()
+  return u === 'rpx' ? n / 2 : (u === 'rem' || u === 'em') ? n * 16 : n
+}
+// `@media (prefers-color-scheme: dark) { … }` 块的区间。这些块里的 html/body/:root 声明是**夜间主题**,
+// 不是站点的底色;不剔掉的话,一个支持深色模式的浅色站会两边各记一份、谁赢看运气。
+// 花括号配对是单趟扫描(每个块只扫自己那一段),不走正则回溯。
+function _darkMediaRanges(src) {
+  const out = []
+  for (const m of src.matchAll(/@media[^{};]{0,200}prefers-color-scheme\s*:\s*dark[^{};]{0,200}\{/gi)) {
+    let depth = 1
+    let i = m.index + m[0].length
+    while (i < src.length && depth > 0) { const c = src.charCodeAt(i); if (c === 123) depth++; else if (c === 125) depth--; i++ }
+    out.push([m.index, i])
+  }
+  return out
+}
 
 // 只认写死 px 的长度(裸 0 也算 —— `margin:0` 与单位无关)。`1.5rem` 在这里是**读不出 px 数**的:
 // 要折算就得先假设根字号,而那正是「不替作者假设」的反面。认不出 ⇒ 当没写。
@@ -2064,31 +2150,45 @@ function parseCssCandidates(texts, { rootWeight = 6, tick = _noTick } = {}) {
   const statusHits = { success: new Map(), warning: new Map(), danger: new Map() }
   const bump = (map, hex, w) => { const e = map.get(hex) || { hex, count: 0, weight: 0 }; e.count++; e.weight += w; map.set(hex, e) }
   const bumpN = (map, k) => map.set(k, (map.get(k) || 0) + 1)
-  for (const raw of (Array.isArray(texts) ? texts : [texts])) {
+  // 每份文本先切好规则块与夜间区间,两遍都用
+  const docs = (Array.isArray(texts) ? texts : [texts]).map((raw) => {
     tick()
     const src = stripCssComments(String(raw == null ? '' : raw).slice(0, MAX_CSS_CHARS))
-    const vars = _collectCssVars(src)
-    for (const hex of colorLiterals(src)) bump(colors, hex, 1)
-    // 嵌套 at-rule(@media)不用特判:选择器段吃不进 `{`,匹配自然从内层规则起头
-    for (const m of src.matchAll(/([^{}]{0,400})\{([^{}]{0,4000})\}/g)) {
+    const dark = _darkMediaRanges(src)
+    return { src, rules: _cssRules(src, tick), inDark: (at) => dark.some(([a, b]) => at >= a && at < b) }
+  })
+  // 变量表**跨文件**收(站点常把 token 定义在一份样式表、用在另一份里),出处分档见 _rankCssVars
+  const ranked = new Map()
+  for (const d of docs) _rankCssVars(d.rules, d.inDark, ranked)
+  const vars = new Map([...ranked].map(([k, o]) => [k, o.v]))
+  for (const { src, rules, inDark } of docs) {
+    tick()
+    for (const hex of colorLiterals(src, { minAlpha: PALETTE_MIN_ALPHA })) bump(colors, hex, 1)
+    for (const r of rules) {
       // ⚠ 不认 `*`:`*,*::before{...}` 那类 reset 是**全局重置**,不是站点在声明自己的底色。
       // 认它的话,任何引了 normalize/reset 的站点底色都会被判成 reset 里那个值(通常是继承用的
       // transparent 或纯黑),而这些站点恰恰是最常见的那种。
-      const isRoot = /(^|,)\s*(html|body|:root)\s*(,|$)/i.test(m[1].trim())
-      for (const d of m[2].split(';')) {
+      // `page` 是小程序的根(相当于 body):飞书风格的 `page{background:#F7F8FA}` 就写在这儿
+      const isRoot = ROOT_SEL.test(r.sel) && !inDark(r.at)
+      for (const d of r.body.split(';')) {
         if (isRoot) {
           const mm = /^\s*(--[\w-]+|background(?:-color)?|color)\s*:\s*([\s\S]+)$/i.exec(d)
           if (mm) {
-            const found = colorLiterals(_resolveCssVars(mm[2], vars))
+            const found = colorLiterals(_resolveCssVars(mm[2], vars), { minAlpha: PALETTE_MIN_ALPHA })
             for (const hex of found) bump(colors, hex, rootWeight)
             const prop = mm[1].toLowerCase()
             if (/^background/.test(prop)) for (const hex of found) bump(bgHits, hex, rootWeight)
             else if (prop === 'color') for (const hex of found) bump(inkHits, hex, rootWeight)
             else if (prop.startsWith('--')) {
               // 变量名本身就是一句声明:`--bg` / `--page-background` = 作者在说「这是底色」,
-              // 比任何亮度启发式都硬。它被用在哪儿由上面两条各自记账,这里只认名字。
-              if (/(bg|background)/.test(prop)) for (const hex of found) bump(bgHits, hex, rootWeight)
-              else if (/(ink|text|fg|foreground)/.test(prop)) for (const hex of found) bump(inkHits, hex, rootWeight)
+              // 比任何亮度启发式都硬。它被用在哪儿由上面两条各自记账,这里只认名字(口径见 ROOT_BG_VAR)。
+              // 只算一票(权重 1):打包进来的组件库也会在 :root 上定义 `--color-text-primary` 一类变量
+              // (飞书实测:markdown 组件的 #222),html/body 上真写的那条声明(权重 rootWeight)必须压得过它们。
+              const vn = prop.slice(2)
+              if (!ROOT_VAR_SKIP.test(vn)) {
+                if (ROOT_BG_VAR.test(vn)) for (const hex of found) bump(bgHits, hex, 1)
+                else if (ROOT_INK_VAR.test(vn)) for (const hex of found) bump(inkHits, hex, 1)
+              }
             }
           }
         }
@@ -2128,8 +2228,10 @@ function parseCssCandidates(texts, { rootWeight = 6, tick = _noTick } = {}) {
     //   CSS  `font-family: 'Inter', sans-serif;`  值一直到分号/花括号,引号本来就不成对,整串照收
     //   JS   `fontFamily: "Inter, sans-serif",`   值到闭合引号为止,再往后是同一个对象的下一个键
     // 合成一条的话必有一种被切错(实测:JS 那条会把后面的 colors 段一起吞进字体名)。
-    const addFont = (stack) => { const s = String(stack || '').trim(); if (s) fonts.set(s, (fonts.get(s) || 0) + 1) }
-    for (const m of src.matchAll(/font-family\s*:\s*([^;}\n]{2,220})/gi)) addFont(m[1].replace(/[,;]\s*$/, ''))
+    // 图标字体(iconfont / Font Awesome / Material Icons)不是这套设计的文字字体 —— B 站实测排第一的是 iconfont
+    const addFont = (stack) => { const s = String(stack || '').trim(); if (s && !/icon|awesome|glyph/i.test(s.split(',')[0])) fonts.set(s, (fonts.get(s) || 0) + 1) }
+    // 值先展 var():`font-family: var(--f-display)` 不展开,证据里就只剩一个变量名,衬线也认不出来
+    for (const m of src.matchAll(/font-family\s*:\s*([^;}\n]{2,220})/gi)) addFont(_resolveCssVars(m[1], vars).replace(/[,;]\s*$/, ''))
     for (const m of src.matchAll(/["']?fontFamily["']?\s*:\s*(?:"([^"\n]{1,200})"|'([^'\n]{1,200})')/g)) addFont(m[1] != null ? m[1] : m[2])
     // ── 渐变 / 投影 / 状态色(v0.11.22)。都用**有界**量词、不用懒量词 —— 见 stripCssComments
     //    那段:这条管线一次吃 200 份文件,一个 O(N²) 的正则就能把同进程的 daemon 冻死。
@@ -2162,10 +2264,10 @@ function parseCssCandidates(texts, { rootWeight = 6, tick = _noTick } = {}) {
       if (slot) bumpN(statusHits[slot], hex)
     }
     for (const m of src.matchAll(/border-?radius\s*[:=]\s*([^;}\n]{1,60})/gi)) {
-      const v = m[1].trim().replace(/^["']|["'],?$/g, '').trim() // JS 写法的值带引号,先脱壳再判
+      const v = _resolveCssVars(m[1].trim().replace(/^["']|["'],?$/g, '').trim(), vars).trim() // JS 写法的值带引号,先脱壳再判
       // 百分比是**正圆**语义(头像、徽章),不是胶囊按钮 —— 混进来会把任何有头像的站点判成胶囊风
       if (/%/.test(v)) continue
-      const n = _pxNum(v)
+      const n = _radiusPx(v)
       if (n != null && n >= 0) radii.push(n)
     }
   }
@@ -2263,8 +2365,8 @@ function describeExtract({ dark = null, serif = false, mono = false, radius = nu
   if (mono) parts.push('等宽小字')
   if (pill) parts.push('胶囊圆角')
   else if (radius != null) parts.push('圆角 ' + (Math.round(radius * 100) / 100) + 'px')
-  const cs = [bg, accent].filter(Boolean)
-  if (cs.length) parts.push('主色 ' + cs.join(' / '))
+  if (bg) parts.push('底色 ' + bg)
+  if (accent && accent !== bg) parts.push('强调色 ' + accent)
   if (!parts.length) return ''
   const o = _oneline(origin, 60)
   return parts.join(' · ') + (o ? '(提自 ' + o + ')' : '')
@@ -2310,10 +2412,15 @@ function extractFormFromTexts(texts, { name = '', description = '', origin = '',
   const claimed = new Set(Object.values(named))
   let ci = 0
   for (const c of top) { if (claimed.has(c.hex)) continue; named['c' + (++ci)] = c.hex }
-  const roles = Object.keys(named).length ? styleRoles(named) : null
+  const roles = Object.keys(named).length ? styleRoles(named, { fromExtract: true }) : null
   const fontsJoined = cand.fonts.map((f) => f.stack).join(' , ')
   const serif = /serif/i.test(fontsJoined.replace(/sans[-\s]?serif/gi, ''))
-  const mono = /mono/i.test(fontsJoined)
+  const mono = /mono/i.test(fontsJoined) // 证据:样式里出现过等宽族(事实,照实报)
+  // 描述句里的「等宽小字」是在说这套设计的性格,要按字体声明的**占比**判 —— 几乎每个站都给 code
+  // 配了等宽族,出现过就算的话人人都是「等宽小字」。首个族是等宽的声明占到四分之一、且不止一处才算。
+  const monoN = cand.fonts.filter((f) => /mono|courier|consolas|menlo/i.test(String(f.stack).split(',')[0])).reduce((n, f) => n + f.count, 0)
+  const fontN = cand.fonts.reduce((n, f) => n + f.count, 0)
+  const monoStyle = monoN >= 2 && monoN / fontN >= 0.25
   const rounded = _roundedFromRadii(cand.radii)
   const form = normalizeStyleForm({
     name,
@@ -2344,12 +2451,14 @@ function extractFormFromTexts(texts, { name = '', description = '', origin = '',
       mono,
       rounded: form.rounded,
       roundedFound: !!rounded,
+      // 一个颜色都没读到 ⇒ 表单里的四个色是模板默认值,不是提炼结果;前端据此不去动表单
+      colorsFound: !!roles,
     },
     suggest: {
       description: describeExtract({
         dark: roles ? roles.dark : null,
         serif,
-        mono,
+        mono: monoStyle,
         pill: rounded === 'pill',
         radius: normalRadii.length ? Math.max(...normalRadii) : null,
         bg: roles ? roles.bg : null,
@@ -2365,8 +2474,10 @@ function extractFormFromTexts(texts, { name = '', description = '', origin = '',
   }
 }
 
-// HTML → 内联 <style> 与**同源** <link rel=stylesheet>。同源是刻意的:替用户去第三方 CDN
-// 抓东西既慢又把控制台变成代拉器,而站点自己的样式表已经足够定调。
+// HTML → 内联 <style> 与 <link rel=stylesheet>(含 `rel=preload as=style`)。**跨域名的也跟**:
+// 大多数站点的样式表放在 CDN 域名上(飞书 feishucdn、B 站 hdslb、Stripe stripecdn),只认同源时
+// 这些站一份都读不到(实测 6 个站 3 个报「没找到样式表」)。安全不靠同源:每一跳照样过公网围栏
+// 与解析结果检查(_fetchGuarded),份数与字节都封顶。同域名的排在前面,名额先给站点自己的。
 //
 // ⚠ 两处定位都**手写 indexOf,不用正则**(与 stripCssComments 同款,同一个道理)。
 //   `<style[^>]*>([\s\S]*?)<\/style>` 与 `<link\b[^>]*>` 都是二次方的:前者每遇到一个未闭合的
@@ -2399,7 +2510,7 @@ function parseHtmlStyleRefs(html, baseUrl, { max = EXTRACT_MAX_SHEETS, tick = _n
   let j = 0
   for (;;) {
     tick()
-    if (links.length + inline.length >= max) break
+    if (links.length >= max * 3) break // 先多收几条候选,排完序再截到 max
     const a = low.indexOf('<link', j)
     if (a < 0) break
     const gt = low.indexOf('>', a + 5)
@@ -2411,17 +2522,25 @@ function parseHtmlStyleRefs(html, baseUrl, { max = EXTRACT_MAX_SHEETS, tick = _n
     // 二次方是同一类问题,只是尺度换成了标签)。真的 <link> 连 200 字节都到不了。
     if (gt + 1 - a > LINK_TAG_MAX) continue
     const tag = src.slice(a, gt + 1)
-    if (!/rel\s*=\s*["']?[^"'>]*stylesheet/i.test(tag)) continue
+    const isSheet = /rel\s*=\s*["']?[^"'>]*stylesheet/i.test(tag)
+    const isPreload = /rel\s*=\s*["']?preload\b/i.test(tag) && /\bas\s*=\s*["']?style\b/i.test(tag) // 先预载再换成样式表的写法
+    if (!isSheet && !isPreload) continue
     const hm = /href\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag)
     const href = hm && (hm[2] != null ? hm[2] : hm[3] != null ? hm[3] : hm[4])
     if (!href) continue
     let abs = null
     try { abs = base ? new URL(href, base) : new URL(href) } catch { continue }
     if (abs.protocol !== 'http:' && abs.protocol !== 'https:') continue
-    if (base && abs.host !== base.host) continue
+    abs.hash = ''
     if (!links.includes(abs.href)) links.push(abs.href)
   }
-  return { inline, links }
+  // 内联与外链各自封顶:内联不花网络,只是 HTML 里的一段;合在一起算的话,一个塞满小块 <style> 的
+  // 服务端渲染页会把外链名额吃光,真正定调的那几份样式表一份都不拉。
+  const host = base ? base.host : ''
+  const site = (h) => h.split('.').slice(-2).join('.') // 粗粒度「同一站点」:www.ex.com 与 static.ex.com 算一家
+  const rank = (href) => { const h = new URL(href).host; return h === host ? 0 : site(h) === site(host) ? 1 : 2 }
+  const ordered = links.map((href, i) => ({ href, i, r: rank(href) })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.href)
+  return { inline, links: ordered.slice(0, max) }
 }
 
 // 读响应体,**流式**截断。旧写法 `(await res.text()).slice(0, max)` 的上限写了等于没写:
@@ -2429,14 +2548,18 @@ function parseHtmlStyleRefs(html, baseUrl, { max = EXTRACT_MAX_SHEETS, tick = _n
 // 两道闸:① 有 Content-Length 且超限 ⇒ 一个字节都不读,直接拒 ② 无则边读边数,到线就停并 cancel。
 async function _readCapped(res, maxBytes) {
   const len = Number(res && res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-length') : NaN)
-  if (Number.isFinite(len) && len > maxBytes) {
+  const body = res && res.body
+  const streamable = !!(body && typeof body.getReader === 'function')
+  // 声明的长度超限:能边读边截(可读流,或代理那条已在传输层封顶 capped)⇒ 照常读前 maxBytes ——
+  // 现代站点的 HTML 动辄超过 512KB(Next.js 把数据内联进页面),而要的样式表链接全在 <head> 里,
+  // 一律拒收的话 linear.app、stripe.com 这类站一个都提炼不了。只有「既不能截、又声明超限」才拒。
+  if (Number.isFinite(len) && len > maxBytes && !streamable && !(res && res.capped)) {
     const e = new Error(`这个网址的内容太大了(超过 ${Math.round(maxBytes / 1024)} KB)—— 换一个更轻的页面`)
     e.code = 'EXTRACT_GUARD'
     throw e
   }
-  const body = res && res.body
-  // 注入的假 res(单测)与个别 fetch 实现没有可读流 ⇒ 退回 text(),截断口径不变
-  if (!body || typeof body.getReader !== 'function') {
+  // 注入的假 res(单测)、代理那条与个别 fetch 实现没有可读流 ⇒ 退回 text(),截断口径不变
+  if (!streamable) {
     const t = await res.text()
     return t.length > maxBytes ? t.slice(0, maxBytes) : t
   }
@@ -2507,12 +2630,33 @@ function assertPublicUrl(u) {
   throw e
 }
 
+// 域名的解析结果也要是公网地址:跟跨域名样式表之后,页面能指定任意域名,而一个公网域名完全可以
+// 解析到 192.168.x / 127.0.0.1(DNS 重绑定)。解析不了(墙内本机解析不出海外域名,走代理时很常见)
+// 或超时 ⇒ 放行,交给后面的连接去报错 —— 这道检查只拒「明确解析到内网」的。
+// ⚠ Clash 的 fake-ip 模式下本机解析回的是 198.18.x(基准测试段,不在内网判定里)⇒ 放行,检查等于失效;
+//   这是代理模式的固有边界,不是漏判。lookup 为空(单测注入了 fetch)⇒ 不解析。
+const EXTRACT_DNS_MS = 3000
+const _dnsLookup = (host) => require('node:dns').promises.lookup(host, { all: true, verbatim: true })
+async function _assertResolvesPublic(hostname, lookup) {
+  const h = String(hostname || '').replace(/^\[|\]$/g, '')
+  if (!lookup || !h || require('node:net').isIP(h)) return // IP 字面量 isPublicHostname 已经判过
+  let timer
+  const addrs = await Promise.race([
+    Promise.resolve().then(() => lookup(h)).catch(() => null),
+    new Promise((r) => { timer = setTimeout(() => r(null), EXTRACT_DNS_MS); if (timer.unref) timer.unref() }),
+  ]).finally(() => clearTimeout(timer))
+  for (const a of Array.isArray(addrs) ? addrs : []) {
+    if (a && a.address && !isPublicHostname(a.address)) { const e = new Error(SSRF_MSG); e.code = 'EXTRACT_GUARD'; throw e }
+  }
+}
+
 // 手动跟跳。**每一跳都重过同一套校验** —— 交给 fetch 的 redirect:'follow' 就等于只查了第一跳,
 // 而「公网地址 301 到 127.0.0.1」是绕过首跳校验最省事的一招。
-async function _fetchGuarded(doFetch, href, init, { maxHops = EXTRACT_MAX_HOPS } = {}) {
+async function _fetchGuarded(doFetch, href, init, { maxHops = EXTRACT_MAX_HOPS, lookup = null } = {}) {
   let cur = new URL(href)
   for (let hop = 0; ; hop++) {
     assertPublicUrl(cur)
+    await _assertResolvesPublic(cur.hostname, lookup)
     const res = await doFetch(cur.href, { ...init, redirect: 'manual' })
     const status = res && res.status
     const loc = res && res.headers && typeof res.headers.get === 'function' ? res.headers.get('location') : null
@@ -2529,8 +2673,10 @@ async function _fetchGuarded(doFetch, href, init, { maxHops = EXTRACT_MAX_HOPS }
   }
 }
 
-async function extractFromUrl(ref, { fetchImpl, timeoutMs = EXTRACT_TIMEOUT_MS, maxSheets = EXTRACT_MAX_SHEETS, maxBytes = MAX_CSS_CHARS, wallMs = EXTRACT_WALL_MS } = {}) {
-  const doFetch = fetchImpl || globalThis.fetch
+async function extractFromUrl(ref, { fetchImpl, lookup, timeoutMs = EXTRACT_TIMEOUT_MS, maxSheets = EXTRACT_MAX_SHEETS, maxBytes = MAX_CSS_CHARS, wallMs = EXTRACT_WALL_MS } = {}) {
+  // 配了代理就走代理(见本段段头);注入了 fetch(单测)就用注入的,也不做真解析
+  const doFetch = fetchImpl || require('./core/proxy').getProxyFetch() || globalThis.fetch
+  const dns = lookup !== undefined ? lookup : (fetchImpl ? null : _dnsLookup)
   if (typeof doFetch !== 'function') throw new Error('这台机器上取不到网页(运行环境没有 fetch)')
   let u
   try { u = new URL(String(ref)) } catch { throw new Error('这不是一个网址:' + String(ref)) }
@@ -2539,7 +2685,7 @@ async function extractFromUrl(ref, { fetchImpl, timeoutMs = EXTRACT_TIMEOUT_MS, 
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), timeoutMs)
   try {
-    const first = await _fetchGuarded(doFetch, u.href, { signal: ctl.signal, headers: { Accept: 'text/html,text/css,*/*' } })
+    const first = await _fetchGuarded(doFetch, u.href, { signal: ctl.signal, maxBytes, headers: { Accept: 'text/html,text/css,*/*' } }, { lookup: dns })
     const res = first.res
     if (!res || !res.ok) throw new Error(`打不开这个网址(HTTP ${res ? res.status : '?'})`)
     const html = await _readCapped(res, maxBytes)
@@ -2553,10 +2699,13 @@ async function extractFromUrl(ref, { fetchImpl, timeoutMs = EXTRACT_TIMEOUT_MS, 
     for (const href of refs.links) {
       tick()
       try {
-        const r2 = await _fetchGuarded(doFetch, href, { signal: ctl.signal, headers: { Accept: 'text/css,*/*' } })
+        const r2 = await _fetchGuarded(doFetch, href, { signal: ctl.signal, maxBytes, headers: { Accept: 'text/css,*/*' } }, { lookup: dns })
         if (r2.res && r2.res.ok) { texts.push(await _readCapped(r2.res, maxBytes)); fetched++ }
       } catch { /* 单份样式表拉不到就少一份,不让整次提炼失败 */ }
     }
+    // 两种「一份都没有」要分开说:页面引用了样式表却一份都没取到(网络 / 代理 / 对端拒绝),
+    // 与页面里压根没有样式表(要跑脚本才出内容)—— 前者让人去查网络,后者让人换页面,说反了两头误事。
+    if (!texts.length && refs.links.length) throw new Error(`页面引用了 ${refs.links.length} 份样式表,一份都没取到 —— 多半是这台机器连不上它们所在的域名(检查一下代理),或把网址发到群里让它去看`)
     if (!texts.length) throw new Error('这个页面里没找到样式表 —— 多半是要跑脚本才出内容的站;换一个静态些的页面,或把网址发到群里让它慢慢看')
     const r = extractFormFromTexts(texts, { name: u.hostname, origin: u.hostname, tick })
     r.evidence.source = 'url'
@@ -2566,12 +2715,12 @@ async function extractFromUrl(ref, { fetchImpl, timeoutMs = EXTRACT_TIMEOUT_MS, 
   } catch (e) {
     if (e && (e.name === 'AbortError' || e.name === 'TimeoutError')) throw new Error(`抓这个网址超时了(${Math.round(timeoutMs / 1000)} 秒)—— 换一个更轻的页面,或把网址发到群里让它慢慢看`)
     if (e && e.code === 'EXTRACT_GUARD') throw e // 围栏与墙钟的话已经是人话,别被下面的兜底改写
-    if (e && /^(打不开|这个页面里|这不是一个网址|只认)/.test(e.message || '')) throw e
+    if (e && /^(打不开|这个页面里|页面引用了|这不是一个网址|只认)/.test(e.message || '')) throw e
     // `fetch failed` 是 Node 对一切网络层失败的统一说法(DNS 解析不了、连不上、证书不对都是它),
     // 原样抛出等于把英文内部报错甩给 operator —— 翻成「可能是哪几种情况」才有下一步可做。
     const raw = (e && e.message) || String(e)
     if (/fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET|EAI_AGAIN|certificate|TLS/i.test(raw)) {
-      throw new Error('连不上这个网址 —— 可能是域名解析不了、站点拒绝连接,或这台机器访问它需要走代理(这里不走代理)。把网址发到群里让它去看是另一条路')
+      throw new Error('连不上这个网址 —— 可能是域名解析不了、站点拒绝连接,或这台机器访问它需要代理(配置里没配,或代理没开)。把网址发到群里让它去看是另一条路')
     }
     throw new Error('抓不到这个网址:' + raw)
   } finally { clearTimeout(timer) }

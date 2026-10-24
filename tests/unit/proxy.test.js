@@ -461,3 +461,17 @@ test('TunnelAgent: agent 层给的 TLS 信任选项(ca / rejectUnauthorized…)�
   for (const k of ['ca', 'rejectUnauthorized', 'checkServerIdentity', 'ALPNProtocols']) assert.ok(keys.includes(k), k)
   for (const k of ['host', 'port', 'path', 'agent', 'headers', 'socket', 'servername']) assert.ok(!keys.includes(k), `${k} 是 http 层 / 隧道自己管的,透传会误解`)
 })
+
+// 风格提炼会替人去拉任意公网页面,这条路又把整个响应攒进内存 ⇒ 调用方给 maxBytes 就边收边数、到线截断
+test('createProxyFetch: init.maxBytes 到线截断并带标记(capped / truncated);没给就不限、不带标记', async () => {
+  const big = mkFetch([{ status: 200, body: 'x'.repeat(100) }])
+  const r = await big.f('https://ex.com/a.css', { maxBytes: 10 })
+  assert.equal((await r.text()).length, 10)
+  assert.equal(r.capped, true); assert.equal(r.truncated, true)
+  const ok = mkFetch([{ status: 200, body: 'x'.repeat(100) }])
+  const r2 = await ok.f('https://ex.com/a.css', { maxBytes: 1000 })
+  assert.equal((await r2.text()).length, 100); assert.equal(r2.truncated, false)
+  const free = mkFetch([{ status: 200, body: 'x'.repeat(100) }])
+  const r3 = await free.f('https://ex.com/a.css')
+  assert.equal((await r3.text()).length, 100); assert.equal(r3.capped, undefined)
+})
