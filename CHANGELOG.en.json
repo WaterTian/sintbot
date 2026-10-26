@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.0.9",
+    "name": "A steadier setup wizard",
+    "items": [
+      {
+        "t": "No more looping without a terminal",
+        "d": "When the setup wizard runs without keyboard input (in a script, a container or CI), it now finishes on the defaults instead of looping at the model step until the disk fills, and it no longer installs Claude Code on its own. If it still cannot finish, it stops and writes no config."
+      }
+    ]
+  },
+  {
     "version": "1.0.8",
     "name": "A clearer console, sharper style extraction",
     "items": [
