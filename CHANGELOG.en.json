@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.0.11",
+    "name": "Icon libraries from the setup wizard",
+    "items": [
+      {
+        "t": "The wizard installs the icon libraries",
+        "d": "When the design icon libraries (Lucide, Tabler, Phosphor and Pixelarticons) are missing, the setup wizard now offers to install them in one go (about 170 MB). With them, the bot uses standard icons by name when it draws a design instead of drawing its own."
+      }
+    ]
+  },
+  {
     "version": "1.0.10",
     "name": "A steadier background service",
     "items": [
