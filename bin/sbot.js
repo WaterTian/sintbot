@@ -1280,6 +1280,9 @@ async function cmdService(rest) {
 // in the gitignored config), an optional proxy split, and optional Feishu /
 // group binding (with id auto-fetch) — then runs doctor. Shares helpers with the
 // console (deriveNoProxy / feishu*), so CLI and UI stay in sync.
+// 向导走一遍最多问二十来个问题;输入结束后还要问到这么多次,只能是某个循环拿默认值走不出去
+const SETUP_MAX_ASKS_AFTER_EOF = 60
+
 async function cmdSetup(rest) {
   const { values } = parseArgs({ args: rest, allowPositionals: true, options: { config: { type: 'string' } } })
   const cfgPath = defaultConfigPath(values.config)
@@ -1319,14 +1322,22 @@ async function cmdSetup(rest) {
   const nextLine = () => queued.length ? Promise.resolve(queued.shift())
     : closed ? Promise.resolve(null)
     : new Promise((res) => { waiter = res })
-  const ask = async (q, def) => {
+  // 输入读完之后(管道、</dev/null、Docker RUN、CI)每一问都拿默认值。默认值走不出去的循环会原地空转:
+  // 1.0.8 的模型菜单默认「1」→ key 为空 → 回菜单,3 分钟往输出里写了 18 GB。所以 ① 会转圈或有副作用的问题
+  // 另给一个「输入已结束」时的答案(endedDef);② 兜底:输入结束后还问了这么多次就中止,配置不落盘。
+  let askedAfterEnd = 0
+  const ask = async (q, def, endedDef = def) => {
     process.stdout.write(`${cyan('?')} ${q}${def ? dim(` [${def}]`) : ''} `)
     const a = await nextLine()
-    if (a == null) process.stdout.write('\n')
-    return (a == null ? '' : String(a).trim()) || def || ''
+    if (a == null) {
+      process.stdout.write('\n')
+      if (++askedAfterEnd > SETUP_MAX_ASKS_AFTER_EOF) throw new Error('输入已经结束,向导还在提问 —— 已中止,配置没有写入。请在终端里直接运行 sintbot setup')
+      return endedDef || ''
+    }
+    return String(a).trim() || def || ''
   }
-  const askYN = async (q, defYes) => {
-    const a = (await ask(`${q} ${dim(defYes ? '(Y/n)' : '(y/N)')}`, '')).toLowerCase()
+  const askYN = async (q, defYes, endedYes = defYes) => {
+    const a = (await ask(`${q} ${dim(defYes ? '(Y/n)' : '(y/N)')}`, '', endedYes ? 'y' : 'n')).toLowerCase()
     return a ? a[0] === 'y' : !!defYes
   }
   // Key/secret prompt: echoes visibly (so you can see the paste landed) and then
@@ -1363,7 +1374,8 @@ async function cmdSetup(rest) {
     if (claudeBin) process.stdout.write(`  ${cyan('✓')} claude ${dim(claudeBin)}\n`)
     else {
       process.stdout.write(`  ${red('✗')} 没找到 claude(Claude Code CLI)—— 每一轮都靠它干活\n`)
-      if (await askYN(`现在安装 Claude Code(npm i -g ${installdeps.PACKAGES.claude})?`, true)) claudeBin = installDep('claude', claudeName)
+      // 没人回答(输入已结束)就不替他装软件
+      if (await askYN(`现在安装 Claude Code(npm i -g ${installdeps.PACKAGES.claude})?`, true, false)) claudeBin = installDep('claude', claudeName)
       else process.stdout.write(dim(`  稍后自己装:npm i -g ${installdeps.PACKAGES.claude}`) + '\n')
     }
     // Claude 登录态留到模型步一起报,那里据此决定推荐走哪条路。官方非交互子命令,0.2s、不联网;
@@ -1455,7 +1467,7 @@ async function cmdSetup(rest) {
         if (r.ok) { reportTurn(info.label, r); verified.push(name); return true }
         const why = setupmodels.explainTestFailure(r.text, { baseUrl: p.baseUrl })
         process.stdout.write(`  ${red('✗')} ${why.text}\n`)
-        if (!(await askYN('再试一次?(可以重新粘贴 key)', why.kind === 'auth' || why.kind === 'network'))) {
+        if (!(await askYN('再试一次?(可以重新粘贴 key)', why.kind === 'auth' || why.kind === 'network', false))) {
           process.stdout.write(dim('  key 先保存;跑通之前这个模型的轮次会失败,之后可在控制台「模型」页再测') + '\n')
           return true
         }
@@ -1490,7 +1502,7 @@ async function cmdSetup(rest) {
           + '    3) 用 Claude 订阅 —— 另开一个终端跑 claude auth login,登录好回到这里\n'
           + `    4) 用 ChatGPT(Codex)—— 另开一个终端跑 codex login(没装先 npm i -g ${installdeps.PACKAGES.codex}),登录好回到这里\n`
           + '    5) 先跳过(之后在控制台「模型」页添加)\n')
-        const a = await ask('选', '1')
+        const a = await ask('选', '1', '5') // 输入已结束 ⇒ 先跳过(选 1 拿不到 key 会回到这里)
         if (a === '1') { if (await configureKeyed(setupmodels.RECOMMENDED)) break; continue }
         if (a === '2') { if (await pickOthers() && readyKeyed().length) break; continue }
         if (a === '3' || a === '4') {
