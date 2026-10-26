@@ -627,11 +627,11 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
     try {
       const { result } = await runTurn({
         bin: cfg.agent.bin,
-        prompt: prompt || '用一句话自我介绍,并说出你的模型名。',
+        prompt: prompt || verify.TRIAL_PROMPT,
         provider,
         model: provider.model,
         permissionMode: cfg.agent.permissionMode,
-        signal: ac.signal, // a one-line self-intro — needs no tools, so no allow list
+        signal: ac.signal, // a one-line reply — needs no tools, so no allow list
       })
       const ok = !(result && result.isError)
       verify.recordTurn(provider, ok, (result && result.text) || '', vopts) // doctor / 概览据此报「能用」或「key 不对」

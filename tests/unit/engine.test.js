@@ -234,10 +234,12 @@ test('engine: /model 没有注入写入器时(CLI 试跑)仍是只读 — 带参
   await eng.handleMessage(mkMsg('/model'), p)
   assert.match(p.replies[0], /【当前模型】claude · claude-opus-4-8/) // provider · model-id, unambiguous
   assert.match(p.replies[0], /glm · glm-5\.2\[1m\]/)              // supported list carries model-ids too
-  assert.match(p.replies[0], /控制台/)                            // 如实说这里换不了,别给一条按了没反应的指令
+  assert.match(p.replies[0], /终端试跑,不能切换/)                 // 如实说这里换不了,别给一条按了没反应的指令
+  assert.match(p.replies[0], /--provider/)                       // 并说清终端里怎么换
+  assert.doesNotMatch(p.replies[0], /群内不支持/)                  // 1.0.9 及以前的说法,读起来像群里也切不了
   // 带参数也走同一条只读路 —— 谎报成功比不支持更糟
   await eng.handleMessage(mkMsg('/model glm'), p)
-  assert.match(p.replies[1], /控制台/)
+  assert.match(p.replies[1], /终端试跑,不能切换/)
   assert.doesNotMatch(p.replies[1], /已切到/)
   assert.equal(store.getProvider('G'), null, 'group cannot create a runtime provider override')
 })
@@ -365,11 +367,11 @@ test('engine: /help — 能切时教 /model 名字,并把「后面跟的字不�
   await eng.handleMessage(mkMsg('/help'), p)
   assert.match(p.replies[0], /\/model 名字/)
   assert.match(p.replies[0], /除 \/issue 与 \/model 外,后面跟的字不算数/) // ⚠ 那是对群成员的明文承诺
-  // 不能切时:说法回到「找管理员」,例外也不能乱加(否则等于教一条用不了的写法)
+  // 不能切时(只有终端试跑):说清这里切不了、换用 --provider,例外也不能乱加(否则等于教一条用不了的写法)
   const p2 = mkPlatform()
   const eng2 = new Engine(swCfg(), { runner: okRunner(), store: mkStore() })
   await eng2.handleMessage(mkMsg('/help'), p2)
-  assert.match(p2.replies[0], /要换找管理员/)
+  assert.match(p2.replies[0], /终端试跑里不能切,换用 --provider/)
   assert.match(p2.replies[0], /除 \/issue 外,后面跟的字不算数/)
 })
 

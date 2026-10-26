@@ -213,7 +213,8 @@ const SUBHELP = {
     + '      把 sintbot start --ui 装成常驻服务:崩溃自动拉起、登录后自启(macOS = launchd,Linux = systemd --user)\n'
     + '      install 写单元文件并立即启动;服务里固定用当前的 node、sbot 与配置文件的绝对路径,PATH 取当前 shell 的\n'
     + '      --dry-run 只打印要写的单元文件,不动系统;--ui-host 0.0.0.0 对局域网开控制台(须先 sintbot ui --set-password,否则拒装)\n'
-    + '      服务拿不到当前 shell 的环境变量:配置里 env:VAR 引用的 key 会被点名;--pass-env 把它们的值写进单元文件(文件权限 600)\n'
+    + '      服务拿不到当前 shell 的环境变量:配置里 env:VAR 引用的 key 会被点名;--pass-env 把它们的值写进单元文件(文件权限 600),终端里装时不给也会问一句\n'
+    + '      还没接任何聊天平台时不装(退出码 3):服务会一启动就退出 —— 先 sintbot ui 在控制台接平台\n'
     + '      Windows 不自动装:打印 NSSM / pm2 的现成命令。日志在 ~/.sbot/logs/;同一份状态只许一个 daemon,第二个会直接报错退出',
   version: '用法: sintbot version        (也认 sbot --version / -v)\n'
     + '      打印版本号',
@@ -1225,11 +1226,27 @@ async function cmdService(rest) {
     let raw
     try { raw = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch (e) { return die(`读不了配置 ${configPath}:${e.message}`) }
     if (uiHost && !isLoopbackHost(uiHost) && !((raw.ui || {}).auth)) return die(`控制台对外(--ui-host ${uiHost})要先设密码:sintbot ui --set-password${values.config ? ' --config ' + values.config : ''} —— 否则服务一启动就退出、被反复拉起`)
-    // 服务进程拿不到当前 shell 的环境变量:点名配置里的 env: 引用;--pass-env 才把值写进单元文件
+    // 一个聊天平台都没接:sintbot start 一启动就报错退出,装成服务同样是反复拉起的死循环 ⇒ 也在装之前拦。
+    // 退出码 3 单列,install.sh 据此改口「先去控制台接平台」(env: 引用按当前 shell 解析,与服务带 --pass-env 时一致)
+    const plat = platformsConfigured(loadConfig(configPath))
+    if (!plat.feishu && !plat.wecom && !plat.slack) {
+      const cfgArg = values.config ? ' --config ' + values.config : ''
+      process.stderr.write(red(`sbot: 还没接聊天平台 —— 装成服务也会一启动就退出、被反复拉起。先运行 sintbot ui${cfgArg},在控制台「设置」里填飞书 / Slack / 企业微信的凭据并绑群(或重跑 sintbot setup),再装服务`) + '\n')
+      process.exit(3)
+    }
+    // 服务进程拿不到当前 shell 的环境变量:点名配置里的 env: 引用;--pass-env 才把值写进单元文件。
+    // 终端里装又没给 --pass-env 时问一句(默认是):不带进去,服务里用这些 key 的模型 / 平台直接用不了
     const refs = svc.envRefs(raw)
     const inShell = refs.filter((v) => process.env[v])
     const nowhere = refs.filter((v) => !process.env[v])
-    const env = values['pass-env'] ? Object.fromEntries(inShell.map((v) => [v, process.env[v]])) : {}
+    let passEnv = !!values['pass-env']
+    if (!passEnv && inShell.length && process.stdin.isTTY) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stderr })
+      const a = await new Promise((res) => rl.question(`${cyan('?')} 配置用到的环境变量 ${inShell.join(' ')} 服务里拿不到 —— 把它们的值写进服务定义吗?(文件权限 600;以后换 key 要重跑这条命令) ${dim('(Y/n)')} `, res))
+      rl.close()
+      passEnv = !/^n/i.test(String(a).trim())
+    }
+    const env = passEnv ? Object.fromEntries(inShell.map((v) => [v, process.env[v]])) : {}
     const tools = ['claude', 'codex'].map((n) => whichSync(n)).filter(Boolean)
     const node = svc.stableNodeBin({ execPath: process.execPath, candidates: [whichSync('node')] })
     const sbotBin = path.resolve(__dirname, 'sbot.js')
@@ -1244,7 +1261,7 @@ async function cmdService(rest) {
     })
     if (node.warn) process.stderr.write(yellow('⚠ ' + node.warn) + '\n')
     if (svc.versionedPath(sbotBin)) process.stderr.write(yellow(`⚠ sbot 装在带版本号的 node 目录下(${sbotBin}),换 node 版本后要重装 sintbot 并重跑 sintbot service install`) + '\n')
-    if (inShell.length && !values['pass-env']) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${inShell.join(' ')} 只在当前终端里有,服务里拿不到 —— 加 --pass-env 把值写进服务定义(文件权限 600),或把值直接写进配置(配置本身是 600)`) + '\n')
+    if (inShell.length && !passEnv) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${inShell.join(' ')} 只在当前终端里有,服务里拿不到 —— 加 --pass-env 把值写进服务定义(文件权限 600),或把值直接写进配置(配置本身是 600)`) + '\n')
     if (nowhere.length) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${nowhere.join(' ')} 当前终端里也没有 —— 用到它们的模型 / 平台不会工作`) + '\n')
     if (platform !== 'darwin' && platform !== 'linux') { process.stdout.write(svc.windowsHint(spec) + '\n'); return }
     if (!tools.length) process.stderr.write(yellow('⚠ PATH 里没找到 claude / codex —— 服务能起,但群里的轮次会失败;装好后重跑 sintbot service install') + '\n')
@@ -1418,7 +1435,7 @@ async function cmdSetup(rest) {
     const readyKeyed = () => Object.keys(raw.providers).filter((n) => raw.providers[n].baseUrl && !raw.providers[n].hidden && setupmodels.keyPresent(raw.providers[n].apiKey))
     const verified = [] // 本次向导里试跑通过的
     const tried = new Set() // 本次试跑过的(不论成败),结尾不再重复问
-    // 试跑一轮(与控制台「模型 → 测试」同一个 runTurn):不用工具,只要一句自我介绍。
+    // 试跑一轮(与控制台「模型 → 测试」同一个 runTurn 和提示词):不用工具,只要一句回复。
     // 关掉 claude 的自动重试:key 错时它默认反复重试约 3 分钟才放弃,关掉后半秒内就拿到 401 原文
     const tryTurn = async (name) => {
       const p = raw.providers[name]
@@ -1428,7 +1445,7 @@ async function cmdSetup(rest) {
       const t0 = Date.now()
       try {
         const { result, aborted } = await runner.runTurn({
-          bin: claudeBin || claudeName, prompt: '用一句话自我介绍,并说出你的模型名。', provider, model: provider.model,
+          bin: claudeBin || claudeName, prompt: verify.TRIAL_PROMPT, provider, model: provider.model,
           workdir: os.tmpdir(), permissionMode: (raw.agent && raw.agent.permissionMode) || 'dontAsk', signal: ac.signal,
           extraEnv: { CLAUDE_CODE_MAX_RETRIES: '0' },
         })
@@ -1436,13 +1453,14 @@ async function cmdSetup(rest) {
         if (aborted || ac.signal.aborted) return { ok: false, text: `timeout:${Math.round((Date.now() - t0) / 1000)} 秒内没有回复`, ms: Date.now() - t0 }
         const ok = !!text && !(result && result.isError)
         verify.recordTurn(provider, ok, text) // doctor / 控制台据此报「能用」或「key 不对」
-        return { ok, text: text || '没有返回内容', ms: Date.now() - t0 }
+        return { ok, text: text || '没有返回内容', ms: Date.now() - t0, model: provider.model }
       } catch (e) {
         verify.recordTurn(provider, false, (e && e.message) || String(e))
         return { ok: false, text: (e && e.message) || String(e), ms: Date.now() - t0 }
       } finally { clearTimeout(timer) }
     }
-    const reportTurn = (label, r) => process.stdout.write(`  ${cyan('✓')} ${label} 能用(${(r.ms / 1000).toFixed(1)} 秒):${r.text.replace(/\s+/g, ' ').slice(0, 80)}\n`)
+    // 型号取配置里的(r.model),不靠模型自报:走 Claude Code 的第三方模型常自称 Claude,新用户会以为没切成
+    const reportTurn = (label, r) => process.stdout.write(`  ${cyan('✓')} ${label}${r.model ? ' · ' + r.model : ''} 能用(${(r.ms / 1000).toFixed(1)} 秒):${r.text.replace(/\s+/g, ' ').slice(0, 80)}\n`)
     // 配一家用 API key 的:选站点 → 告诉去哪拿 key → 粘贴 → 当场试跑,失败说人话、可重试
     const configureKeyed = async (name) => {
       const info = setupmodels.PROVIDER_INFO[name] || { label: name }
@@ -1801,10 +1819,16 @@ async function cmdSetup(rest) {
   const cfg = loadConfig(cfgPath)
   await runDoctor(cfg)
   const cfgArg = cfgPath === path.join(os.homedir(), '.sbot', 'config.json') ? '' : ` --config ${cfgPath}`
+  // 一个平台都没接时守护进程起不来(装服务会被拦下):先去控制台接平台,再装服务
+  const plat = platformsConfigured(cfg)
+  const noPlatform = !plat.feishu && !plat.wecom && !plat.slack
   process.stdout.write('\n' + gray('— 下一步 —') + '\n'
     + `  sintbot agent run --provider ${cfg.defaultProvider} "用一句话自我介绍"${cfgArg}   ${dim('先在终端试一轮')}\n`
-    + `  sintbot service install${cfgArg}                 ${dim('装成常驻服务(开机/登录自启,崩溃自动拉起)')}\n`
-    + `  sintbot ui${cfgArg}                              ${dim('打开控制台:绑群、切模型、看实时活动')}\n`
+    + (noPlatform
+      ? `  sintbot ui${cfgArg}                              ${dim('还没接聊天平台:在控制台「设置」里填飞书 / Slack / 企业微信的凭据、绑群')}\n`
+        + `  sintbot service install${cfgArg}                 ${dim('接好平台后,装成常驻服务(开机/登录自启,崩溃自动拉起)')}\n`
+      : `  sintbot service install${cfgArg}                 ${dim('装成常驻服务(开机/登录自启,崩溃自动拉起)')}\n`
+        + `  sintbot ui${cfgArg}                              ${dim('打开控制台:绑群、切模型、看实时活动')}\n`)
     + (!((cfg.providers || {})[cfg.defaultProvider] || {}).baseUrl
       ? '\n' + yellow('⚠ 订阅条款:') + '用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款;团队使用请改用 API key 或企业账号,并自行确认合规。\n' : ''))
 }

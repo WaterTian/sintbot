@@ -82,4 +82,8 @@ function when(at, now = Date.now()) {
   return d.toDateString() === n.toDateString() ? `今天 ${pad(d.getHours())}:${pad(d.getMinutes())}` : `${d.getMonth() + 1} 月 ${d.getDate()} 日`
 }
 
-module.exports = { fingerprint, providerFp, feishuFp, slackFp, lookup, record, recordTurn, recordPrecheck, when, REFRESH_MS }
+// 试跑一轮用的提示词(向导试跑与控制台「模型 → 测试」共用)。不让模型自报身份:走 Claude Code 的第三方模型
+// 常照系统提示自称 Claude,新用户会以为没切成;型号由调用方按配置显示
+const TRIAL_PROMPT = '用一句话回复,说明你已准备好开始工作。'
+
+module.exports = { fingerprint, providerFp, feishuFp, slackFp, lookup, record, recordTurn, recordPrecheck, when, REFRESH_MS, TRIAL_PROMPT }

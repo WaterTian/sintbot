@@ -31,6 +31,7 @@ main() {
   MIRROR="https://registry.npmmirror.com/"
   REG=""
   SERVICE=0 # 常驻服务装了没(演练里答「装」也算):决定结尾给不给控制台地址
+  NO_PLATFORM=0 # 预检发现还没接聊天平台:结尾改指「先去控制台接平台」
 
   # curl | bash 时脚本自己占着 stdin,提问要从 /dev/tty 读;没有终端(CI、远程无 tty)就不提问
   TTY=""
@@ -191,8 +192,24 @@ step_service() {
   say "$(t '— 常驻服务 —' '— Background service —')"
   # 没有终端时不装:服务是长期改动,要人确认
   if [ -z "$TTY" ]; then say "  $(t '跳过。需要时运行:sintbot service install' 'Skipped. When you need it: sintbot service install')"; return; fi
+  # 先预检(--dry-run 只打印、不动系统):装不成的就不问 —— 还没接聊天平台(退出码 3)时服务会一启动就退出、
+  # 被反复拉起(1.0.9 及以前照问照装,结尾还指去打不开的 4600)。演练模式不跑:那时 sintbot 可能还没装
+  if [ "$DRY" != 1 ]; then
+    local pre rc
+    pre="$(sintbot service install --dry-run 2>&1 >/dev/null < /dev/null)" && rc=0 || rc=$?
+    if [ "$rc" = 3 ]; then
+      NO_PLATFORM=1
+      say "  $(t '跳过:还没接聊天平台,服务起来会马上退出。先在控制台接好平台再装(见下方)。' 'Skipped: no chat platform is connected yet, so the service would exit right away. Connect one in the console first (see below).')"
+      return
+    elif [ "$rc" != 0 ]; then
+      say "  $(t '跳过:预检没通过 ——' 'Skipped: the pre-check failed:')"
+      printf '%s\n' "$pre" | sed 's/^/    /'
+      return
+    fi
+  fi
   if ask_yn "$(t '装成常驻服务(崩溃自动拉起、登录后自启)?' 'Install as a background service (restarts on crash, starts at login)?')" Y; then
-    run sintbot service install
+    # 从终端读输入:配置引用的环境变量 key 要不要写进服务,sintbot service install 会当场问
+    run sintbot service install < "$TTY"
     SERVICE=1
   fi
 }
@@ -203,6 +220,10 @@ step_done() {
   if [ "$SERVICE" = 1 ]; then
     say "  $(t '· 在群里 @ 机器人说一句话' '· @mention the bot in your group and say something')"
     say "  $(t '· 控制台:http://127.0.0.1:4600(绑群、切模型、看实时活动)' '· Console: http://127.0.0.1:4600 (bind groups, switch models, watch live activity)')"
+  elif [ "$NO_PLATFORM" = 1 ]; then
+    # 没接平台时守护进程起不来(sintbot start 同样会退出):先用配置模式的控制台接平台、绑群
+    say "  $(t '· 还没接聊天平台:运行 sintbot ui 打开控制台,在「设置」里填飞书 / Slack / 企业微信的凭据并绑群(也可以重跑 sintbot setup)' '· No chat platform yet: run sintbot ui to open the console, enter your Slack, Feishu or WeCom credentials under Settings and bind a group (or run sintbot setup again)')"
+    say "  $(t '· 接好平台后:sintbot service install 装成常驻服务(崩溃自动拉起、登录后自启)' '· Then install the background service: sintbot service install (restarts on crash, starts at login)')"
   else
     # 没装服务就没有在跑的守护进程:群里不会有回应,4600 也打不开 —— 先说怎么让它跑起来
     say "  $(t '· 守护进程还没在跑:想先在前台试,运行 sintbot start --ui(控制台 http://127.0.0.1:4600,关掉终端就停)' '· The daemon is not running yet. To try it in the foreground: sintbot start --ui (console at http://127.0.0.1:4600; stops when you close the terminal)')"

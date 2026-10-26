@@ -18,7 +18,7 @@ curl -fsSL https://sintbot.com/install.sh | bash
 2. **npm 源**:你配过 npm 源就照用;还是官方源时先试连一下,连不上(国内常见)本次改用国内镜像 `registry.npmmirror.com`。
 3. **装 sintbot**:`npm i -g sintbot`。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
 4. **配置向导** `sintbot setup`:第一步检查 Claude Code,没装会问要不要现在装(见下一节);之后是地区、模型(当场试跑一轮)、聊天平台、项目根目录、第一个群。**先按 [platforms/](./platforms/) 建好机器人、拉进群**,向导里才有凭据可填。
-5. **常驻服务**:问要不要 `sintbot service install`(崩溃自动拉起、登录后自启)。选不装的话,结尾会告诉你怎么把守护进程跑起来:前台跑 `sintbot start --ui`,或之后再 `sintbot service install`。
+5. **常驻服务**:问要不要 `sintbot service install`(崩溃自动拉起、登录后自启)。选不装的话,结尾会告诉你怎么把守护进程跑起来:前台跑 `sintbot start --ui`,或之后再 `sintbot service install`。向导里聊天平台选了「先不接」的话不会问装服务(守护进程起来会马上退出),而是让你先 `sintbot ui`:在控制台「设置」里接平台、绑群,再装服务。
 
 - 想先看看它会做什么:`curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`(只打印,不执行);脚本源码就是仓库根目录的 [install.sh](../../install.sh)。
 - 没有可交互的终端时(如 CI),向导和常驻服务这两步会跳过,只装包。
@@ -113,8 +113,9 @@ sintbot service status | restart | logs | uninstall
 - 日志:`~/.sbot/logs/err.log`(`sintbot service logs` 看末尾)
 - 服务里固定的是:node 的路径、sbot 入口、配置文件绝对路径,以及当前 shell 的 PATH(`claude` / `codex` 所在目录排最前)。**换了 node、挪了配置、新装了 claude 之后,重跑一次 `sintbot service install`**
 - node 路径:Homebrew 装的 node 实际在带版本号的目录里,升级后旧路径就没了 —— install 会换成指向同一个程序、不带版本号的路径(如 `/opt/homebrew/bin/node`)。nvm / volta 这类找不到稳定路径的照用原路径,并提醒你换 node 版本后重装服务
-- 环境变量:服务里**没有**你 shell 里的变量。配置里写了 `"env:变量名"` 的,install 会点名哪些在服务里拿不到;加 `--pass-env` 把这些值写进服务定义(文件权限设为 600,`--dry-run` 打印时值是遮住的),或者干脆在配置里填明文(配置文件本身就是 600)
+- 环境变量:服务里**没有**你 shell 里的变量。配置里写了 `"env:变量名"` 的,install 会点名哪些在服务里拿不到;可以把这些值写进服务定义(文件权限设为 600,`--dry-run` 打印时值是遮住的)—— 在终端里装时会问一句(默认是),加 `--pass-env` 就不问直接写,换了 key 要重跑 install;或者干脆在配置里填明文(配置文件本身就是 600)
 - 控制台对外(`--ui-host` 非本机地址)而没设密码时,install 直接拒绝 —— 否则服务每次一启动就退出
+- 一个聊天平台(飞书 / Slack / 企业微信)都没配时,install 同样拒绝(退出码 3),理由相同:先 `sintbot ui` 在控制台「设置」里接平台,再装
 - ⚠ 装了服务就别再手动 `sintbot start`:同一个系统用户只允许一个守护进程(锁文件 `~/.sbot/daemon.lock`),第二个会报出已在运行的那个的 pid 后退出。另一台机器或另一个系统用户用**同一个机器人应用**再起一个的话:飞书和 Slack 会把每条消息**随机交给其中一个连接**(另一个就收不到),企业微信则是新连接顶掉旧连接,10 分钟内被顶两次就不再重连
 
 ### 升级
