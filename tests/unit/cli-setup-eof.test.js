@@ -28,6 +28,7 @@ test('setup with stdin already at EOF finishes on defaults instead of looping', 
     assert.ok(out.length < 200000, `output kept growing (${out.length} chars)`)
     assert.equal((out.match(/先跳过\(之后在控制台/g) || []).length, 1, 'model menu shown more than once')
     assert.match(out, /稍后自己装/) // 没人回答时不替他装 Claude Code
+    assert.doesNotMatch(out, /\$ npm install/) // 也不替他装设计图标库或别的东西
     assert.ok(fs.existsSync(cfg), `config not written\n${out.slice(-2000)}`)
   } finally { fs.rmSync(tmp, { recursive: true, force: true }) }
 })

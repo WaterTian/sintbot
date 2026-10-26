@@ -3154,16 +3154,18 @@ function _landingSentence(v, { mobile = false } = {}) {
 //     误报成「描边不合规」,而误报会让整份报告被无视(v0.11.29 间距/阴影不测是同一条理由)。
 // ⚠ `dirs` 从字符串数组改成结构:一个目录是什么形态、什么字重、文件名带什么后缀,**都得显式声明**,
 //   不能再靠对路径做正则(phosphor 的 fill 目录叫 `fill` 不叫 `filled`,正则当场就错)。
+// mb = 装好后实际占的磁盘(2026-10 在 macOS 上 du 实测;几千个小文件按块计,比 npm 报的 unpackedSize 大一倍多)。
+// 向导问「要不要代装」时报合计,版本变了会有出入
 const ICON_LIBS = {
   // lucide 与 tabler 的分发文件属性逐字相同(24 网格 / fill:none / stroke:currentColor / 2 / round),
   // **参数同构才是混用的依据** —— 检查按参数判、不按库名判,兜底也只在同构的两套之间成立。
-  lucide: { pkg: 'lucide-static', label: 'Lucide', license: 'ISC', form: 'stroke', grid: 24, dirs: [{ dir: 'icons', style: 'outlined' }] },
-  tabler: { pkg: '@tabler/icons', label: 'Tabler', license: 'MIT', form: 'stroke', grid: 24, dirs: [{ dir: 'icons/outline', style: 'outlined' }, { dir: 'icons/filled', style: 'filled' }] },
+  lucide: { pkg: 'lucide-static', mb: 66, label: 'Lucide', license: 'ISC', form: 'stroke', grid: 24, dirs: [{ dir: 'icons', style: 'outlined' }] },
+  tabler: { pkg: '@tabler/icons', mb: 49, label: 'Tabler', license: 'MIT', form: 'stroke', grid: 24, dirs: [{ dir: 'icons/outline', style: 'outlined' }, { dir: 'icons/filled', style: 'filled' }] },
   // ⚠ phosphor:**六个字重是六套独立几何**(不是同一套图的粗细参数),且 regular 档文件名无后缀、
   //   其余带 `-{字重}` 后缀(`gear.svg` / `gear-bold.svg`)—— 这是 `suffix` 字段存在的唯一理由。
   //   duotone 用两条 path + opacity 0.2 做副色,副色仍继承 currentColor(不是第二种颜色)。
   phosphor: {
-    pkg: '@phosphor-icons/core', label: 'Phosphor', license: 'MIT', form: 'fill', grid: 256,
+    pkg: '@phosphor-icons/core', mb: 37, label: 'Phosphor', license: 'MIT', form: 'fill', grid: 256,
     dirs: [
       { dir: 'assets/thin', style: 'outlined', weight: 'thin', suffix: '-thin' },
       { dir: 'assets/light', style: 'outlined', weight: 'light', suffix: '-light' },
@@ -3175,7 +3177,7 @@ const ICON_LIBS = {
   },
   // ⚠ pixelart:实心变体是**同目录 `-solid` 后缀**(不是子目录),而且**只覆盖 53/651**(实测)
   //   ⇒ 系统那边**不声明支持实心** —— 声明了就是句假话,八成的名字取不到实心。
-  pixelart: { pkg: 'pixelarticons', label: 'Pixelarticons', license: 'MIT', form: 'fill', grid: 24, dirs: [{ dir: 'svg', style: 'outlined' }] },
+  pixelart: { pkg: 'pixelarticons', mb: 15, label: 'Pixelarticons', license: 'MIT', form: 'fill', grid: 24, dirs: [{ dir: 'svg', style: 'outlined' }] },
 }
 // ── 图标系统(v0.11.53)= 与设计风格**平级**的实体 ────────────────────────────
 // **图标系统 = 图形从哪来 + 叫什么名 + 怎么起名;风格 = 我用哪套 + 怎么画它。**

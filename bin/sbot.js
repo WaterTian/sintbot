@@ -1417,6 +1417,30 @@ async function cmdSetup(rest) {
       codexLoggedIn = !!(codexLogin && codexLogin.ok && codexLogin.loggedIn)
       process.stdout.write(`  ${cyan('✓')} codex ${dim(codexBin)}${codexOut ? '  ' + yellow('没登录 —— GPT 群、生图、额度用完时自动切到 codex 都要它:跑一次 codex login') : ''}\n`)
     }
+    // 设计图标库(Lucide / Tabler / Phosphor / Pixelarticons):agent 出设计图时按名字取图标,缺了只能自己画、
+    // 与设计图对不上。缺哪套问一句一次装齐(默认装);没人回答(输入已结束)不装,doctor 会接着提示
+    {
+      const iconRoots = () => design.iconRoots({ base: path.join(__dirname, '..'), extra: (raw.design && raw.design.iconsDir) || null })
+      const missing = () => Object.entries(iconRoots()).filter(([, v]) => !v).map(([k]) => k)
+      const miss = missing()
+      if (!miss.length) process.stdout.write(`  ${cyan('✓')} 设计图标库 ${dim(Object.values(design.ICON_LIBS).map((l) => l.label).join(' · '))}\n`)
+      else {
+        const libs = miss.map((k) => design.ICON_LIBS[k])
+        const pkgs = libs.map((l) => l.pkg)
+        const mb = Math.round(libs.reduce((n, l) => n + (l.mb || 0), 0))
+        process.stdout.write(`  ${gray('○')} 设计图标库缺 ${libs.map((l) => l.label).join(' / ')}(出设计图时 agent 按名字取图标)\n`)
+        if (await askYN(`现在安装(npm i -g ${pkgs.join(' ')},约 ${mb} MB)?`, true, false)) {
+          const r = installdeps.installPackages(pkgs, { log: (l) => process.stdout.write(dim('  ' + l) + '\n') })
+          const still = missing()
+          if (r.ok && !still.length) process.stdout.write(`  ${cyan('✓')} 设计图标库已装\n`)
+          else if (r.ok) {
+            const pre = installdeps.globalPrefix()
+            const dir = pre ? (process.platform === 'win32' ? path.join(pre, 'node_modules') : path.join(pre, 'lib', 'node_modules')) : 'npm 全局目录下的 node_modules'
+            process.stdout.write(`  ${yellow('!')} 装好了,但 sbot 找不到 ${still.join(' / ')} —— 在配置里把 design.iconsDir 设成 ${dir}\n`)
+          } else process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,之后可以自己装:npm i -g ${pkgs.join(' ')}\n`)
+        } else process.stdout.write(dim(`  要用时再装:npm i -g ${pkgs.join(' ')}`) + '\n')
+      }
+    }
     process.stdout.write(dim(`  配置文件:${cfgPath}`) + '\n\n')
 
     // 地区:决定有国际站的厂商连哪个站、要不要问代理、聊天平台推荐哪个(时区只给默认值,以回答为准)

@@ -58,8 +58,9 @@ When `claude --version` prints a version, you are done. Upgrade with `claude upd
 | Node.js ≥ 22 | `node -v` | The current LTS is fine. The browser takeover page needs Node's built-in WebSocket |
 | Claude Code | `claude --version` | `sintbot setup` can install it for you; see the previous section. With API-key models only, it can stay signed out |
 | Codex CLI (optional) | `codex --version` | Needed only with a ChatGPT account, for GPT groups and image generation. Run `npm i -g @openai/codex`, then `codex login` (browser OAuth, needs a desktop) |
+| Design icon libraries (optional) | `sintbot doctor` (the `design.icons` row) | Lucide, Tabler, Phosphor and Pixelarticons, about 170 MB in all. The agent takes icons from them by name when it draws a design; without them it draws its own, which may not match the design |
 
-The first step of `sintbot setup` checks all three. If Claude Code is missing, it offers to install it (default: yes); if Codex is missing, it offers too (default: no). The login status of both is shown in the model step.
+The first step of `sintbot setup` checks all of these. If Claude Code is missing, it offers to install it (default: yes); if Codex is missing, it offers too (default: no); if any design icon library is missing, it offers to install the missing ones in one go (default: yes). The login status of Claude and Codex is shown in the model step.
 
 ## 1. Install the package
 

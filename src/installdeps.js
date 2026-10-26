@@ -21,8 +21,9 @@ function chooseRegistry(configured, officialReachable) {
   return { registry: MIRROR, reason: 'mirror' }
 }
 
+// pkg 可以是一个包名,也可以是一组(设计图标库四个包一条命令装齐)
 function installArgs(pkg, registry) {
-  return ['install', '-g', pkg, ...(registry ? ['--registry', registry] : [])]
+  return ['install', '-g', ...[].concat(pkg), ...(registry ? ['--registry', registry] : [])]
 }
 
 function runNpm(args, opts = {}) {
@@ -55,6 +56,11 @@ function globalPrefix(run = runNpm) {
 function installGlobal(name, { run = runNpm, log = () => {} } = {}) {
   const pkg = PACKAGES[name]
   if (!pkg) throw new Error(`unknown package: ${name}`)
+  return installPackages(pkg, { run, log })
+}
+
+// 按包名装(一个或一组),选源同上。只给向导装确定的包用(Claude Code / Codex / 设计图标库),不接用户输入的名字
+function installPackages(pkg, { run = runNpm, log = () => {} } = {}) {
   const { registry, reason } = pickRegistry(run)
   if (reason === 'mirror') log(`npm 官方源连不上,改用国内镜像 ${MIRROR}`)
   const args = installArgs(pkg, registry)
@@ -63,4 +69,4 @@ function installGlobal(name, { run = runNpm, log = () => {} } = {}) {
   return { ok: r.status === 0, pkg, registry, code: r.status }
 }
 
-module.exports = { OFFICIAL, MIRROR, PACKAGES, isOfficial, chooseRegistry, installArgs, pickRegistry, globalPrefix, installGlobal }
+module.exports = { OFFICIAL, MIRROR, PACKAGES, isOfficial, chooseRegistry, installArgs, pickRegistry, globalPrefix, installGlobal, installPackages }

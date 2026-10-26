@@ -38,6 +38,7 @@ test('chooseRegistry: official reachable → no flag; unreachable → npmmirror'
 test('installArgs: global install, --registry only when given', () => {
   assert.deepEqual(d.installArgs('@anthropic-ai/claude-code', null), ['install', '-g', '@anthropic-ai/claude-code'])
   assert.deepEqual(d.installArgs('@openai/codex', d.MIRROR), ['install', '-g', '@openai/codex', '--registry', d.MIRROR])
+  assert.deepEqual(d.installArgs(['a', 'b'], d.MIRROR), ['install', '-g', 'a', 'b', '--registry', d.MIRROR])
 })
 
 test('pickRegistry: configured mirror skips the ping entirely', () => {
@@ -77,6 +78,17 @@ test('installGlobal: a failed npm install comes back as ok:false with the exit c
 
 test('installGlobal: unknown package name throws instead of installing something arbitrary', () => {
   assert.throws(() => d.installGlobal('left-pad', { run: fakeNpm().run }), /unknown package/)
+})
+
+test('installPackages: the design icon libraries go in one npm install, same registry choice', () => {
+  const npm = fakeNpm({ ping: true })
+  const pkgs = Object.values(require('../../src/design').ICON_LIBS).map((l) => l.pkg)
+  const r = d.installPackages(pkgs, { run: npm.run })
+  assert.equal(r.ok, true)
+  const inst = npm.calls.filter((c) => c.args[0] === 'install')
+  assert.equal(inst.length, 1)
+  assert.deepEqual(inst[0].args, ['install', '-g', 'lucide-static', '@tabler/icons', '@phosphor-icons/core', 'pixelarticons'])
+  assert.equal(inst[0].opts.stdio, 'inherit')
 })
 
 test('globalPrefix: trimmed npm prefix -g', () => {

@@ -56,8 +56,9 @@ SintBot 每一轮都调用本机的 `claude` 命令行干活(Codex 群调用 `co
 | Node ≥ 22 | `node -v` | 当前 LTS 即可(浏览器接管页要用 Node 自带的 WebSocket) |
 | Claude Code | `claude --version` | 可以让 `sintbot setup` 替你装;安装与登录见上一节。只用 DeepSeek 等 API key 模型的话装了不登录也行 |
 | Codex CLI(可选) | `codex --version` | 有 ChatGPT 账号才用得上:GPT 群与生图。`npm i -g @openai/codex` 后 `codex login`(浏览器 OAuth,要图形界面) |
+| 设计图标库(可选) | `sintbot doctor` 的 `design.icons` 行 | Lucide、Tabler、Phosphor、Pixelarticons 四套,合计约 170 MB。agent 出设计图时按名字从这里取图标;没装就只能自己画,和设计图对不上 |
 
-`sintbot setup` 第一步会检查这三样:缺 Claude Code 会问要不要现在装(默认装),缺 Codex 也会问(默认不装);两者的登录状态在模型那一步一起显示。
+`sintbot setup` 第一步会检查这几样:缺 Claude Code 会问要不要现在装(默认装),缺 Codex 也会问(默认不装),设计图标库缺哪套也会问要不要一次装齐(默认装);Claude 与 Codex 的登录状态在模型那一步一起显示。
 
 ## 1. 装包
 
