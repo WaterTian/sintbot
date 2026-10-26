@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.0.10",
+    "name": "A steadier background service",
+    "items": [
+      {
+        "t": "No service without a chat platform",
+        "d": "If no Feishu, Slack or WeCom bot is connected yet, installing the background service now stops and points you to the console to connect one and bind a group first. Before, the service would exit as soon as it started."
+      },
+      {
+        "t": "Keys from environment variables reach the service",
+        "d": "When the config takes keys from environment variables, installing the service now asks whether to write them into the service definition, readable only by you. Without them, models that use those keys do not work in the service."
+      },
+      {
+        "t": "Clearer wording",
+        "d": "Trial runs show the model from your config instead of the model's own claim (third-party models often call themselves Claude). The health check gives a missing chat platform a row of its own, and in a local terminal trial the model-switch hint says how to switch."
+      }
+    ]
+  },
+  {
     "version": "1.0.9",
     "name": "A steadier setup wizard",
     "items": [
