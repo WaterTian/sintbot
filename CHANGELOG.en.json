@@ -1,5 +1,27 @@
 [
   {
+    "version": "1.0.12",
+    "name": "Simpler install: the terminal sets up the model, the console does the rest",
+    "items": [
+      {
+        "t": "The terminal only sets up the model",
+        "d": "The setup wizard no longer asks whether the machine is in mainland China, or for a proxy, a projects folder or chat platform credentials. In the terminal it checks the environment and sets up a model with a live trial turn; everything else is set in the console afterwards. The old full set of questions is still available as sintbot setup --full, for servers without a browser."
+      },
+      {
+        "t": "A console right after install",
+        "d": "The background service now installs even before a chat platform is connected: it runs the console only (http://127.0.0.1:4600), and the one-line install opens it in your browser. Connect a platform under Settings and save; the service restarts itself within seconds and connects. The Overview page has a new Get started checklist."
+      },
+      {
+        "t": "Bot name and network proxy in the console",
+        "d": "Settings → Bot & network sets how the bot refers to itself and the network proxy. Service install can also carry your terminal's proxy into the service."
+      },
+      {
+        "t": "English throughout, and small fixes",
+        "d": "The installer and the wizard speak Chinese or English following the system language (on macOS, the system language). The site a Zhipu or MiniMax key belongs to is found automatically. An up-to-date install is no longer reinstalled, and sintbot ui opens the running service's console. Fixed wizard questions being overwritten by \"> \" and a stray *.0.1 in the direct-connection list."
+      }
+    ]
+  },
+  {
     "version": "1.0.11",
     "name": "Icon libraries from the setup wizard",
     "items": [
