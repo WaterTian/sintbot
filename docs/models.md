@@ -19,7 +19,7 @@ With no Claude subscription and no ChatGPT account, we **recommend DeepSeek**. S
 2. **Give it to SintBot**, in any of these ways:
    - **`sintbot setup`.** When it finds no Claude or Codex login, it recommends DeepSeek and runs a trial turn as soon as you paste the key; choose "another provider" for the others. The default model is set to whichever one passed the trial.
    - **The console.** Go to Models → Add model, pick the preset and enter the key. For an international site, change the endpoint to the one in the table.
-   - **An environment variable**, such as `export DEEPSEEK_API_KEY=…` (the example config reads `env:DEEPSEEK_API_KEY`). A service does not see your shell's variables, so use `sintbot service install --pass-env`; see [install.md](./install.md).
+   - **An environment variable**, such as `export DEEPSEEK_API_KEY=…` (the example config reads `env:DEEPSEEK_API_KEY`). A service does not see your shell's variables; `sintbot service install` writes the value into the service definition for you (run it again after changing the key). See [install.md](./install.md).
 3. **Switch in the group.** Send `/model deepseek`, or pick the model for that group in the console.
 
 | Provider | Where to get a key | Endpoint (`baseUrl`) | International endpoint | Default model | Key variable |

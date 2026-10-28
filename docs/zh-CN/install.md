@@ -16,8 +16,8 @@ curl -fsSL https://sintbot.com/install.sh | bash
 
 1. **环境:Node 22+**:没有或版本太旧时,Mac 上有 Homebrew 就用它装 / 升级;没有 Homebrew(或在 Linux 上)会给出 [nodejs.org](https://nodejs.org) 的下载地址后停下,装好 Node 再运行一次脚本。
    **npm 源**:你配过 npm 源就照用;还是官方源时先试连一下,连不上(国内常见)本次改用国内镜像 `registry.npmmirror.com`。
-2. **装 sintbot**:`npm i -g sintbot`。已经是最新版就直接跳过,旧版本会问要不要升级。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
-3. **配模型** `sintbot setup`:检查 Claude Code,没装会问要不要现在装(见下一节);然后配模型,当场试跑一轮。见下文[第 2 节](#2-配置sintbot-setup)。
+2. **装 sintbot**:`npm i -g sintbot`。已经是最新版就直接跳过,旧版本直接升级。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
+3. **配模型** `sintbot setup`:检查 Claude Code,没装就装上(见下一节);然后配模型,当场试跑一轮。见下文[第 2 节](#2-配置sintbot-setup)。
 4. **后台服务**:问要不要 `sintbot service install`(登录后自启、崩溃自动拉起)。装好后控制台常开在 `http://127.0.0.1:4600` —— 还没接聊天平台也开着,脚本会在浏览器里打开它(SSH 连进来装的只打印地址)。服务已经在跑、这次也没升级就跳过这一步;升级了会问要不要重启服务(重启会在已接的群里播报升级)。
 
 结尾给出控制台地址和接下来做什么:在「设置」里接飞书 / Slack / 企业微信,在「群 · 项目」里绑群,然后在群里 @ 机器人。不接平台也能先用 `sintbot chat` 在终端里试。
@@ -33,7 +33,7 @@ SintBot 每一轮都调用本机的 `claude` 命令行干活(Codex 群调用 `co
 
 **安装**,任选一种:
 
-- 让向导装:`sintbot setup` 第一步发现没装会问「现在安装 Claude Code?」,回车就装(就是下一条的 npm 命令,源连不上会自动换镜像)。
+- 让向导装:`sintbot setup` 在终端里运行时发现没装就直接装(就是下一条的 npm 命令,源连不上会自动换镜像)。
 - npm:`npm i -g @anthropic-ai/claude-code`(国内连不上官方源时加 `--registry https://registry.npmmirror.com`)。
 - 官方安装程序:见 [Claude Code 安装说明](https://code.claude.com/docs/zh-CN/setup)。
 
@@ -60,7 +60,7 @@ SintBot 每一轮都调用本机的 `claude` 命令行干活(Codex 群调用 `co
 | Codex CLI(可选) | `codex --version` | 有 ChatGPT 账号才用得上:GPT 群与生图。`npm i -g @openai/codex` 后 `codex login`(浏览器 OAuth,要图形界面) |
 | 设计图标库(可选) | `sintbot doctor` 的 `design.icons` 行 | Lucide、Tabler、Phosphor、Pixelarticons 四套,合计约 170 MB。agent 出设计图时按名字从这里取图标;没装就只能自己画,和设计图对不上 |
 
-`sintbot setup` 第一步会检查这几样:缺 Claude Code 会问要不要现在装(默认装),缺 Codex 也会问(默认不装),设计图标库缺哪套也会问要不要一次装齐(默认装);Claude 与 Codex 的登录状态在模型那一步一起显示。
+`sintbot setup` 第一步会检查这几样:缺 Claude Code 就直接装;Codex 和设计图标库是可选的,缺了只打印装法、不问;Claude 与 Codex 的登录状态在模型那一步一起显示。
 
 ## 1. 装包
 
@@ -85,18 +85,18 @@ npm link            # 可选:把 sbot 命令链到全局
 
 交互式向导,回车即默认(方括号里的值,`(Y/n)` 大写的那个)。只问这台机器跑起来需要的两样:
 
-1. **环境**:Claude Code、Codex、设计图标库,缺的会问要不要现在装(见上文「前置」)
+1. **环境**:Claude Code(缺了就装)、Codex 和设计图标库(可选,缺了打印装法),见上文「前置」
 2. **模型**:先显示 Claude 订阅、ChatGPT(Codex)的登录状态和已有 key 的模型,按这个顺序推荐:
-   - Claude 已登录 → 默认 Claude;否则 Codex 已登录 → 默认 Codex。此时只问要不要再加一个用 API key 的模型
+   - Claude 已登录 → 默认 Claude;否则 Codex 已登录 → 默认 Codex。不再多问;别的模型在控制台「模型 · 库」里加
    - 都没有 → **推荐 DeepSeek**:告诉你去 platform.deepseek.com 拿 key,粘贴后**当场试跑一轮**。也可以选别家(智谱 GLM / MiniMax / 火山方舟)、另开终端登录 Claude 或 Codex 后回来重新检测,或先跳过
    - 智谱 GLM、MiniMax 有国际站(Z.ai / minimax.io),key 只在开它的那个站能用:向导先试一个站,认证失败自动换另一个站再试;没装 Claude Code 试跑不了时,才问 key 是哪个站开的
    - 试跑失败会说原因:key 不对、余额不足或没实名、连不上(是不是开着全局代理)、模型名不对;可以重新粘贴再试
-   - 有多个能用的模型时问默认用哪个(群里 `/model` 随时切);默认模型还没试跑过会问要不要试一轮
+   - 默认模型由向导自动选(已登录的订阅优先,其次试跑通过的,再次有 key 的),还没试跑过就直接试一轮;群里 `/model` 随时切
    - 没装或没登录 codex 时,codex 预设和「额度用完自动切到 codex」不写进配置。Kimi 不在预设里,要在控制台「模型 · 库 → 添加模型 → 自定义」添加。见 [models.md](./models.md)
 
 配置写到 `~/.sbot/config.json`(权限 600);当前目录已有 `sbot.config.json` 时更新那份。再跑一次 `sintbot setup` 只补缺项,不动已填的。
 
-向导最后做一次简短体检,只列失败项;完整的看 `sintbot doctor`。终端里设了代理、配置里没有时,会建议装服务时把代理带进去(见下一节),或在控制台里填。
+向导最后做一次简短体检,只列失败项;完整的看 `sintbot doctor`。
 
 **其余的都在控制台里配**(`sintbot ui`,装了服务就是 `http://127.0.0.1:4600`):
 
@@ -122,7 +122,7 @@ sintbot service status | restart | logs | uninstall
 - 日志:`~/.sbot/logs/err.log`(`sintbot service logs` 看末尾)
 - 服务里固定的是:node 的路径、sbot 入口、配置文件绝对路径,以及当前 shell 的 PATH(`claude` / `codex` 所在目录排最前)。**换了 node、挪了配置、新装了 claude 之后,重跑一次 `sintbot service install`**
 - node 路径:Homebrew 装的 node 实际在带版本号的目录里,升级后旧路径就没了 —— install 会换成指向同一个程序、不带版本号的路径(如 `/opt/homebrew/bin/node`)。nvm / volta 这类找不到稳定路径的照用原路径,并提醒你换 node 版本后重装服务
-- 环境变量:服务里**没有**你 shell 里的变量。配置里写了 `"env:变量名"` 的,install 会点名哪些在服务里拿不到(配置里没写代理、shell 里有 `https_proxy` 这类变量时,也一起列出);可以把这些值写进服务定义(文件权限设为 600,`--dry-run` 打印时值是遮住的)—— 在终端里装时会问一句(默认是),加 `--pass-env` 就不问直接写,换了 key 要重跑 install;或者干脆在配置里填明文(配置文件本身就是 600;代理在控制台「设置 → 机器人与网络」填)
+- 环境变量:服务里**没有**你 shell 里的变量,install 会把需要的值直接写进服务定义(文件权限 600,`--dry-run` 打印时值是遮住的):配置里所有 `"env:变量名"` 引用,以及配置没写代理时 shell 里的 `https_proxy` 这类变量。换了 key 或代理要重跑 install;或者干脆在配置里填明文(配置文件本身就是 600;代理在控制台「设置 → 机器人与网络」填)
 - 控制台对外(`--ui-host` 非本机地址)而没设密码时,install 直接拒绝 —— 否则服务每次一启动就退出
 - 还没接聊天平台也照装:服务先只开控制台,在「设置」里接好平台、保存后,几秒内自己重启并连上(1.0.10、1.0.11 这种情况会拒绝安装)
 - 服务在跑时运行 `sintbot ui`,会直接打开服务里的控制台,不报端口被占用

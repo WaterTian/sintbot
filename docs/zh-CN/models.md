@@ -19,7 +19,7 @@
 2. **填进 SintBot**,任选一种:
    - `sintbot setup`:没检测到 Claude / Codex 登录时会直接推荐 DeepSeek,粘贴 key 后当场试跑一轮;要用别家选「用别家」。默认模型自动设成跑通的那家。
    - 控制台「模型 · 库 → 添加模型」选对应预设,填 key(国际站把端点改成下表那一列)。
-   - 环境变量:`export DEEPSEEK_API_KEY=…`(示例配置里写的是 `env:DEEPSEEK_API_KEY`)。装成常驻服务时,服务拿不到 shell 里的变量,要 `sintbot service install --pass-env`,见 [install.md](./install.md)。
+   - 环境变量:`export DEEPSEEK_API_KEY=…`(示例配置里写的是 `env:DEEPSEEK_API_KEY`)。装成常驻服务时,服务拿不到 shell 里的变量,`sintbot service install` 会自动把值写进服务定义(换了 key 要重跑一次),见 [install.md](./install.md)。
 3. **在群里切换**:发 `/model deepseek`,或在控制台给这个群选模型。
 
 | provider 名 | 在哪拿 key | 端点 `baseUrl` | 国际站端点 | 默认模型 | key 变量 |

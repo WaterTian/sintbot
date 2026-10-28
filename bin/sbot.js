@@ -211,13 +211,13 @@ const SUBHELP = {
     + '      --send 直接把一张卡发进群(带当前页面截图 + 「接管浏览器」按钮 + 有效期;有人点开始接管卡片自动翻成「正在接管中」)—— 群里跑时就用它,别自己贴链接\n'
     + '      对方在手机或电脑上打开就能直接操作这台机器的浏览器,登录态留在浏览器里,之后 agent 自己接着干\n'
     + '      要守护进程带控制台在跑(sintbot start --ui);群里跑时控制台地址已注入,终端里可设 SBOT_UI_URL=http://127.0.0.1:4600',
-  service: '用法: sintbot service install [--ui-host <ip>] [--config <path>] [--pass-env] [--dry-run]\n'
+  service: '用法: sintbot service install [--ui-host <ip>] [--config <path>] [--dry-run]\n'
     + '      sintbot service status | restart | logs [-n <行数>] | uninstall\n'
     + '      把 sintbot start --ui 装成常驻服务:崩溃自动拉起、登录后自启(macOS = launchd,Linux = systemd --user)\n'
     + '      install 写单元文件并立即启动;服务里固定用当前的 node、sbot 与配置文件的绝对路径,PATH 取当前 shell 的\n'
     + '      --dry-run 只打印要写的单元文件,不动系统;--ui-host 0.0.0.0 对局域网开控制台(须先 sintbot ui --set-password,否则拒装)\n'
-    + '      服务拿不到当前 shell 的环境变量:配置里 env:VAR 引用的 key 会被点名;--pass-env 把它们的值写进单元文件(文件权限 600),终端里装时不给也会问一句\n'
-    + '      还没接任何聊天平台时不装(退出码 3):服务会一启动就退出 —— 先 sintbot ui 在控制台接平台\n'
+    + '      服务拿不到当前 shell 的环境变量:配置里 env:VAR 引用的 key、以及配置没写代理时 shell 里的代理变量,值直接写进单元文件(文件权限 600);换了要重跑 install\n'
+    + '      还没接任何聊天平台也照装:服务先只开控制台,在「设置」里接好平台后自己重启连上\n'
     + '      Windows 不自动装:打印 NSSM / pm2 的现成命令。日志在 ~/.sbot/logs/;同一份状态只许一个 daemon,第二个会直接报错退出',
   version: '用法: sintbot version        (也认 sbot --version / -v)\n'
     + '      打印版本号',
@@ -1275,23 +1275,17 @@ async function cmdService(rest) {
     // 1.0.10–1.0.11 在这里拦下(退出码 3),结果装完没有任何地方可去 —— 控制台也打不开
     const plat = platformsConfigured(loadConfig(configPath))
     const noPlatform = !plat.feishu && !plat.wecom && !plat.slack
-    // 服务进程拿不到当前 shell 的环境变量:点名配置里的 env: 引用;--pass-env 才把值写进单元文件。
-    // 终端里装又没给 --pass-env 时问一句(默认是):不带进去,服务里用这些 key 的模型 / 平台直接用不了。
-    // 配置里没写代理、终端里有代理变量时一起列进这一问(不另问):不带进去,服务里连 Claude / ChatGPT 会直连失败
+    // 服务进程拿不到当前 shell 的环境变量:配置里 env: 引用的 key、配置没写代理时 shell 里的代理变量,值直接写进单元文件(600)。
+    // 1.0.10–1.0.12 先问一句;用户 10-28 定「安装过程要精简」⇒ 不问也不说(不带进去,服务里这些模型 / 平台、连 Claude / ChatGPT 都用不了)。
+    // --pass-env 仍认(以前要它才写),现在是默认行为
     const refs = svc.envRefs(raw)
     const inShell = refs.filter((v) => process.env[v])
     const nowhere = refs.filter((v) => !process.env[v])
     const shellProxy = PROXY_ENV_KEYS.filter((k) => process.env[k])
     const proxyVars = (raw.proxy && raw.proxy.http) || !shellProxy.some((k) => !/^no_proxy$/i.test(k)) ? [] : shellProxy // 只有 NO_PROXY 不算有代理
     const carry = [...inShell, ...proxyVars]
-    let passEnv = !!values['pass-env']
-    if (!passEnv && carry.length && process.stdin.isTTY) {
-      const rl = readline.createInterface({ input: process.stdin, output: process.stderr })
-      const a = await new Promise((res) => rl.question(`${cyan('?')} ${tr(`终端里的环境变量 ${carry.join(' ')} 服务里拿不到 —— 把它们的值写进服务定义吗?(文件权限 600;以后改了要重跑这条命令)`, `The service can't see these variables from your terminal: ${carry.join(' ')}. Write their values into the service definition? (file mode 600; re-run this command after changing them)`)} ${dim('(Y/n)')} `, res))
-      rl.close()
-      passEnv = !/^n/i.test(String(a).trim())
-    }
-    const env = passEnv ? Object.fromEntries(carry.map((v) => [v, process.env[v]])) : {}
+    const env = Object.fromEntries(carry.map((v) => [v, process.env[v]]))
+    const quiet = process.env.SINTBOT_INSTALLER === '1' // install.sh 调起:只报结果一行,细节留给 sintbot service status
     const tools = ['claude', 'codex'].map((n) => whichSync(n)).filter(Boolean)
     const node = svc.stableNodeBin({ execPath: process.execPath, candidates: [whichSync('node')] })
     const sbotBin = path.resolve(__dirname, 'sbot.js')
@@ -1306,20 +1300,23 @@ async function cmdService(rest) {
     })
     if (node.warn) process.stderr.write(yellow('⚠ ' + node.warn) + '\n')
     if (svc.versionedPath(sbotBin)) process.stderr.write(yellow(`⚠ sbot 装在带版本号的 node 目录下(${sbotBin}),换 node 版本后要重装 sintbot 并重跑 sintbot service install`) + '\n')
-    if (inShell.length && !passEnv) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${inShell.join(' ')} 只在当前终端里有,服务里拿不到 —— 加 --pass-env 把值写进服务定义(文件权限 600),或把值直接写进配置(配置本身是 600)`) + '\n')
-    else if (proxyVars.length && !passEnv) process.stderr.write(dim(tr(`  终端里的代理(${proxyVars.join(' ')})没带进服务;服务里要用代理,在控制台「设置 → 机器人与网络」填`, `  Your terminal's proxy (${proxyVars.join(' ')}) was not carried into the service; to use a proxy there, set it in the console under Settings → Bot & network`)) + '\n')
-    if (noPlatform) process.stderr.write(dim(tr('  还没接聊天平台:服务先只开控制台,在「设置」里接好平台后会自动重启并连上', 'No chat platform yet: the service starts with just the console; once you connect one under Settings it restarts itself and connects')) + '\n')
+    if (noPlatform && !quiet) process.stderr.write(dim(tr('  还没接聊天平台:服务先只开控制台,在「设置」里接好平台后会自动重启并连上', 'No chat platform yet: the service starts with just the console; once you connect one under Settings it restarts itself and connects')) + '\n')
     if (nowhere.length) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${nowhere.join(' ')} 当前终端里也没有 —— 用到它们的模型 / 平台不会工作`) + '\n')
     if (platform !== 'darwin' && platform !== 'linux') { process.stdout.write(svc.windowsHint(spec) + '\n'); return }
     if (!tools.length) process.stderr.write(yellow('⚠ PATH 里没找到 claude / codex —— 服务能起,但群里的轮次会失败;装好后重跑 sintbot service install') + '\n')
-    if (values['dry-run']) { // 打印时遮掉 --pass-env 带进来的值(多半是 key)
+    if (values['dry-run']) { // 打印时遮掉带进服务的值(多半是 key)
       const shown = { ...spec, env: Object.fromEntries(Object.keys(spec.env).map((k) => [k, '<已隐藏>'])) }
       process.stdout.write(dim(`# ${svc.unitPath(platform, home)}`) + '\n' + svc.render(platform, shown)); return
     }
     const r = svc.install(spec, { platform, home })
+    if (quiet) { // 安装脚本里:成功只一行;失败照常把每一步列出来
+      await new Promise((res) => setTimeout(res, 1500))
+      const st = svc.status({ platform, home })
+      if (st.running && r.steps.every((s) => s.ok)) { process.stderr.write(`  ${cyan('✓')} ${tr('后台服务已启动', 'Background service started')}\n`); return }
+    }
     process.stderr.write(cyan('✓ ') + tr(`已写入 ${r.file}`, `Wrote ${r.file}`) + (r.backup ? dim(tr(`(原文件备份为 ${path.basename(r.backup)})`, ` (previous file backed up as ${path.basename(r.backup)})`)) : '') + '\n')
     for (const s of r.steps) process.stderr.write(`${s.ok ? cyan('✓') : red('✗')} ${dim(s.cmd)}${s.err && !s.ok ? '  ' + red(s.err.split('\n')[0]) : ''}\n`)
-    await new Promise((res) => setTimeout(res, 1500))
+    if (!quiet) await new Promise((res) => setTimeout(res, 1500))
     process.stderr.write(`${tr('状态', 'Status')}:${nice(svc.status({ platform, home }))}\n` + dim(`${tr('配置', 'Config')}:${spec.args[spec.args.indexOf('--config') + 1]}\n${tr('日志', 'Log')}:${spec.errLog}\n`))
     if (platform === 'linux') process.stderr.write(dim('提示:要开机就起(不必先登录),跑一次 loginctl enable-linger $USER') + '\n')
     if (r.steps.some((s) => !s.ok)) process.exit(1)
@@ -1365,11 +1362,11 @@ async function cmdSetup(rest) {
   let seeded = false
   if (fs.existsSync(cfgPath)) {
     try { raw = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) } catch (e) { return die(`existing config is invalid JSON: ${e.message}`) }
-    process.stdout.write(dim(T(`更新已有配置 ${cfgPath}`, `Updating the existing config ${cfgPath}`)) + '\n')
+    if (!fromInstaller) process.stdout.write(dim(T(`更新已有配置 ${cfgPath}`, `Updating the existing config ${cfgPath}`)) + '\n')
   } else if (fs.existsSync(examplePath)) {
     raw = JSON.parse(fs.readFileSync(examplePath, 'utf8'))
     seeded = true
-    process.stdout.write(dim(T(`新建配置,问完再写入 ${cfgPath}`, `New config; it is written to ${cfgPath} at the end`)) + '\n')
+    if (!fromInstaller) process.stdout.write(dim(T(`新建配置,问完再写入 ${cfgPath}`, `New config; it is written to ${cfgPath} at the end`)) + '\n')
   } else {
     // claude 不钉 model(v0.11.1):写死会覆盖 CLI 自己的默认,每出一代新模型就落后一代(v0.11.0 拍板)
     raw = { agent: { bin: 'claude', permissionMode: 'dontAsk', maxTurnTimeMins: 10, maxConcurrent: 2 }, defaultProvider: 'claude', providers: { claude: {} }, groups: {} }
@@ -1430,7 +1427,7 @@ async function cmdSetup(rest) {
   try {
     // 安装脚本调起时它自己已经说过「这里只配模型」,不再重复
     const scope = fromInstaller ? T('(Enter 用默认值)', ' (Enter accepts the default)') : T('配模型(聊天平台、代理、项目目录装完在控制台里配;Enter 用默认值)', ' model setup (chat platform, proxy and project folder are set in the console afterwards; Enter accepts the default)')
-    process.stdout.write('\n' + cyan('sintbot setup') + dim(full ? ' — 完整配置(Enter 用默认值)' : fromInstaller ? scope : T(' — ' + scope, ' —' + scope)) + '\n\n')
+    if (!fromInstaller) process.stdout.write('\n' + cyan('sintbot setup') + dim(full ? ' — 完整配置(Enter 用默认值)' : T(' — ' + scope, ' —' + scope)) + '\n\n')
 
     // 第 0 步:环境检查 —— 只报不拦(缺了照样能把配置写完,最后的体检会接着报)。
     // 缺 claude / codex 时问一句替新用户装(npm i -g;官方源连不上自动换国内镜像,见 src/installdeps.js)。
@@ -1455,8 +1452,8 @@ async function cmdSetup(rest) {
     if (claudeBin) process.stdout.write(`  ${cyan('✓')} claude ${dim(claudeBin)}\n`)
     else {
       process.stdout.write(`  ${red('✗')} ${T('没找到 claude(Claude Code CLI)—— 每一轮都靠它干活', 'claude (Claude Code CLI) not found; every turn runs on it')}\n`)
-      // 没人回答(输入已结束)就不替他装软件
-      if (await askYN(T(`现在安装 Claude Code(npm i -g ${installdeps.PACKAGES.claude})?`, `Install Claude Code now (npm i -g ${installdeps.PACKAGES.claude})?`), true, false)) claudeBin = installDep('claude', claudeName)
+      // 必需组件:终端里直接装,不问(1.0.13,用户定「安装要精简」);不在终端里(管道、CI)不替他装
+      if (process.stdin.isTTY) claudeBin = installDep('claude', claudeName)
       else process.stdout.write(dim(T(`  稍后自己装:npm i -g ${installdeps.PACKAGES.claude}`, `  Install it later: npm i -g ${installdeps.PACKAGES.claude}`)) + '\n')
     }
     // Claude 登录态留到模型步一起报,那里据此决定推荐走哪条路。官方非交互子命令,0.2s、不联网;
@@ -1470,9 +1467,8 @@ async function cmdSetup(rest) {
     let codexBin = whichSync('codex')
     let codexLoggedIn = false
     if (!codexBin) {
-      process.stdout.write(`  ${gray('○')} ${T('没找到 codex(可选:有 ChatGPT 账号时跑 GPT 群、生图)', 'codex not found (optional: with a ChatGPT account it runs GPT groups and image generation)')}\n`)
-      if (await askYN(T(`现在安装 Codex CLI(npm i -g ${installdeps.PACKAGES.codex})?有 ChatGPT 账号才用得上`, `Install Codex CLI now (npm i -g ${installdeps.PACKAGES.codex})? Only useful with a ChatGPT account`), false)) codexBin = installDep('codex', 'codex')
-      else process.stdout.write(dim(T(`  要用时再装:npm i -g ${installdeps.PACKAGES.codex},再 codex login`, `  When you need it: npm i -g ${installdeps.PACKAGES.codex}, then codex login`)) + '\n')
+      // 可选组件不问,一行给装法
+      process.stdout.write(`  ${gray('○')} ${T(`codex 没装(可选,有 ChatGPT 账号时用):npm i -g ${installdeps.PACKAGES.codex},再 codex login`, `codex not installed (optional, for a ChatGPT account): npm i -g ${installdeps.PACKAGES.codex}, then codex login`)}\n`)
     }
     if (codexBin) {
       // 只读本机登录态(不联网);没登录时,GPT 群、生图、claude 额度用完自动切到 codex 都不会成
@@ -1481,31 +1477,19 @@ async function cmdSetup(rest) {
       codexLoggedIn = !!(codexLogin && codexLogin.ok && codexLogin.loggedIn)
       process.stdout.write(`  ${cyan('✓')} codex ${dim(codexBin)}${codexOut ? '  ' + yellow(T('没登录 —— GPT 群、生图、额度用完时自动切到 codex 都要它:跑一次 codex login', 'not logged in; GPT groups, image generation and switching to codex when quota runs out all need it: run codex login')) : ''}\n`)
     }
-    // 设计图标库(Lucide / Tabler / Phosphor / Pixelarticons):agent 出设计图时按名字取图标,缺了只能自己画、
-    // 与设计图对不上。缺哪套问一句一次装齐(默认装);没人回答(输入已结束)不装,doctor 会接着提示
+    // 设计图标库(Lucide / Tabler / Phosphor / Pixelarticons):agent 出设计图时按名字取图标,缺了只能自己画。
+    // 可选组件,不问(1.0.13 起;1.0.11–1.0.12 问一句代装):缺了给一行装法,doctor 也会接着提示
     {
-      const iconRoots = () => design.iconRoots({ base: path.join(__dirname, '..'), extra: (raw.design && raw.design.iconsDir) || null })
-      const missing = () => Object.entries(iconRoots()).filter(([, v]) => !v).map(([k]) => k)
-      const miss = missing()
-      if (!miss.length) process.stdout.write(`  ${cyan('✓')} ${T('设计图标库', 'Design icon libraries')} ${dim(Object.values(design.ICON_LIBS).map((l) => l.label).join(' · '))}\n`)
+      const roots = design.iconRoots({ base: path.join(__dirname, '..'), extra: (raw.design && raw.design.iconsDir) || null })
+      const libs = Object.entries(roots).filter(([, v]) => !v).map(([k]) => design.ICON_LIBS[k])
+      if (!libs.length) process.stdout.write(`  ${cyan('✓')} ${T('设计图标库', 'Design icon libraries')} ${dim(Object.values(design.ICON_LIBS).map((l) => l.label).join(' · '))}\n`)
       else {
-        const libs = miss.map((k) => design.ICON_LIBS[k])
-        const pkgs = libs.map((l) => l.pkg)
+        const pkgs = libs.map((l) => l.pkg).join(' ')
         const mb = Math.round(libs.reduce((n, l) => n + (l.mb || 0), 0))
-        process.stdout.write(`  ${gray('○')} ${T(`设计图标库缺 ${libs.map((l) => l.label).join(' / ')}(出设计图时 agent 按名字取图标)`, `Design icon libraries missing: ${libs.map((l) => l.label).join(' / ')} (the agent picks icons by name when drawing designs)`)}\n`)
-        if (await askYN(T(`现在安装(npm i -g ${pkgs.join(' ')},约 ${mb} MB)?`, `Install them now (npm i -g ${pkgs.join(' ')}, about ${mb} MB)?`), true, false)) {
-          const r = installdeps.installPackages(pkgs, { log: (l) => process.stdout.write(dim('  ' + l) + '\n') })
-          const still = missing()
-          if (r.ok && !still.length) process.stdout.write(`  ${cyan('✓')} ${T('设计图标库已装', 'Design icon libraries installed')}\n`)
-          else if (r.ok) {
-            const pre = installdeps.globalPrefix()
-            const dir = pre ? (process.platform === 'win32' ? path.join(pre, 'node_modules') : path.join(pre, 'lib', 'node_modules')) : 'npm 全局目录下的 node_modules'
-            process.stdout.write(`  ${yellow('!')} ${T(`装好了,但 sbot 找不到 ${still.join(' / ')} —— 在配置里把 design.iconsDir 设成 ${dir}`, `Installed, but sbot cannot find ${still.join(' / ')}; set design.iconsDir to ${dir} in the config`)}\n`)
-          } else process.stdout.write(`  ${red('✗')} ${T(`安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,之后可以自己装:npm i -g ${pkgs.join(' ')}`, `Install failed (exit code ${r.code}), most likely the npm global folder is not writable; install them later: npm i -g ${pkgs.join(' ')}`)}\n`)
-        } else process.stdout.write(dim(T(`  要用时再装:npm i -g ${pkgs.join(' ')}`, `  When you need them: npm i -g ${pkgs.join(' ')}`)) + '\n')
+        process.stdout.write(`  ${gray('○')} ${T(`设计图标库没装(可选,出设计图时用;约 ${mb} MB):npm i -g ${pkgs}`, `Design icon libraries not installed (optional, used for designs; about ${mb} MB): npm i -g ${pkgs}`)}\n`)
       }
     }
-    process.stdout.write(dim(T(`  配置文件:${cfgPath}`, `  Config file: ${cfgPath}`)) + '\n\n')
+    process.stdout.write('\n')
 
     // 不问「在不在中国大陆」(隐私,用户 10-28 定):只按时区猜,决定有国际站的厂商先试哪个站、--full 里推荐哪个平台;不写进配置
     const mainland = setupmodels.looksMainland()
@@ -1608,14 +1592,8 @@ async function cmdSetup(rest) {
     process.stdout.write(`  ${col('ChatGPT(Codex)', 'ChatGPT (Codex)')} ${codexReady() ? cyan(T('✓ 已登录', '✓ logged in')) : gray(codexBin ? T('○ 未登录', '○ not logged in') : T('○ 没装 codex', '○ codex not installed'))}\n`)
     if (readyKeyed().length) process.stdout.write(`  ${col('API key 模型', 'API key models')} ${cyan('✓')} ${readyKeyed().join(' ')}\n`)
     let route = setupmodels.subscriptionRoute({ claudeLoggedIn, codexLoggedIn: codexReady() })
-    if (route || readyKeyed().length) {
-      // 已经有能用的:不打扰,只问要不要再加一个(群里 /model 可切)
-      if (await askYN(T('再加一个用 API key 的模型吗?(DeepSeek 等,群里 /model 可切换)', 'Add another model that uses an API key? (DeepSeek etc.; switch in a group with /model)'), false)) {
-        process.stdout.write(`    1) DeepSeek ${dim(T('(推荐,按量付费)', '(recommended, pay as you go)'))}\n    2) ${T('其他:智谱 GLM / MiniMax / 火山方舟', 'Others: Zhipu GLM / MiniMax / Volcano Ark')}\n`)
-        if ((await ask(T('选', 'Choose'), '1')) === '2') await pickOthers()
-        else await configureKeyed(setupmodels.RECOMMENDED)
-      }
-    } else {
+    // 已经有能用的就不再问(1.0.13 起不问「再加一个」:加模型在控制台「模型 · 库」)
+    if (!route && !readyKeyed().length) {
       process.stdout.write('\n  ' + T('没检测到 Claude 订阅或 Codex 登录。', 'No Claude subscription or Codex login found. ') + cyan(T('推荐用 DeepSeek', 'DeepSeek is recommended')) + T(':注册充值就能用、按量付费,不需要 Claude 账号。', ': sign up, top up and go, pay as you go, no Claude account needed.') + '\n')
       for (;;) {
         process.stdout.write(`    1) ${T('用 DeepSeek', 'DeepSeek')} ${dim(T('(推荐)', '(recommended)'))}${T('—— 粘贴 API key', ': paste an API key')}\n`
@@ -1672,20 +1650,14 @@ async function cmdSetup(rest) {
     const okKeyed = readyKeyed().filter((n) => !tried.has(n) || verified.includes(n))
     const auto = route || verified[0] || (okKeyed.includes(setupmodels.RECOMMENDED) ? setupmodels.RECOMMENDED : okKeyed[0]) || readyKeyed()[0] || raw.defaultProvider || 'claude'
     const suggest = !seeded && raw.defaultProvider && usable(raw.defaultProvider) ? raw.defaultProvider : auto
+    // 默认模型与试跑都不问(1.0.13,用户定「安装要精简」):按上面的顺序自动选,还没试跑过就直接试一轮;群里 /model 随时换
+    raw.defaultProvider = suggest
     const usableNames = Object.keys(raw.providers).filter(usable)
-    if (usableNames.length > 1) {
-      const def = await ask(T(`默认模型(${usableNames.join('/')};群里 /model 随时切)`, `Default model (${usableNames.join('/')}; switch any time in a group with /model)`), suggest)
-      raw.defaultProvider = raw.providers[def] ? def : suggest
-      if (!raw.providers[def]) process.stdout.write(red(T(`  没有叫 '${def}' 的模型,用 ${suggest}`, `  There is no model called '${def}'; using ${suggest}`)) + '\n')
-    } else {
-      raw.defaultProvider = suggest
-      if (usableNames.length) process.stdout.write(dim(T(`  默认模型:${suggest}`, `  Default model: ${suggest}`)) + '\n')
-    }
-    // 默认模型还没在本次跑通过(订阅登录那条路):问一句当场试跑
+    if (usableNames.length) process.stdout.write(dim(T(`  默认模型:${suggest}${usableNames.length > 1 ? '(群里 /model 可换)' : ''}`, `  Default model: ${suggest}${usableNames.length > 1 ? ' (switch in a group with /model)' : ''}`)) + '\n')
     const dp = raw.defaultProvider
     const canTry = raw.providers[dp] && usable(dp) && (raw.providers[dp].runner === 'codex' ? codexBin : claudeBin)
-    if (canTry && !tried.has(dp) && await askYN(T(`用 ${dp} 试跑一轮,确认能用?`, `Do a test run with ${dp} to make sure it works?`), true)) {
-      process.stdout.write(dim(T('  试跑中…', '  Running…')) + '\n')
+    if (canTry && !tried.has(dp)) {
+      process.stdout.write(dim(T(`  用 ${dp} 试跑一轮…`, `  Test run with ${dp}…`)) + '\n')
       const r = await tryTurn(dp)
       if (r.ok) { reportTurn(dp, r); verified.push(dp) }
       else process.stdout.write(`  ${red('✗')} ${setupmodels.explainTestFailure(r.text, { baseUrl: raw.providers[dp].baseUrl, lang }).text}\n`)
@@ -1943,23 +1915,22 @@ async function cmdSetup(rest) {
     // 新装时「没接平台 / 没绑群 / Claude 没登录」都是正常状态,整屏警告看着像出错:只报失败项,完整体检留给 sintbot doctor
     const { rows } = await checkHealth(cfg)
     const failed = rows.filter((r) => r.status === 'fail')
-    if (failed.length) for (const r of failed) process.stdout.write(`${red('✗')} ${r.label.padEnd(22)} ${gray(r.detail)}\n`)
-    else process.stdout.write(cyan('✓ ') + T('体检没有失败项', 'Health check: nothing failed') + '\n')
-    process.stdout.write(dim(T(`  完整体检:sintbot doctor${cfgArg}`, `  Full check: sintbot doctor${cfgArg}`)) + '\n')
+    if (failed.length) {
+      for (const r of failed) process.stdout.write(`${red('✗')} ${r.label.padEnd(22)} ${gray(r.detail)}\n`)
+      process.stdout.write(dim(T(`  完整体检:sintbot doctor${cfgArg}`, `  Full check: sintbot doctor${cfgArg}`)) + '\n')
+    } else process.stdout.write(cyan('✓ ') + T('体检通过', 'Health check passed') + dim(T(`(完整:sintbot doctor${cfgArg})`, ` (full: sintbot doctor${cfgArg})`)) + '\n')
   }
   if (!((cfg.providers || {})[cfg.defaultProvider] || {}).baseUrl) {
     process.stdout.write('\n' + yellow(T('⚠ 订阅条款:', '⚠ Subscription terms: ')) + T('用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款;团队使用请改用 API key 或企业账号,并自行确认合规。', 'serving a multi-person group chat from a personal Claude / ChatGPT subscription may break the provider\'s terms; for team use switch to an API key or a business account and check compliance yourself.') + '\n')
   }
   if (fromInstaller) return // 后台服务、控制台地址、接下来去哪:install.sh 结尾统一给
-  // 终端里有代理、配置里没有:只给建议(服务进程拿不到终端的环境变量)
-  const shellProxy = !(raw.proxy && raw.proxy.http) && require('../src/core/proxy').proxyDescribe(process.env) // 带认证的只说「带认证」,不打印账号密码
   const plat = platformsConfigured(cfg)
   const noPlatform = !plat.feishu && !plat.wecom && !plat.slack
   process.stdout.write('\n' + gray(T('— 下一步 —', '— Next —')) + '\n'
     + `  sintbot service install${cfgArg}   ${dim(T('装成后台服务,控制台常开在 http://127.0.0.1:4600(登录后自启,崩溃自动拉起)', 'install the background service; the console stays at http://127.0.0.1:4600 (starts at login, restarts on crash)'))}\n`
     + `  sintbot ui${cfgArg}                ${dim(noPlatform ? T('现在就打开控制台:在「设置」里接飞书 / Slack / 企业微信,在「群 · 项目」里绑群', 'open the console now: connect Slack, Feishu or WeCom under Settings, bind a group under Groups') : T('打开控制台:绑群、切模型、看实时活动', 'open the console: bind groups, switch models, watch live activity'))}\n`
     + `  sintbot chat${cfgArg}              ${dim(T('不接平台也能先在终端里和它聊几句', 'chat with it in the terminal first, no platform needed'))}\n`
-    + (shellProxy ? '\n' + dim(T(`  建议:终端里设了代理(${shellProxy}),后台服务拿不到;装服务时会问要不要带进去,也可以在控制台「设置 → 机器人与网络」填。`, `  Tip: your terminal uses a proxy (${shellProxy}) that the background service can't see; service install offers to carry it over, or set it in the console under Settings → Bot & network.`)) + '\n' : ''))
+    )
 }
 
 // 能不能在这台机器上弹浏览器:SSH 进来的会话弹到的是对方屏幕(或根本没有屏幕),Linux 没有图形界面也不弹 —— 只打印地址

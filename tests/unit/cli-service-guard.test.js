@@ -1,7 +1,7 @@
 // `sintbot service install` 装之前的检查(都用 --dry-run,不动系统):
 // 一个聊天平台都没接 ⇒ 照装(1.0.12 起服务先只开控制台,接上平台后自己重启连上),说一句;
-// 配置引用了当前 shell 里的环境变量、又不在终端里 ⇒ 不提问,照旧点名警告,值不打印;
-// 配置里没写代理、终端里有代理变量 ⇒ 不在终端里时不带进去,说一句去控制台填。
+// 配置引用了当前 shell 里的环境变量、配置没写代理时 shell 里的代理变量 ⇒ 不问也不说,直接写进服务定义(1.0.13,用户定「安装要精简」);
+// --dry-run 打印时值遮住。
 const test = require('node:test')
 const assert = require('node:assert')
 const fs = require('node:fs')
@@ -39,23 +39,26 @@ test('service install without a chat platform still installs (console-only until
   }
 })
 
-test('service install: shell proxy vars are offered only off-config and never carried without a terminal', { skip: process.platform === 'win32' }, () => {
+test('service install carries shell proxy vars only when the config has no proxy, silently and masked', { skip: process.platform === 'win32' }, () => {
   const r = run(base, { SINTBOT_LANG: 'en', https_proxy: 'http://127.0.0.1:7890', no_proxy: 'localhost' })
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /proxy \(https_proxy no_proxy\) was not carried/)
-  assert.doesNotMatch(r.out, /127\.0\.0\.1:7890/)
+  assert.match(r.out, /https_proxy/)
+  assert.match(r.out, /no_proxy/)
+  assert.doesNotMatch(r.out, /127\.0\.0\.1:7890/) // 值遮住
+  assert.doesNotMatch(r.out, /carried|Write their values/) // 不问也不说
   const withCfgProxy = run({ ...base, proxy: { http: 'http://127.0.0.1:7890' } }, { SINTBOT_LANG: 'en', https_proxy: 'http://127.0.0.1:7890' })
-  assert.doesNotMatch(withCfgProxy.out, /was not carried/)
+  assert.doesNotMatch(withCfgProxy.out, /https_proxy/)
   const onlyNoProxy = run(base, { SINTBOT_LANG: 'en', no_proxy: 'localhost' })
-  assert.doesNotMatch(onlyNoProxy.out, /was not carried/)
+  assert.doesNotMatch(onlyNoProxy.out, /no_proxy/)
 })
 
-test('service install with a platform: off a terminal it warns about shell-only env refs and does not prompt', { skip: process.platform === 'win32' }, () => {
+test('service install with a platform: env refs from the shell go into the unit without a question, values masked', { skip: process.platform === 'win32' }, () => {
   const cfg = { ...base, slack: { botToken: 'xoxb-1', appToken: 'xapp-1' }, providers: { claude: {}, deepseek: { baseUrl: 'https://api.deepseek.com/anthropic', apiKey: 'env:SBOT_T_KEY' } } }
   const r = run(cfg, { SBOT_T_KEY: 'sk-secret-value', SINTBOT_LANG: 'zh' })
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /SBOT_T_KEY 只在当前终端里有/)
-  assert.doesNotMatch(r.out, /写进服务定义吗/)
+  assert.match(r.out, /SBOT_T_KEY/)
+  assert.match(r.out, /已隐藏/)
+  assert.doesNotMatch(r.out, /写进服务定义吗|只在当前终端里有/)
   assert.doesNotMatch(r.out, /sk-secret-value/)
   assert.deepEqual(r.wrote, [])
 })

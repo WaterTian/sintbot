@@ -40,6 +40,9 @@ test('setup with stdin already at EOF finishes on defaults instead of looping', 
   assert.ok(written, `config not written\n${out.slice(-2000)}`)
   // 默认流程不在终端里要这些
   for (const q of [/中国大陆/, /配置代理/, /飞书 appId/, /接哪个聊天平台/, /项目根目录/, /绑定一个/, /机器人在群里叫什么/]) assert.doesNotMatch(out, q)
+  // 1.0.13 起只剩没有模型时的菜单要回答:可选组件、默认模型、试跑都不问
+  const asked = out.split('\n').filter((l) => /^(\x1b\[[0-9;]*m)*\?(\x1b\[[0-9;]*m)* /.test(l))
+  assert.equal(asked.length, 1, asked.join('\n'))
   assert.match(out, /sintbot service install/)
   assert.match(out, /127\.0\.0\.1:4600/)
   // 示例里的飞书 env: 占位和空代理不写进新配置

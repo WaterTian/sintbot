@@ -6,7 +6,7 @@
 
 **改了就生效**:守护进程会热重载配置文件,不用重启。日常的绑群、切模型、改权限建议在控制台(`sintbot ui`)里做,它会校验后再写回。
 
-**密钥**:任何密钥字段都可以写 `"env:变量名"`,从环境变量读。常驻服务里没有你 shell 的变量:`sintbot service install` 会点名哪些拿不到,加 `--pass-env` 把值写进服务定义(见 [install.md](./install.md#3-常驻sintbot-service-install))。
+**密钥**:任何密钥字段都可以写 `"env:变量名"`,从环境变量读。常驻服务里没有你 shell 的变量:`sintbot service install` 会把这些值写进服务定义(见 [install.md](./install.md#3-常驻sintbot-service-install))。
 
 带完整注释的示例:[sbot.config.example.json](../../sbot.config.example.json)(`_` 开头的键是注释,程序忽略)。
 

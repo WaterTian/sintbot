@@ -31,9 +31,9 @@ test('setup finds the right site for a MiniMax key by trying both, without askin
     for (const def of Object.values(require('../../src/design').ICON_LIBS)) fs.mkdirSync(path.join(icons, def.pkg), { recursive: true })
     const cfg = path.join(tmp, 'config.json')
     fs.writeFileSync(cfg, JSON.stringify({ agent: { bin: 'claude' }, providers: { claude: {} }, defaultProvider: 'claude', groups: {}, design: { iconsDir: icons } }), { mode: 0o600 })
-    // 回答:不装 codex · 菜单选 2(别家)· 选 2(MiniMax)· 粘贴 key
+    // 回答:菜单选 2(别家)· 选 2(MiniMax)· 粘贴 key(codex 没装不再问)
     const r = spawnSync(process.execPath, [BIN, 'setup', '--config', cfg], {
-      cwd: tmp, input: '\n2\n2\nsk-test-key\n', encoding: 'utf8', timeout: 50000,
+      cwd: tmp, input: '2\n2\nsk-test-key\n', encoding: 'utf8', timeout: 50000,
       env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, NO_COLOR: '1', SINTBOT_LANG: 'zh', TZ: 'America/New_York' },
     })
     const out = (r.stdout || '') + (r.stderr || '')

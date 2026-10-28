@@ -18,8 +18,8 @@ The script runs four numbered steps. Each step checks first and skips work that 
 
 1. **Environment: Node.js 22+.** If Node is missing or too old, the script installs or upgrades it with Homebrew on a Mac that has Homebrew. Otherwise (no Homebrew, or Linux), it prints the [nodejs.org](https://nodejs.org) download link and stops; install Node, then run the script again.
    **npm registry.** If you have configured a registry, the script uses it. If you are on the official registry, it first tests the connection. If the official registry is unreachable (common in mainland China), it uses the `registry.npmmirror.com` mirror for this run.
-2. **Install sintbot.** It runs `npm i -g sintbot`. If the latest version is already installed, it says so and moves on; an older version asks whether to upgrade. If the global npm directory is not writable, it does not fall back to `sudo`; it prints the commands that move the global directory into your home folder.
-3. **Model**, `sintbot setup`. The wizard checks for Claude Code and offers to install it if it is missing (see the next section), then sets up a model with a live trial turn. See [section 2](#2-configure-sintbot-setup).
+2. **Install sintbot.** It runs `npm i -g sintbot`. If the latest version is already installed, it says so and moves on; an older version is upgraded. If the global npm directory is not writable, it does not fall back to `sudo`; it prints the commands that move the global directory into your home folder.
+3. **Model**, `sintbot setup`. The wizard installs Claude Code if it is missing (see the next section), then sets up a model with a live trial turn. See [section 2](#2-configure-sintbot-setup).
 4. **Background service.** It asks whether to run `sintbot service install`, which starts SintBot at login and restarts it on crash. The console then stays up at `http://127.0.0.1:4600`, even before a chat platform is connected, and the script opens it in your browser (not over SSH). If the service is already running and nothing was upgraded, the step is skipped; after an upgrade it asks whether to restart the service, which announces the upgrade in connected groups.
 
 The script ends with the console address and what to do next: connect Slack, Feishu or WeCom under Settings, bind a group under Groups, then @mention the bot in that group. `sintbot chat` lets you try it in the terminal first.
@@ -35,7 +35,7 @@ SintBot runs every turn through the `claude` CLI on this machine (Codex groups u
 
 **Install it** in any of these ways:
 
-- **Let the wizard do it.** If `sintbot setup` finds no Claude Code, it asks "Install Claude Code now?"; press Enter. It runs the npm command below and switches to the mirror when the official registry is unreachable.
+- **Let the wizard do it.** If `sintbot setup` finds no Claude Code, it installs it when run in a terminal. It runs the npm command below and switches to the mirror when the official registry is unreachable.
 - **npm:** `npm i -g @anthropic-ai/claude-code`. If the official registry is unreachable, add `--registry https://registry.npmmirror.com`.
 - **The official installer:** see the [Claude Code setup guide](https://code.claude.com/docs/en/setup).
 
@@ -62,7 +62,7 @@ When `claude --version` prints a version, you are done. Upgrade with `claude upd
 | Codex CLI (optional) | `codex --version` | Needed only with a ChatGPT account, for GPT groups and image generation. Run `npm i -g @openai/codex`, then `codex login` (browser OAuth, needs a desktop) |
 | Design icon libraries (optional) | `sintbot doctor` (the `design.icons` row) | Lucide, Tabler, Phosphor and Pixelarticons, about 170 MB in all. The agent takes icons from them by name when it draws a design; without them it draws its own, which may not match the design |
 
-The first step of `sintbot setup` checks all of these. If Claude Code is missing, it offers to install it (default: yes); if Codex is missing, it offers too (default: no); if any design icon library is missing, it offers to install the missing ones in one go (default: yes). The login status of Claude and Codex is shown in the model step.
+The first step of `sintbot setup` checks all of these. If Claude Code is missing, it installs it. Codex and the design icon libraries are optional; if they are missing, the wizard prints the install command and moves on. The login status of Claude and Codex is shown in the model step.
 
 ## 1. Install the package
 
@@ -87,18 +87,18 @@ npm link            # optional: link the sintbot / sbot commands globally
 
 This is an interactive wizard; Enter accepts the default (the value in brackets, or the capital letter in `(Y/n)`). It only covers what SintBot needs to run on this machine:
 
-1. **Environment.** Claude Code, Codex and the design icon libraries; anything missing is offered for install (see [Requirements](#requirements)).
+1. **Environment.** Claude Code (installed if missing), Codex and the design icon libraries (optional; the install command is printed). See [Requirements](#requirements).
 2. **Model.** The wizard first shows the login status of Claude and ChatGPT (Codex), plus any models whose keys are already set, then recommends in this order:
-   - If Claude is signed in, the default is Claude; otherwise, if Codex is signed in, the default is Codex. In either case it only asks whether to add an API-key model as well.
+   - If Claude is signed in, the default is Claude; otherwise, if Codex is signed in, the default is Codex. Nothing more is asked; add other models in the console under Models.
    - If neither is signed in, it **recommends DeepSeek**: it tells you to get a key at platform.deepseek.com and **runs a trial turn** as soon as you paste it. You can also pick another provider (Zhipu GLM, MiniMax, Volcano Ark), sign in to Claude or Codex in another terminal and come back to re-check, or skip for now.
    - Zhipu GLM and MiniMax have international sites (Z.ai and minimax.io), and a key only works on the site that issued it. The wizard tries one site and, if the key is rejected, tries the other one automatically. Without Claude Code it cannot run a trial, so it asks which site issued the key.
    - If the trial turn fails, the wizard tells you why: a wrong key, an empty balance or missing identity verification, a network problem (is a global proxy on?), or a wrong model name. You can paste the key again and retry.
-   - If more than one model is usable, it asks which one is the default; groups can switch any time with `/model`. If the default model has not had a trial turn yet, it offers one.
+   - The wizard picks the default model itself (a signed-in subscription first, then a model whose trial passed, then one with a key) and runs a trial turn if it has not had one yet. Groups can switch any time with `/model`.
    - If Codex is not installed or not signed in, the Codex preset and the automatic fallback to Codex are left out of the config. Kimi is not a preset; add it in the console under Models → Add model → Custom. See [models.md](./models.md).
 
 The config is written to `~/.sbot/config.json` with permissions 600. If the current directory already has a `sbot.config.json`, that file is updated instead. Running `sintbot setup` again only fills in what is missing and leaves existing values alone.
 
-The wizard ends with a short health check that lists only failures; `sintbot doctor` shows the full list. If your terminal uses a proxy and the config has none, it suggests carrying the proxy into the service (see the next section) or setting it in the console.
+The wizard ends with a short health check that lists only failures; `sintbot doctor` shows the full list.
 
 **Everything else is in the console** (`sintbot ui`, or `http://127.0.0.1:4600` once the service runs):
 
@@ -124,9 +124,7 @@ sintbot service status | restart | logs | uninstall
 - **Logs:** `~/.sbot/logs/err.log`; `sintbot service logs` shows the tail.
 - **What the service pins:** the node path, the sintbot entry point, the absolute config path, and the PATH of your current shell (with the directories of `claude` and `codex` first). **After changing node, moving the config or newly installing claude, run `sintbot service install` again.**
 - **Node path:** a Homebrew node really lives in a versioned directory that disappears on upgrade, so install switches to an unversioned path to the same program (such as `/opt/homebrew/bin/node`). For nvm, volta and other managers without a stable path, it keeps the original path and reminds you to reinstall the service after changing node versions.
-- **Environment variables:** the service does **not** inherit your shell's variables. For every `"env:NAME"` in the config, install names the ones the service cannot see; if the config has no proxy but your shell has `https_proxy` and similar variables, they are listed too. You have two options:
-  - write their values into the service definition (the file is set to 600, and `--dry-run` masks the values). Run in a terminal, install asks whether to do this (default yes); `--pass-env` does it without asking. After changing a key, run install again;
-  - put the values directly in the config, which is itself 600 (for the proxy: the console's Settings → Bot & network).
+- **Environment variables:** the service does **not** inherit your shell's variables, so install writes the values it needs into the service definition (the file is set to 600, and `--dry-run` masks them): every `"env:NAME"` in the config, and your shell's `https_proxy` and similar variables when the config has no proxy. After changing a key or the proxy, run install again; or put the values directly in the config, which is itself 600 (for the proxy: the console's Settings → Bot & network).
 - **Console exposure:** if the console is opened beyond this machine (`--ui-host` set to a non-loopback address) without a password, install refuses; otherwise the service would exit on every start.
 - **No chat platform yet:** the service still installs and runs the console only. Connect a platform under Settings and save; the service restarts itself within seconds and connects. (Versions 1.0.10 and 1.0.11 refused to install in this case.)
 - **`sintbot ui` while the service runs** opens the service's console instead of failing on the busy port.

@@ -139,8 +139,9 @@ step_registry() {
   fi
 }
 
+# 只出错误:npm 的进度、资助提示和 npm 11 对依赖安装脚本(protobufjs)的无害警告都不打
 npm_g() {
-  if [ -n "$REG" ]; then run npm install -g "$@" --registry "$REG"; else run npm install -g "$@"; fi
+  if [ -n "$REG" ]; then run npm install -g "$@" --registry "$REG" --no-fund --no-audit --loglevel=error; else run npm install -g "$@" --no-fund --no-audit --loglevel=error; fi
 }
 
 # npm 上的最新版本:已装的就是它时不重装(1.0.11 前不比对,已是最新也问「升级?」再装一遍)。
@@ -166,9 +167,12 @@ step_install() {
     cur="$(sintbot version 2>/dev/null || true)"
     if [ -n "$LATEST" ] && [ "$cur" = "$LATEST" ]; then
       say "  $(t "✓ 已是最新 $cur" "✓ Already up to date ($cur)")"
-    elif ask_yn "$(t "升级到$([ -n "$LATEST" ] && printf ' %s' "$LATEST" || printf '最新版')?(当前 ${cur:-版本未知})" "Upgrade to ${LATEST:-the latest version}? (installed: ${cur:-unknown})")" Y; then
+    else
+      # 运行安装脚本就是要装最新版:直接升级,不问(1.0.13 起;后台服务要不要重启换新版本在第 4 步问,那会播报)。
+      # 版本真变了才算升级(重装同一版本不用重启服务)
       npm_g "$PKG"
-      UPGRADED=1
+      hash -r 2>/dev/null || true
+      [ "$DRY" = 1 ] || [ "$(sintbot version 2>/dev/null || true)" = "$cur" ] || UPGRADED=1
     fi
   else
     npm_g "$PKG"
@@ -227,7 +231,7 @@ step_service() {
   if [ "$st" = 3 ]; then q="$(t '后台服务装了但没在跑,重新装一遍?' 'The background service is installed but not running. Reinstall it?')"
   else q="$(t "装成后台服务(登录后自启、崩溃自动拉起;控制台常开在 $CONSOLE)?" "Install the background service (starts at login, restarts on crash; the console stays at $CONSOLE)?")"; fi
   if ask_yn "$q" Y; then
-    # 从终端读输入:终端里的环境变量(配置引用的 key、代理)要不要带进服务,sintbot service install 会当场问
+    # 终端里的环境变量(配置引用的 key、代理)sintbot service install 自动写进服务定义,不问
     run sintbot service install < "$TTY"
     SERVICE=1
   fi
@@ -277,10 +281,6 @@ step_done() {
   fi
   if [ "$SERVICE" != 1 ]; then
     say "$(t '要常驻(登录后自启、崩溃自动拉起,控制台常开):sintbot service install' 'To keep it running (starts at login, restarts on crash, console always on): sintbot service install')"
-    # 终端里有代理时给一句建议(只建议,不要求):后台服务拿不到终端的环境变量
-    if [ -n "${HTTPS_PROXY:-}${https_proxy:-}${HTTP_PROXY:-}${http_proxy:-}${ALL_PROXY:-}${all_proxy:-}" ]; then
-      say "$(t '建议:终端里设了代理,后台服务拿不到;装服务时会问要不要带进去,也可以在控制台「设置 → 机器人与网络」填。' 'Tip: your terminal uses a proxy the background service cannot see; service install offers to carry it over, or set it in the console under Settings → Bot & network.')"
-    fi
   fi
   say "$(t '文档:https://github.com/sintlab/sintbot' 'Docs: https://github.com/sintlab/sintbot')"
 }

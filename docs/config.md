@@ -13,7 +13,7 @@ English · [简体中文](./zh-CN/config.md)
 
 **Changes take effect immediately.** The daemon hot-reloads the config file, so no restart is needed. For day-to-day changes such as binding groups, switching models and setting permissions, prefer the console (`sintbot ui`): it validates your changes before writing them back.
 
-**Secrets.** Any secret field can be written as `"env:NAME"` to read it from the environment. A service does not see your shell's variables: `sintbot service install` names the ones it cannot read, and `--pass-env` writes their values into the service definition (see [install.md](./install.md#3-run-as-a-service-sintbot-service-install)).
+**Secrets.** Any secret field can be written as `"env:NAME"` to read it from the environment. A service does not see your shell's variables, so `sintbot service install` writes their values into the service definition (see [install.md](./install.md#3-run-as-a-service-sintbot-service-install)).
 
 A fully annotated example: [sbot.config.example.json](../sbot.config.example.json). Keys starting with `_` are comments and are ignored.
 
