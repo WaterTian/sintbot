@@ -37,25 +37,25 @@ SintBot 是一个跑在你自己机器上的守护进程,把能写代码的 AI �
 
 ## 快速开始
 
-**1. 建好机器人,拉进一个群。** 分步说明:[飞书](./docs/zh-CN/platforms/feishu.md)(在中国大陆推荐)· [Slack](./docs/zh-CN/platforms/slack.md) · [企业微信](./docs/zh-CN/platforms/wecom.md)。
-
-**2. 安装**(macOS / Linux):
+**1. 安装**(macOS / Linux):
 
 ```bash
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-脚本会检查并装好 Node.js 22+、装 sintbot、跑配置向导,最后问要不要装成常驻服务。每一步先问再动,不用 `sudo`。可以先读 [install.sh](./install.sh),或加 `--dry-run` 只看它会做什么。
+脚本会检查并装好 Node.js 22+、装 sintbot、配好模型(当场试跑一轮),再问要不要装成后台服务,最后打开控制台 http://127.0.0.1:4600。每一步先问再动,不用 `sudo`。可以先读 [install.sh](./install.sh),或加 `--dry-run` 只看它会做什么。
 
 也可以手动装:
 
 ```bash
 npm i -g sintbot
-sintbot setup             # 配置向导,会当场试跑一轮你选的模型
-sintbot service install   # 崩溃自动拉起、登录后自启
+sintbot setup             # 配模型,当场试跑一轮
+sintbot service install   # 崩溃自动拉起、登录后自启;控制台常开在 http://127.0.0.1:4600
 ```
 
-**3. 在群里 @ 机器人。** 本地控制台在 http://127.0.0.1:4600,可以绑更多群、切模型、看实时活动。
+**2. 在控制台里接聊天平台。** 建好机器人、拉进一个群,在「设置」里填凭据;每个平台在控制台里和这里都有分步说明:[飞书](./docs/zh-CN/platforms/feishu.md)(在中国大陆推荐)· [Slack](./docs/zh-CN/platforms/slack.md) · [企业微信](./docs/zh-CN/platforms/wecom.md)。然后在「群 · 项目」里把群绑到项目目录。
+
+**3. 在群里 @ 机器人。** 切模型、看实时活动也都在这个控制台里。
 
 ### 选模型:没有 Claude 订阅也能用
 
@@ -67,14 +67,14 @@ sintbot service install   # 崩溃自动拉起、登录后自启
 | ChatGPT 账号 | GPT(经 Codex) | `npm i -g @openai/codex`,再 `codex login` |
 | 都没有 | **DeepSeek**(推荐) | 到 [platform.deepseek.com](https://platform.deepseek.com) 注册、充值、创建 API key,在向导里粘贴,当场试跑一轮 |
 
-其他预设有智谱 GLM、MiniMax、火山方舟。智谱和 MiniMax 会问 key 是在中国站还是国际站(Z.ai、minimax.io)开的。Kimi 等任何 Anthropic 兼容端点,都可以在控制台作为自定义端点添加。
+其他预设有智谱 GLM、MiniMax、火山方舟。智谱和 MiniMax 还有国际站(Z.ai、minimax.io),向导会用 key 试出它属于哪个站。Kimi 等任何 Anthropic 兼容端点,都可以在控制台作为自定义端点添加。
 
 没有 Claude 订阅时,Claude Code 只是执行框架,不用登录。用不了的只有 GPT 群和生图,这两样借的是 Codex。
 
 ### 在中国大陆
 
 - **聊天平台用飞书。**
-- **模型**:没有 Claude 订阅就用 DeepSeek(或智谱 / MiniMax / Kimi 的中国站),直连,不用代理。向导问「这台机器在中国大陆吗」时答「是」:只有用到 Claude / ChatGPT 才会问代理。
+- **模型**:没有 Claude 订阅就用 DeepSeek(或智谱 / MiniMax / Kimi 的中国站),直连,不用代理。只有用到 Claude / ChatGPT 才要代理,在控制台「设置 → 机器人与网络」填。
 - **开着全局代理(梯子)的话**,把模型域名设成直连。否则请求绕到境外再回来,又慢又可能触发风控,见 [install.md「代理」](./docs/zh-CN/install.md#代理)。
 - **npm 慢**:一键安装和向导会自动换 `registry.npmmirror.com`;手动装加 `--registry https://registry.npmmirror.com`。
 - **GitHub 打不开**:中文介绍和安装步骤在[官网](https://sintbot.com/zh/)上都有。

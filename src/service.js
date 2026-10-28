@@ -78,6 +78,10 @@ function envRefs(obj, out = []) {
   return out
 }
 
+// 服务托管标记:守护进程据此知道「退出了会被 launchd / systemd 拉起」—— 还没接平台时只开控制台,
+// 第一次接上平台就自己退出、重启后连上(bin/sbot.js cmdStart)。前台跑的 sintbot start 没有它
+const SUPERVISED_ENV = 'SBOT_SUPERVISED'
+
 // 服务的全部事实(纯数据):各平台单元文件都从这里生成。env = 额外写进单元文件的环境变量(--pass-env)
 function serviceSpec({ nodeBin, sbotBin, configPath, uiHost, home, pathEnv, env = {} }) {
   const args = [sbotBin, 'start', '--ui', '--no-open']
@@ -103,7 +107,8 @@ ${arr}
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key><string>${xmlEsc(spec.pathEnv)}</string>
-${Object.entries(spec.env || {}).map(([k, v]) => `    <key>${xmlEsc(k)}</key><string>${xmlEsc(v)}</string>\n`).join('')}  </dict>
+${Object.entries(spec.env || {}).map(([k, v]) => `    <key>${xmlEsc(k)}</key><string>${xmlEsc(v)}</string>\n`).join('')}    <key>${SUPERVISED_ENV}</key><string>1</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>15</integer>
@@ -124,7 +129,8 @@ Wants=network-online.target
 ExecStart=${[spec.nodeBin, ...spec.args].map(sdQuote).join(' ')}
 WorkingDirectory=${sdQuote(spec.workdir)}
 Environment=${sdQuote('PATH=' + spec.pathEnv)}
-${Object.entries(spec.env || {}).map(([k, v]) => `Environment=${sdQuote(k + '=' + v)}\n`).join('')}Restart=always
+${Object.entries(spec.env || {}).map(([k, v]) => `Environment=${sdQuote(k + '=' + v)}\n`).join('')}Environment=${SUPERVISED_ENV}=1
+Restart=always
 RestartSec=15
 KillSignal=SIGTERM
 TimeoutStopSec=30
@@ -238,4 +244,4 @@ function uninstall({ platform = process.platform, home = os.homedir() } = {}) {
   return { file, removed, steps }
 }
 
-module.exports = { LABEL, UNIT, xmlEsc, sdQuote, buildPath, versionedPath, stableNodeBin, envRefs, serviceSpec, launchdPlist, systemdUnit, unitPath, render, windowsHint, status, install, restart, uninstall }
+module.exports = { LABEL, UNIT, SUPERVISED_ENV, xmlEsc, sdQuote, buildPath, versionedPath, stableNodeBin, envRefs, serviceSpec, launchdPlist, systemdUnit, unitPath, render, windowsHint, status, install, restart, uninstall }

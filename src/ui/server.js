@@ -208,7 +208,7 @@ function bindNoticeText(workdir, platform = 'feishu', cmd = '/help') {
   return `✅ 本群已绑定项目「${path.basename(String(workdir || '')) || '(未命名)'}」\n${platform === 'wecom' ? '@我 派单(只有 @ 我的消息我才收得到)' : '直接发消息或 @我 派单'};${cmd} 查看命令`
 }
 
-function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, control = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, ledgerPath = null, inboxDismissPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null, verifyFile = null } = {}) {
+function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, control = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, ledgerPath = null, inboxDismissPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null, verifyFile = null, setupMode = null } = {}) {
   // wecomExec:企业微信命令行工具的执行器注入(只为可测;生产走默认 execFile)
   // verifyFile:凭据验证记录的落点注入(只为可测;生产 = ~/.sbot/verify.json)
   const vopts = verifyFile ? { file: verifyFile } : undefined
@@ -576,6 +576,8 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       },
       proxy: raw.proxy && raw.proxy.http ? { http: raw.proxy.http, noProxy: raw.proxy.noProxy || '' } : null,
       live: getLiveState ? getLiveState() : { running: false },
+      // 守护进程还没接平台、只开着控制台(cmdStart 配置模式):supervised = 由服务托管,接上平台后会自己重启连上
+      setupMode: setupMode ? { supervised: !!setupMode.supervised } : null,
       conn, // 各平台连接健康度字典 { feishu, wecom }(daemon 运行时);未运行为 null
       previews: previewsState(raw),
 
@@ -595,6 +597,9 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         return { tz, offsetMin: tzOffsetMin(tz), hostTz, hostOffsetMin: -new Date().getTimezoneOffset(), now: Date.now() }
       })(),
       timezone: raw.timezone || '', // 设置页编辑用(空 = 未显式配置,跑默认北京)
+      brand: raw.brand || '', // 机器人自称(设置页编辑;空 = SintBot)
+      // 本进程环境里的代理(装服务时从终端带进来的 https_proxy 等;带认证的只说「带认证」):设置页据此说明「服务里已有代理」
+      envProxy: require('../core/proxy').proxyDescribe(process.env),
       // 本机访问地址(控制台「设置」页展示):本机 URL 恒有;对外绑定时列出局域网 URL。
       net: (() => {
         const addr = server.address()
@@ -1013,6 +1018,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       }
       if (p === '/api/proxy' && req.method === 'POST') {
         const { http: httpUrl, enabled } = await body(req); const raw = readRaw()
+        if (enabled && httpUrl && !/^https?:\/\/\S+$/i.test(String(httpUrl))) return sendJSON(res, 400, { error: '代理地址要像 http://127.0.0.1:7890' })
         if (enabled && httpUrl) raw.proxy = { http: httpUrl, https: httpUrl, noProxy: deriveNoProxy(raw.providers) }
         else delete raw.proxy
         writeRaw(raw); return sendJSON(res, 200, await buildState())
@@ -1020,6 +1026,8 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       if (p === '/api/agent' && req.method === 'POST') {
         const patch = await body(req); const raw = readRaw(); raw.agent = raw.agent || {}
         for (const k of ['permissionMode', 'maxConcurrent', 'maxTurnTimeMins']) if (k in patch) raw.agent[k] = patch[k]
+        // 机器人自称(顶层 brand):空或默认名就不落盘,和安装向导 --full 的写法一致
+        if ('brand' in patch) { const b = String(patch.brand || '').trim().slice(0, 40); if (b && b !== 'SintBot') raw.brand = b; else delete raw.brand }
         // 长会话自动压缩阈值:0 = 关,否则限 10万–100万(CLI 旗子的文档区间;区间外它会拒参数,
         // 每轮必死 ⇒ 存前就挡住,别让坏值落盘)。
         if ('autocompactTokens' in patch) {

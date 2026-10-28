@@ -19,11 +19,11 @@
 
 ## 接入 SintBot
 
-```bash
-sintbot setup     # 选 slack,填 xoxb- 与 xapp-;预检会核对凭据、权限、Socket Mode 与已加入的频道
-```
+在控制台(`sintbot ui`,装了服务就是 http://127.0.0.1:4600)「设置 → Slack 应用」里填。绑群时选 Slack 频道(只列出机器人已加入的)。没有浏览器的服务器上用终端:
 
-或在控制台「设置 → Slack 应用」里填。绑群时选 Slack 频道(只列出机器人已加入的)。
+```bash
+sintbot setup --full   # 选 slack,填 xoxb- 与 xapp-;预检会核对凭据、权限、Socket Mode 与已加入的频道
+```
 
 ```jsonc
 "slack": {

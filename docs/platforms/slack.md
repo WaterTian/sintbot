@@ -19,11 +19,11 @@ SintBot connects over Socket Mode, so no public address is needed, and it works 
 
 ## Connect SintBot
 
-```bash
-sintbot setup     # choose slack, enter the xoxb- and xapp- tokens; the precheck verifies the tokens, scopes, Socket Mode and the channels the bot has joined
-```
+Fill it in on the console (`sintbot ui`, or http://127.0.0.1:4600 once the service runs) under Settings → Slack app. When binding a group, pick a Slack channel; only channels the bot has joined are listed. On a server without a browser, use the terminal instead:
 
-Or fill it in on the console under Settings → Slack app. When binding a group, pick a Slack channel; only channels the bot has joined are listed.
+```bash
+sintbot setup --full   # choose slack, enter the xoxb- and xapp- tokens; the precheck verifies the tokens, scopes, Socket Mode and the channels the bot has joined
+```
 
 ```jsonc
 "slack": {

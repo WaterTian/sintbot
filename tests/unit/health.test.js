@@ -48,7 +48,7 @@ function mkHome({ claudeUrl, codexUrl } = {}) {
 test('health: 一个聊天平台都没接 ⇒ 挂在 platforms 行,不挂在 feishu 行(没选飞书的人会看糊涂)', async () => {
   for (const cfg of [base(), { ...base(), feishu: {} }]) {
     const rows = (await check(cfg)).rows
-    const r = rows.find((x) => /没配任何聊天平台/.test(x.detail))
+    const r = rows.find((x) => /还没接聊天平台/.test(x.detail))
     assert.ok(r, 'no-platform row present')
     assert.equal(r.label, 'platforms')
     assert.equal(r.status, 'warn')
@@ -363,7 +363,7 @@ test('health: 平台行按配置分别报,废弃字段提一句', async () => {
   const missing = await check({ ...base(), wecom: { botId: 'aibX' } })
   assert.equal(missing.rows.find((x) => x.label === 'wecom').status, 'fail')
   assert.match(missing.rows.find((x) => x.label === 'wecom').detail, /secret/)
-  assert.ok(missing.rows.find((x) => x.label === 'platforms'), '企微没配齐 ⇒ 照常提「没配任何聊天平台」(挂在 platforms 行)')
+  assert.ok(missing.rows.find((x) => x.label === 'platforms'), '企微没配齐 ⇒ 照常提「还没接聊天平台」(挂在 platforms 行)')
   const both = await check({ ...base(), feishu: { appId: 'cli_x', appSecret: 's', botOpenId: 'ou_x' }, wecom: { botId: 'aibX', secret: 's' } })
   assert.equal(both.rows.find((x) => x.label === 'feishu').status, 'ok'); assert.equal(both.rows.find((x) => x.label === 'wecom').status, 'ok')
   const dep = await check({ ...base(), _deprecatedPlatform: 'wecom', wecom: { botId: 'aibX', secret: 's' } })

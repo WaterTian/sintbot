@@ -297,3 +297,10 @@ test('config: 群 workdir 以 ~ 开头的在内存里展开(修 1.0.2 及以前�
   assert.equal(cfg.groups.oc_c.workdir, '~x')
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).groups.oc_a.workdir, '~/Projects/a') // 文件不改
 })
+
+test('deriveNoProxy: IP hosts are listed as-is, never turned into a wildcard like *.0.1', () => {
+  const np = deriveNoProxy({ local: { baseUrl: 'http://127.0.0.1:8317' }, lan: { baseUrl: 'http://203.0.113.5:9000/v1' }, v6: { baseUrl: 'http://[::1]:7000' } }).split(',')
+  assert.ok(np.includes('203.0.113.5'))
+  assert.ok(!np.some((h) => /^\*\.\d/.test(h)), np.join(','))
+  assert.ok(!np.includes('[::1]'))
+})

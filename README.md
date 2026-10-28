@@ -37,25 +37,25 @@ Full source, docs and tests are public and downloadable under the [PolyForm Shie
 
 ## Quick start
 
-**1. Create a bot and add it to a group.** Step-by-step guides: [Slack](./docs/platforms/slack.md) · [Feishu](./docs/platforms/feishu.md) · [WeCom](./docs/platforms/wecom.md).
-
-**2. Install** on macOS or Linux:
+**1. Install** on macOS or Linux:
 
 ```bash
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-The script checks for Node.js 22+, installs sintbot, runs the setup wizard and offers to install the background service. It asks before every change and never uses `sudo`. Read [install.sh](./install.sh) first, or add `--dry-run` to see what it would do.
+The script checks for Node.js 22+, installs sintbot, sets up a model with a live trial turn and offers to install the background service, then opens the console at http://127.0.0.1:4600. It asks before every change and never uses `sudo`. Read [install.sh](./install.sh) first, or add `--dry-run` to see what it would do.
 
 To install by hand instead:
 
 ```bash
 npm i -g sintbot
-sintbot setup             # guided setup, with a live trial turn of your model
-sintbot service install   # restarted on crash, started at login
+sintbot setup             # set up a model, with a live trial turn
+sintbot service install   # restarted on crash, started at login; the console stays at http://127.0.0.1:4600
 ```
 
-**3. @ the bot in your group.** Bind more groups, switch models and watch live activity in the local console at http://127.0.0.1:4600.
+**2. Connect a chat platform in the console.** Create a bot, add it to a group and enter its credentials under Settings; each platform has a step-by-step guide there and here: [Slack](./docs/platforms/slack.md) · [Feishu](./docs/platforms/feishu.md) · [WeCom](./docs/platforms/wecom.md). Then bind the group to a project folder under Groups.
+
+**3. @ the bot in your group.** Switch models and watch live activity in the same console.
 
 ### Pick a model: no Claude subscription needed
 
@@ -67,7 +67,7 @@ The wizard checks what this machine is logged in to and recommends in this order
 | A ChatGPT account | GPT, via Codex | `npm i -g @openai/codex`, then `codex login` |
 | Neither | **DeepSeek** (recommended) | sign up at [platform.deepseek.com](https://platform.deepseek.com), top up, create an API key and paste it into the wizard; it runs a trial turn on the spot |
 
-The other presets are Zhipu GLM, MiniMax and Volcano Ark. For GLM and MiniMax, the wizard asks whether your key comes from the mainland-China site or the international one (Z.ai, minimax.io). Kimi and any other Anthropic-compatible endpoint can be added as custom endpoints in the console.
+The other presets are Zhipu GLM, MiniMax and Volcano Ark. GLM and MiniMax also have international sites (Z.ai, minimax.io); the wizard finds out which site your key belongs to by trying it. Kimi and any other Anthropic-compatible endpoint can be added as custom endpoints in the console.
 
 Without a Claude subscription, Claude Code is only the agent framework and needs no login. The only features you lose are GPT groups and image generation, both of which borrow Codex. In mainland China, see the [Chinese README](./README.zh-CN.md#在中国大陆).
 
@@ -109,7 +109,7 @@ Configuration lives in `~/.sbot/config.json`. See [docs/config.md](./docs/config
 | **Slack** | The native Stop button, `!status` and the thread buttons are covered by tests but have had little real-world use. |
 | **Kimi** | Not a preset and not yet tested. Add it in the console as a custom endpoint (Models → Add model → Custom); if you try it, please [report how it went](https://github.com/sintlab/sintbot/issues). |
 
-"Feishu" here means the China edition (open.feishu.cn). The international Lark (larksuite.com) runs on a separate open platform and is not supported yet. The bot's built-in messages, the setup wizard and `sintbot doctor` are in Chinese; the console has an English mode.
+"Feishu" here means the China edition (open.feishu.cn). The international Lark (larksuite.com) runs on a separate open platform and is not supported yet. The bot's built-in messages and `sintbot doctor` are in Chinese; the installer, the setup wizard and the console also speak English.
 
 ## Security
 

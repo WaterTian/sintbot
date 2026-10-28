@@ -417,6 +417,7 @@ function proxyDescribe(env = process.env) {
 }
 
 module.exports = {
+  PROXY_ENV_KEYS: [...PROXY_KEYS, ...NO_PROXY_KEYS],
   proxyFromEnv, noProxyFromEnv, proxyWarning, shouldBypass,
   TunnelAgent, createProxyFetch,
   getProxyFetch, getProxyAgent, resetProxy, proxyDescribe,

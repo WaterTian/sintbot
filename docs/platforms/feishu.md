@@ -38,13 +38,13 @@ SintBot supports the China edition of Feishu (open.feishu.cn). The international
 
 ## Connect SintBot
 
+Fill it in on the console (`sintbot ui`, or http://127.0.0.1:4600 once the service runs) under Settings → Feishu app, which has a setup guide and a one-click precheck that translates error codes into plain language. On a server without a browser, use the terminal instead:
+
 ```bash
-sintbot setup       # choose feishu, enter the App ID / App Secret; the precheck finds the bot's open_id and checks each permission
+sintbot setup --full   # choose feishu, enter the App ID / App Secret; the precheck finds the bot's open_id and checks each permission
 ```
 
-Or fill it in on the console under Settings → Feishu app, which has a setup guide and a one-click precheck that translates error codes into plain language.
-
-Add the bot to a group, then bind the project directory in the console under Groups & projects (or run `sintbot setup` again).
+Add the bot to a group, then bind the project directory in the console under Groups & projects (or run `sintbot setup --full`).
 
 ## Configuration
 

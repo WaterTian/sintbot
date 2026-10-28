@@ -1179,3 +1179,25 @@ test('ui: /api/state carries the inbox; a failed turn can be dismissed, other ke
     assert.ok(JSON.parse(fs.readFileSync(path.join(dir, 'inbox-dismissed.json'), 'utf8')).keys[fail.key], '忽略落盘')
   })
 })
+
+test('ui: 设置页的机器人名字与网络代理(1.0.12 起安装向导不再问这两样)', async () => {
+  await withServer(VALID_CFG, async ({ port, token, cfgPath }) => {
+    const post = (p, b) => rawReq(port, { method: 'POST', path: p, headers: { 'X-Sbot-Token': token, 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+    const cfg = () => JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
+    let r = await post('/api/agent', { brand: '  小助手 ' })
+    assert.equal(r.status, 200)
+    assert.equal(cfg().brand, '小助手')
+    assert.equal(JSON.parse(r.body).brand, '小助手')
+    r = await post('/api/agent', { brand: 'SintBot' }) // 默认名不落盘
+    assert.equal(cfg().brand, undefined)
+    r = await post('/api/proxy', { enabled: true, http: 'socks5://127.0.0.1:7890' })
+    assert.equal(r.status, 400)
+    assert.equal(cfg().proxy, undefined, '坏地址没落盘')
+    r = await post('/api/proxy', { enabled: true, http: 'http://127.0.0.1:7890' })
+    assert.equal(r.status, 200)
+    assert.equal(cfg().proxy.http, 'http://127.0.0.1:7890')
+    assert.ok(!cfg().proxy.noProxy.split(',').some((h) => /^\*\.\d/.test(h)))
+    r = await post('/api/proxy', { enabled: false })
+    assert.equal(cfg().proxy, undefined)
+  })
+})

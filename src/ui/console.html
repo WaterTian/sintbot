@@ -985,6 +985,24 @@ function healthText(h){return h.fails?`${h.fails} 失败 · ${h.warns} 警告`:h
 /* ── overview ── */
 // Full structure — rendered once on load / after an action (with the entrance
 // animation). Live bits carry ids/data-attrs so ticks patch them in place.
+// 开始使用(1.0.12):安装向导不再问聊天平台和绑群,装完第一次打开控制台时在这里说接下来做什么;平台接上、群绑好就不显示
+function startCardHtml(){
+  const pl=S.platforms||{},anyPlat=!!(pl.feishu||pl.slack||pl.wecom);
+  const anyGroup=(S.groups||[]).length>0;
+  if(anyPlat&&anyGroup)return '';
+  // 模型这一步按健康行「可用模型」判(能用的,不只是配了的:key 在服务环境里拿不到、试跑失败的都不算)
+  const mrow=((S.health&&S.health.rows)||[]).find(r=>r.label==='可用模型');
+  const anyModel=mrow?mrow.status!=='fail':(S.providers||[]).some(p=>p.configured&&!p.hidden);
+  const step=(done,title,hint,tab,btn)=>`<div class="inline" style="gap:10px;margin:10px 0;align-items:flex-start"><span class="dot ${done?'ok':'warn'}" style="margin-top:6px;flex:none"></span><div style="flex:1;min-width:0"><div>${title}</div><div class="hint">${hint}</div></div>${!done&&tab?`<button class="btn" data-gotab="${tab}" style="flex:none">${btn}</button>`:''}</div>`;
+  const sm=S.setupMode;
+  return `<div class="card" id="ovStart" style="margin-bottom:16px"><div class="lbl">开始使用</div>
+    ${step(anyModel,'配好模型',anyModel?'换模型、加模型在「模型 · 库」':'还没有能用的模型:在「模型 · 库」里添加、测试','providers','去「模型 · 库」')}
+    ${step(anyPlat,'接聊天平台','飞书 / Slack / 企业微信,「设置」里每个平台都有分步指南','settings','去「设置」')}
+    ${step(anyGroup,'绑一个群','把群绑到项目目录,一个群一个项目','groups','去「群 · 项目」')}
+    ${step(false,'在群里 @ 机器人说一句话','不接平台也能先在「试跑」里跑一轮',null,'')}
+    ${sm&&!anyPlat?`<div class="hint" style="margin-top:8px">${sm.supervised?'后台服务现在只开着控制台:平台接好、保存后,它会自动重启并连上(约 15 秒)。':'守护进程现在只开着控制台:接好平台后,在终端里按 Ctrl-C 再运行 sintbot start --ui 连上。'}</div>`:''}
+  </div>`;
+}
 function renderOverview(){
   const h=S.health;
   const cap=Math.max((S.agent&&S.agent.maxConcurrent)||0,0); // 0 = 不限(无固定槽位 → 不画 gauge)
@@ -1001,7 +1019,7 @@ function renderOverview(){
       ${liveOn?`<button class="iconbtn sm" data-ostop="${esc(g.chatId)}" title="停止当前任务(保留会话)" style="flex:none">${IC.square}</button>
       <button class="iconbtn sm" data-onew="${esc(g.chatId)}" title="开新会话 — 运行中会先中断当前任务并清空队列(同群内 /new)" style="flex:none">${IC.rotate}</button>`:''}</div>`).join('')
     :'<div class="empty">还没有群项目 · 去「群·项目」配置</div>';
-  $('#overview').innerHTML=`<div id="ovInboxWrap">${inboxHtml()}</div><div class="grid cols2 stagger">
+  $('#overview').innerHTML=`${startCardHtml()}<div id="ovInboxWrap">${inboxHtml()}</div><div class="grid cols2 stagger">
     <div class="card" id="ovHealth"><div class="lbl">健康</div>
       <span class="hpill ${healthClass(h)}" id="ovHealthPill"><span class="led"></span><span id="ovHealthTxt">${healthText(h)}</span></span>
       <div class="hrows" id="ovHrows">${h.rows.map(r=>`<div class="hrow" data-hk="${esc(r.label)}"><span class="dot ${r.status}"></span>
@@ -3206,7 +3224,7 @@ function renderSettings(){
       ${(pri.dropped||[]).map(d=>`<div class="hint" style="color:var(--fail)">${IC.x} 配置里已忽略 ${esc(d.value)}:${esc(d.why)}</div>`).join('')}
       ${(pri.outside||[]).length?`<div class="hint" style="margin-top:6px">${IC.warn} ${pri.outside.length} 个群在根之外:${esc(pri.outside.map(o=>o.name||o.chatId).join('、'))} —— 照常运行,改目录时须搬进根内</div>`:''}
     </div>
-    <div class="hint" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);line-height:1.7">这里只读,控制台不提供修改。要改,在服务器上编辑配置文件里的 <code>projectsRoots</code>(一个路径或数组,认 ~),或重新运行安装向导;改后即时生效,不用重启。</div>`;
+    <div class="hint" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);line-height:1.7">这里只读,控制台不提供修改。要改,在服务器上编辑配置文件里的 <code>projectsRoots</code>(一个路径或数组,认 ~),或运行 <code>sintbot setup --full</code>;改后即时生效,不用重启。</div>`;
   const urlRow=(label,u)=>`<div class="kv"><span class="kk">${label}</span><span class="vv mono"><a href="${esc(u)}" target="_blank" style="color:var(--ember-soft)">${esc(u)}</a></span></div>`;
   // 「服务器」卡 = 访问地址 + 项目根目录(用户 2026-09-08:两张短卡并成一张,不留空当;本机 127.0.0.1 那行去掉 ——
   // 正在看控制台的人用不着它,而它又是三行里最像「可以点」却最没用的一行)
@@ -3229,6 +3247,19 @@ function renderSettings(){
     ${linkRow('源码与文档','https://github.com/sintlab/sintbot','github.com/sintlab/sintbot')}
     ${linkRow('反馈问题','https://github.com/sintlab/sintbot/issues','github.com/sintlab/sintbot/issues')}
   </div>`;
+  // 机器人名字与网络代理(1.0.12 起安装向导不再问这两样,在这里配):名字是自我介绍 / 升级播报里的自称;
+  // 代理给连 Claude / ChatGPT 用,国内模型端点自动直连(服务端按已配的模型生成直连名单)
+  const envPx=S.envProxy||'';
+  const botCard=`<div class="card" id="botNetCard"><div class="lbl">机器人与网络</div>
+    <div class="field" style="max-width:320px"><label class="f">机器人名字</label><input id="bBrand" placeholder="SintBot" value="${esc(S.brand||'')}"/>
+      <div class="hint" style="margin-top:5px">自我介绍、升级播报里的自称 · 留空 = SintBot</div></div>
+    <div class="field" style="margin:12px 0 0;max-width:360px"><label class="f">网络代理</label><input id="pxHttp" placeholder="http://127.0.0.1:7890" value="${esc((px&&px.http)||'')}"/>
+      <div class="hint" style="margin-top:5px">连不上 Claude / ChatGPT 时填 · 国内模型端点自动直连 · 留空 = 不用代理</div>
+      ${envPx?`<div class="hint" style="margin-top:4px">后台服务的环境里已有代理:<span class="mono">${esc(envPx)}</span></div>`:''}
+      ${px&&px.noProxy?`<div class="hint" style="margin-top:4px">直连:<span class="mono">${esc(px.noProxy)}</span></div>`:''}</div>
+    <button class="btn primary" id="bSave" style="margin-top:14px">保存</button>
+    <div class="hint" style="margin-top:10px">代理第一次填,新的对话轮次就生效;改已有的地址要重启后台服务(sintbot service restart)。</div>
+  </div>`;
   const verhistCard=`<div class="card" style="grid-column:1/-1" id="verhistCard"><div class="lbl">版本历史</div>
     <div id="verhistBox"><div class="empty">加载中…</div></div></div>`;
   $('#settings').innerHTML=`<div class="grid cols2 stagger">
@@ -3248,6 +3279,7 @@ function renderSettings(){
       <button class="btn primary" id="aSave" style="margin-top:14px">保存</button>
       <div class="hint" style="margin-top:10px">执行权限已改<b>按群设</b> —— 见「群·项目」每张卡(缺省 <b>dontAsk 只读 · fail-closed</b>)。</div>
     </div>
+    ${botCard}
     <div class="fx-sub" style="grid-column:1/-1;margin:6px 0 0"><span style="flex:none">聊天平台</span><span class="faint" style="font-weight:400;letter-spacing:0">配了哪个就接哪个,可以同时在线;每个群项目自己选属于哪边。点卡头展开</span></div>
     ${fxFeishuCard(fe)}
     ${fxSlackCard(S.slack||null)}
@@ -3256,6 +3288,11 @@ function renderSettings(){
     ${verhistCard}
   </div>`;
   loadChangelog();
+  $('#bSave').onclick=async()=>{const brand=$('#bBrand').value.trim(),http=$('#pxHttp').value.trim();
+    if(http&&!/^https?:\/\/\S+$/i.test(http)){toast('代理地址要像 http://127.0.0.1:7890','err');return;}
+    try{await api('/api/agent','POST',{brand});S=await api('/api/proxy','POST',{enabled:!!http,http});toast('已保存','ok');renderSettings();}catch(e){toast(e.message,'err');}};
+  // 只开着控制台的守护进程(还没接平台):第一次接上平台时说一句接下来会发生什么(服务托管的会自己重启连上)
+  {const pl=S.platforms||{};if(S.setupMode&&(pl.feishu||pl.slack||pl.wecom)&&!window._sbRestartToast){window._sbRestartToast=1;toast(S.setupMode.supervised?'已接上聊天平台 —— 后台服务几秒后自动重启并连上':'已接上聊天平台 —— 在终端里重启 sintbot start --ui 连上','ok');}}
   bindWecomCard();
   bindFxFolds();
   const lo=$('#logoutBtn');if(lo)lo.onclick=async()=>{try{await api('/api/logout','POST',{});}catch{}dropToken();TOKEN='';location.reload();};
@@ -3609,6 +3646,8 @@ function renderFxCheck(box,checks){
 const splitList=s=>s.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);
 
 /* ── shell ── */
+// 「开始使用」卡里的「去某页」按钮:委托到 document,重绘不用重新绑
+document.addEventListener('click',(e)=>{const b=e.target.closest&&e.target.closest('[data-gotab]');if(!b)return;const t=document.querySelector('[data-tab="'+b.dataset.gotab+'"]');if(t)t.click();});
 function renderAll(){renderOverview();renderProviders();renderGroups();renderPlayground();renderSettings();updateDaemon();updateTopFxApp();}
 // 顶栏应用胶囊。数据同「设置」那张身份条(同一份落盘缓存),没取过就整块不显示 —— 顶栏不适合
 // 放「未获取」这类待办文案。头像 JS 注入并留 🤖 兜底(远端图,控制台可能开在断外网的机器上)。
@@ -3713,6 +3752,32 @@ updateThemeBtn();
    ⚠ 正则一律 ^…$ 整串、不加 g 标志;更具体的条目必须排在泛化条之前。 */
 const I18N_EN=[
   ["控制台","Console"],
+  ["开始使用","Get started"],
+  ["配好模型","Set up a model"],
+  ["换模型、加模型在「模型 · 库」","Switch or add models under Models"],
+  ["还没有能用的模型:在「模型 · 库」里添加、测试","No usable model yet: add and test one under Models"],
+  ["去「模型 · 库」","Open Models"],
+  ["接聊天平台","Connect a chat platform"],
+  ["飞书 / Slack / 企业微信,「设置」里每个平台都有分步指南","Slack, Feishu or WeCom: each has a step-by-step guide under Settings"],
+  ["去「设置」","Open Settings"],
+  ["绑一个群","Bind a group"],
+  ["把群绑到项目目录,一个群一个项目","Bind a group to a project folder, one project per group"],
+  ["去「群 · 项目」","Open Groups"],
+  ["在群里 @ 机器人说一句话","@mention the bot in the group"],
+  ["不接平台也能先在「试跑」里跑一轮","No platform yet? Try a turn in Playground first"],
+  ["后台服务现在只开着控制台:平台接好、保存后,它会自动重启并连上(约 15 秒)。","The background service is running the console only: once you connect a platform and save, it restarts itself and connects (about 15 seconds)."],
+  ["守护进程现在只开着控制台:接好平台后,在终端里按 Ctrl-C 再运行 sintbot start --ui 连上。","The daemon is running the console only: after connecting a platform, press Ctrl-C in the terminal and run sintbot start --ui again to connect."],
+  ["机器人与网络","Bot & network"],
+  ["机器人名字","Bot name"],
+  ["自我介绍、升级播报里的自称 · 留空 = SintBot","How it refers to itself in introductions and upgrade notices · empty = SintBot"],
+  ["网络代理","Network proxy"],
+  ["连不上 Claude / ChatGPT 时填 · 国内模型端点自动直连 · 留空 = 不用代理","Set this if Claude / ChatGPT can't be reached · China model endpoints connect directly · empty = no proxy"],
+  ["后台服务的环境里已有代理:","The background service already has a proxy in its environment: "],
+  ["直连:","Direct: "],
+  ["代理第一次填,新的对话轮次就生效;改已有的地址要重启后台服务(sintbot service restart)。","A first-time proxy applies to new turns right away; changing an existing address needs a service restart (sintbot service restart)."],
+  ["代理地址要像 http://127.0.0.1:7890","The proxy address should look like http://127.0.0.1:7890"],
+  ["已接上聊天平台 —— 后台服务几秒后自动重启并连上","Chat platform connected — the background service restarts in a few seconds and connects"],
+  ["已接上聊天平台 —— 在终端里重启 sintbot start --ui 连上","Chat platform connected — restart sintbot start --ui in the terminal to connect"],
   ["服务器","Server"],
   ["配置模式","Config mode"],
   ["实时连接(SSE)","Live connection (SSE)"],
@@ -4371,7 +4436,8 @@ const I18N_EN=[
   ["群项目都放这里 · 选目录、保存群绑定、从本机目录提炼风格,只认这些目录之内的路径 · 当前是默认值","All group projects live here · choosing a folder, saving a group binding, and extracting a style from a local folder only accept paths inside these folders · currently the default"],
   ["不存在 —— 在服务器上建好即可","Does not exist — just create it on the server"],
   ["这里只读,控制台不提供修改。要改,在服务器上编辑配置文件里的","Read-only here — the console offers no way to change it. To change it, edit "],
-  ["(一个路径或数组,认 ~),或重新运行安装向导;改后即时生效,不用重启。"," in the config file on the server (one path, or an array; ~ is accepted), or run the setup wizard again. Changes apply immediately, no restart needed."],
+  ["(一个路径或数组,认 ~),或运行"," in the config file on the server (one path, or an array; ~ is accepted), or run"],
+  [";改后即时生效,不用重启。","; changes apply immediately, no restart needed."],
   ["公网","Public"],
   ["局域网","LAN"],
   ["访问地址","Access URLs"],

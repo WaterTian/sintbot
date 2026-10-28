@@ -26,11 +26,11 @@ The WeCom client and admin console are in Chinese; the menu names are given in C
 
 ## Connect SintBot
 
-```bash
-sintbot setup     # choose wecom, enter the Bot ID / Secret and the bot's name in WeCom (used to strip the @ from message text)
-```
+Fill it in on the console (`sintbot ui`, or http://127.0.0.1:4600 once the service runs) under Settings → WeCom bot. The console's precheck covers the credentials, the CLI, and whether the CLI is authorized for the same bot. On a server without a browser, use the terminal instead:
 
-Or fill it in on the console under Settings → WeCom bot. The console's precheck covers the credentials, the CLI, and whether the CLI is authorized for the same bot.
+```bash
+sintbot setup --full   # choose wecom, enter the Bot ID / Secret and the bot's name in WeCom (used to strip the @ from message text)
+```
 
 ```jsonc
 "wecom": {

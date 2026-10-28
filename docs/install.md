@@ -14,17 +14,19 @@ On macOS and Linux (Linux support is experimental):
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-The script runs the steps below in order. Each step checks first and skips work that is already done, and anything that changes your system asks first (Enter means yes).
+The script runs four numbered steps. Each step checks first and skips work that is already done, and anything that changes your system asks first (Enter means yes). The terminal only installs SintBot and sets up a model: it does not ask where you are or for a proxy, a projects folder or chat platform credentials. You set those in the console afterwards.
 
-1. **Node.js 22+.** If Node is missing or too old, the script installs or upgrades it with Homebrew on a Mac that has Homebrew. Otherwise (no Homebrew, or Linux), it prints the [nodejs.org](https://nodejs.org) download link and stops; install Node, then run the script again.
-2. **npm registry.** If you have configured a registry, the script uses it. If you are on the official registry, it first tests the connection. If the official registry is unreachable (common in mainland China), it uses the `registry.npmmirror.com` mirror for this run.
-3. **sintbot.** It runs `npm i -g sintbot`. If the global npm directory is not writable, it does not fall back to `sudo`; it prints the commands that move the global directory into your home folder.
-4. **Setup wizard**, `sintbot setup`. The first step checks for Claude Code and offers to install it if it is missing (see the next section). Then the wizard asks about your region, sets up a model with a live trial turn, and configures the chat platform, the projects folder and the first group. **Create the bot and add it to a group first** (see [platforms/](./platforms/)) so you have credentials to paste.
-5. **Service.** It asks whether to run `sintbot service install`, which restarts the daemon on crash and starts it at login. If you say no, the script ends by showing how to start the daemon: `sintbot start --ui` in the foreground, or `sintbot service install` later. If you skipped the chat platform in the wizard, it does not offer the service (the daemon would exit right away) and points you to `sintbot ui` instead: connect a platform and bind a group under Settings, then install the service.
+1. **Environment: Node.js 22+.** If Node is missing or too old, the script installs or upgrades it with Homebrew on a Mac that has Homebrew. Otherwise (no Homebrew, or Linux), it prints the [nodejs.org](https://nodejs.org) download link and stops; install Node, then run the script again.
+   **npm registry.** If you have configured a registry, the script uses it. If you are on the official registry, it first tests the connection. If the official registry is unreachable (common in mainland China), it uses the `registry.npmmirror.com` mirror for this run.
+2. **Install sintbot.** It runs `npm i -g sintbot`. If the latest version is already installed, it says so and moves on; an older version asks whether to upgrade. If the global npm directory is not writable, it does not fall back to `sudo`; it prints the commands that move the global directory into your home folder.
+3. **Model**, `sintbot setup`. The wizard checks for Claude Code and offers to install it if it is missing (see the next section), then sets up a model with a live trial turn. See [section 2](#2-configure-sintbot-setup).
+4. **Background service.** It asks whether to run `sintbot service install`, which starts SintBot at login and restarts it on crash. The console then stays up at `http://127.0.0.1:4600`, even before a chat platform is connected, and the script opens it in your browser (not over SSH). If the service is already running and nothing was upgraded, the step is skipped; after an upgrade it asks whether to restart the service, which announces the upgrade in connected groups.
+
+The script ends with the console address and what to do next: connect Slack, Feishu or WeCom under Settings, bind a group under Groups, then @mention the bot in that group. `sintbot chat` lets you try it in the terminal first.
 
 - To see what the script would do without changing anything, run `curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`. The script source is [install.sh](../install.sh) at the root of the repository.
 - Without an interactive terminal (for example in CI), the wizard and service steps are skipped and only the package is installed.
-- The script prints English unless your locale is Chinese (`LANG` starting with `zh`); set `SINTBOT_LANG=en` or `SINTBOT_LANG=zh` to choose, for example `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=en bash`. The setup wizard itself is in Chinese for now; [the section below](#2-configure-sintbot-setup) explains each question.
+- The script and the wizard print Chinese if your locale is Chinese (`LANG` starting with `zh`) or, on macOS, the system language is Chinese; otherwise English. Set `SINTBOT_LANG=en` or `SINTBOT_LANG=zh` to choose, for example `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=en bash`.
 - The one-line install does not support Windows; follow the manual steps below.
 
 ## Claude Code: install and sign in
@@ -83,30 +85,31 @@ npm link            # optional: link the sintbot / sbot commands globally
 
 ## 2. Configure: `sintbot setup`
 
-This is an interactive wizard; Enter accepts the default (the value in brackets, or the capital letter in `(Y/n)`). **Create the bot and add it to a group first** (see [platforms/](./platforms/)), so you have credentials to paste and a group to bind. The wizard asks, in order:
+This is an interactive wizard; Enter accepts the default (the value in brackets, or the capital letter in `(Y/n)`). It only covers what SintBot needs to run on this machine:
 
-1. **Region.** "Is this machine in mainland China?" The default is guessed from the system time zone. The answer decides which site to use for providers that have an international site, whether to ask about a proxy, and which chat platform to recommend.
+1. **Environment.** Claude Code, Codex and the design icon libraries; anything missing is offered for install (see [Requirements](#requirements)).
 2. **Model.** The wizard first shows the login status of Claude and ChatGPT (Codex), plus any models whose keys are already set, then recommends in this order:
    - If Claude is signed in, the default is Claude; otherwise, if Codex is signed in, the default is Codex. In either case it only asks whether to add an API-key model as well.
    - If neither is signed in, it **recommends DeepSeek**: it tells you to get a key at platform.deepseek.com and **runs a trial turn** as soon as you paste it. You can also pick another provider (Zhipu GLM, MiniMax, Volcano Ark), sign in to Claude or Codex in another terminal and come back to re-check, or skip for now.
-   - Zhipu GLM and MiniMax have international sites (Z.ai and minimax.io), so the wizard asks which site issued your key. Choosing the wrong one gives a 401.
+   - Zhipu GLM and MiniMax have international sites (Z.ai and minimax.io), and a key only works on the site that issued it. The wizard tries one site and, if the key is rejected, tries the other one automatically. Without Claude Code it cannot run a trial, so it asks which site issued the key.
    - If the trial turn fails, the wizard tells you why: a wrong key, an empty balance or missing identity verification, a network problem (is a global proxy on?), or a wrong model name. You can paste the key again and retry.
    - If more than one model is usable, it asks which one is the default; groups can switch any time with `/model`. If the default model has not had a trial turn yet, it offers one.
    - If Codex is not installed or not signed in, the Codex preset and the automatic fallback to Codex are left out of the config. Kimi is not a preset; add it in the console under Models → Add model → Custom. See [models.md](./models.md).
-   - **Proxy routing** is asked only in mainland China, and only when Claude or ChatGPT is in use. Official Claude and ChatGPT go through the proxy, while domestic model endpoints and Feishu connect directly; `noProxy` is generated from the providers you enabled.
-3. **Bot name**: what the bot is called in the group (default: SintBot).
-4. **Chat platforms**: Slack, Feishu and WeCom. Separate several with spaces; the default is `slack`, or `feishu` if you said the machine is in mainland China, and `none` skips this step. After each platform's credentials, the wizard offers a **precheck** (default: yes) that calls the platform's API with them. For Feishu, the precheck also fills in `botOpenId`; if you skip it, you can type the value or leave it empty (see [feishu.md](./platforms/feishu.md) for what an empty value means). For Feishu, the wizard also offers to set admins, who are added automatically to groups the bot creates.
-5. **Projects folder**: the folder that holds group projects (default `~/Projects`; separate several with `;`). If it does not exist, the wizard offers to create it. The console only accepts directories inside it.
-6. **First group** (optional, default: no):
-   - Choose the platform, then the group. For Feishu, the wizard lists the groups the bot is in; if that fails, type the group ID. For WeCom, @ the bot in the group first, or skip this and pick the group later in the console.
-   - Enter the project directory; the wizard offers to create it if it does not exist.
-   - Choose the model.
 
-The config is written to `~/.sbot/config.json` with permissions 600. If the current directory already has a `sbot.config.json`, that file is updated instead.
+The config is written to `~/.sbot/config.json` with permissions 600. If the current directory already has a `sbot.config.json`, that file is updated instead. Running `sintbot setup` again only fills in what is missing and leaves existing values alone.
 
-Running `sintbot setup` again only fills in what is missing and leaves existing values alone. The Feishu precheck is offered every time, so you can use it to fill in `botOpenId`. For day-to-day changes such as binding groups, switching models and setting permissions, use the console: `sintbot ui`.
+The wizard ends with a short health check that lists only failures; `sintbot doctor` shows the full list. If your terminal uses a proxy and the config has none, it suggests carrying the proxy into the service (see the next section) or setting it in the console.
 
-The wizard ends by running `sintbot doctor`. Fix every ✗ (failure); read each ! (warning).
+**Everything else is in the console** (`sintbot ui`, or `http://127.0.0.1:4600` once the service runs):
+
+| What | Where in the console |
+|---|---|
+| Chat platform credentials (Slack, Feishu, WeCom), precheck, Feishu admins | Settings; each platform has a step-by-step guide. See [platforms/](./platforms/) |
+| Binding groups to project folders | Groups |
+| Bot name, network proxy | Settings → Bot & network |
+| Projects folder | Read-only in the console (it is the fence for what the console may bind). The default is `~/Projects`; to change it, edit `projectsRoots` in the config or run `sintbot setup --full` |
+
+**`sintbot setup --full`** asks the old full set of questions in the terminal, for servers without a browser: proxy routing, bot name, chat platform credentials with precheck, projects folder and a first group. This part of the wizard is in Chinese only.
 
 ## 3. Run as a service: `sintbot service install`
 
@@ -121,11 +124,12 @@ sintbot service status | restart | logs | uninstall
 - **Logs:** `~/.sbot/logs/err.log`; `sintbot service logs` shows the tail.
 - **What the service pins:** the node path, the sintbot entry point, the absolute config path, and the PATH of your current shell (with the directories of `claude` and `codex` first). **After changing node, moving the config or newly installing claude, run `sintbot service install` again.**
 - **Node path:** a Homebrew node really lives in a versioned directory that disappears on upgrade, so install switches to an unversioned path to the same program (such as `/opt/homebrew/bin/node`). For nvm, volta and other managers without a stable path, it keeps the original path and reminds you to reinstall the service after changing node versions.
-- **Environment variables:** the service does **not** inherit your shell's variables. For every `"env:NAME"` in the config, install names the ones the service cannot see. You have two options:
+- **Environment variables:** the service does **not** inherit your shell's variables. For every `"env:NAME"` in the config, install names the ones the service cannot see; if the config has no proxy but your shell has `https_proxy` and similar variables, they are listed too. You have two options:
   - write their values into the service definition (the file is set to 600, and `--dry-run` masks the values). Run in a terminal, install asks whether to do this (default yes); `--pass-env` does it without asking. After changing a key, run install again;
-  - put the values directly in the config, which is itself 600.
+  - put the values directly in the config, which is itself 600 (for the proxy: the console's Settings → Bot & network).
 - **Console exposure:** if the console is opened beyond this machine (`--ui-host` set to a non-loopback address) without a password, install refuses; otherwise the service would exit on every start.
-- **No chat platform yet:** install also refuses (exit code 3) when no Feishu, Slack or WeCom credentials are configured, for the same reason. Run `sintbot ui`, connect a platform under Settings, then install.
+- **No chat platform yet:** the service still installs and runs the console only. Connect a platform under Settings and save; the service restarts itself within seconds and connects. (Versions 1.0.10 and 1.0.11 refused to install in this case.)
+- **`sintbot ui` while the service runs** opens the service's console instead of failing on the busy port.
 - ⚠ **Do not start a second daemon.** Once the service is installed, do not also run `sintbot start` by hand: only one daemon is allowed per OS user (lock file `~/.sbot/daemon.lock`), and a second one reports the running one's pid and exits. If another machine or OS user starts a daemon with **the same bot app**, Feishu and Slack hand each message **to one of the connections at random**, so the other never sees it. WeCom lets the new connection replace the old one, and a connection replaced twice within 10 minutes stops reconnecting.
 
 ### Upgrade
@@ -158,12 +162,12 @@ Then turn on **automatic login** in System Settings → Users & Groups. A Launch
 
 ## Proxies (mainland China)
 
-In mainland China, official Claude, ChatGPT / Codex and Slack need a proxy, while domestic model endpoints, Feishu and WeCom connect directly. When proxy routing is enabled in setup, the config's `proxy` block is applied in two places:
+In mainland China, official Claude, ChatGPT / Codex and Slack need a proxy, while domestic model endpoints, Feishu and WeCom connect directly. Set the proxy in the console under Settings → Bot & network (or with `sintbot setup --full`); the config's `proxy` block is then applied in two places:
 
 - It is injected into every spawned `claude` / `codex` process, without overriding values already set in your shell.
 - The daemon also uses it for its own Slack connection. Node's `fetch` and WebSocket ignore `HTTP_PROXY`, so this is handled separately.
 
-**Domestic model endpoints should connect directly.** Routing DeepSeek, Zhipu, MiniMax or Volcano Ark through a server abroad and back is slow and can trip the provider's risk controls. When setup enables proxy routing, `noProxy` is generated from the providers you enabled. If you set the proxy in your shell yourself, add these hosts to `NO_PROXY`:
+**Domestic model endpoints should connect directly.** Routing DeepSeek, Zhipu, MiniMax or Volcano Ark through a server abroad and back is slow and can trip the provider's risk controls. When the proxy is set in the console or by setup, `noProxy` is generated from the providers you enabled. If you set the proxy in your shell yourself, add these hosts to `NO_PROXY`:
 
 ```bash
 export NO_PROXY=api.deepseek.com,open.bigmodel.cn,api.minimaxi.com,ark.cn-beijing.volces.com,localhost,127.0.0.1
@@ -176,7 +180,7 @@ To check that the proxy works, run `curl -I https://chatgpt.com/`. A 403 means i
 | Symptom | Cause and fix |
 |---|---|
 | The health check or the group says "not logged in" / `Not logged in` | The default model is still `claude`, but this machine is not signed in to Claude. If you only use DeepSeek or another API-key model, run `sintbot setup` again and pick the model, send `/model deepseek` in the group, or change the group's model in the console. To use Claude, run `claude auth login` |
-| The trial turn says the key is wrong (401) | The key was not copied in full, or the key and the site do not match (Zhipu's and MiniMax's mainland and international sites do not share keys). Run `sintbot setup` again, choose the site and paste the key |
+| The trial turn says the key is wrong (401) | The key was not copied in full. For Zhipu and MiniMax the wizard already tried both the mainland and the international site, so the key itself is wrong. Run `sintbot setup` again and paste it |
 | Insufficient balance / identity not verified | Top up or complete identity verification in the provider's console, then retry |
 | Domestic models are slow or unreachable | With a global proxy on, requests go abroad and back. Set the model hosts to connect directly; see [Proxies](#proxies-mainland-china) above |
 | npm installs are slow or fail | Add `--registry https://registry.npmmirror.com`; the one-line install and the wizard switch automatically |

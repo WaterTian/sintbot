@@ -113,11 +113,12 @@ test('service: envRefs 收集配置里全部 env:VAR(去重、深层、数组里
 test('service: --pass-env 的变量写进 plist / systemd 单元,值照样转义;不给就不写', () => {
   const s = svc.serviceSpec({ nodeBin: '/n', sbotBin: '/s', home: '/h', pathEnv: '/p', env: { K: 'a&b<c', Q: 'x y$z' } })
   const x = svc.launchdPlist(s)
-  assert.match(x, /<key>PATH<\/key><string>\/p<\/string>\n {4}<key>K<\/key><string>a&amp;b&lt;c<\/string>\n {4}<key>Q<\/key><string>x y\$z<\/string>\n {2}<\/dict>/)
+  assert.match(x, /<key>PATH<\/key><string>\/p<\/string>\n {4}<key>K<\/key><string>a&amp;b&lt;c<\/string>\n {4}<key>Q<\/key><string>x y\$z<\/string>\n {4}<key>SBOT_SUPERVISED<\/key><string>1<\/string>\n {2}<\/dict>/)
   const u = svc.systemdUnit(s)
   assert.match(u, /^Environment=K=a&b<c$/m)
   assert.match(u, /^Environment="Q=x y\$\$z"$/m)
-  // 对照组:没有 env 时 EnvironmentVariables 只有 PATH
+  // 对照组:没有 env 时 EnvironmentVariables 只有 PATH 和托管标记
   assert.doesNotMatch(svc.launchdPlist(SPEC), /<key>K<\/key>/)
-  assert.equal((svc.systemdUnit(SPEC).match(/^Environment=/gm) || []).length, 1)
+  assert.deepEqual(svc.systemdUnit(SPEC).match(/^Environment=.*$/gm), ['Environment=PATH=' + SPEC.pathEnv, 'Environment=SBOT_SUPERVISED=1'])
+  assert.match(svc.launchdPlist(SPEC), /<key>SBOT_SUPERVISED<\/key><string>1<\/string>/)
 })

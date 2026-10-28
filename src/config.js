@@ -11,6 +11,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
+const net = require('node:net')
 const { DEFAULT_TZ, normalizeTz } = require('./core/time')
 const { resolveProjectsRoots, expandHome } = require('./projectsroot')
 const { setKnownSecrets } = require('./core/redact')
@@ -210,10 +211,11 @@ function deriveNoProxy(providers) {
   for (const p of Object.values(providers || {})) {
     if (!p || !p.baseUrl) continue
     try {
-      const h = new URL(p.baseUrl).hostname
+      const h = new URL(p.baseUrl).hostname.replace(/^\[|\]$/g, '')
       hosts.add(h)
+      // IP 不取后两段:127.0.0.1 会变出一条 `*.0.1`(1.0.11 实装时 NO_PROXY 里真出现过)
       const parts = h.split('.')
-      if (parts.length > 2) hosts.add('*.' + parts.slice(-2).join('.'))
+      if (!net.isIP(h) && parts.length > 2) hosts.add('*.' + parts.slice(-2).join('.'))
     } catch { /* skip malformed baseUrl */ }
   }
   return [...hosts].join(',')

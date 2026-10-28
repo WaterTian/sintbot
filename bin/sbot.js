@@ -12,6 +12,8 @@ const { pathToFileURL } = require('node:url')
 const path = require('node:path')
 const readline = require('node:readline')
 const { parseArgs } = require('node:util')
+const { tr } = require('../src/clilang')
+const { PROXY_ENV_KEYS } = require('../src/core/proxy')
 const { loadConfig, findConfigPath, defaultConfigPath, applyProxyEnv, deriveNoProxy, resolveSecret, platformsConfigured, chatPlatform } = require('../src/config')
 const { resolveProjectsRoots, withinRoots, describeRoots, parseRootsInput, expandHome, workdirInput, defaultWorkdir } = require('../src/projectsroot')
 // Runner dispatch (keeps core/engine agnostic — it only sees `{ runTurn }`): a provider
@@ -124,9 +126,10 @@ const SUBHELP = {
   providers: '用法: sintbot providers\n'
     + '      列出配置里的模型 provider:型号 / 端点 / key 是否就位;* = 默认那个\n'
     + '      (改 provider 走控制台「模型」页或直接编辑 sbot.config.json;群里用 /model 切)',
-  setup: '用法: sintbot setup [--config <path>]\n'
-    + '      交互式首次向导:环境检查 → 地区 → 模型(先看 Claude / Codex 登录,都没有推荐 DeepSeek,填 key 当场试跑)→ 代理(中国大陆才问)→ 机器人名与聊天平台(飞书 / Slack / 企业微信)→ 项目根目录 → (可选)绑一个群\n'
-    + '      回车即默认;已有配置只补缺项、不动已填的;新建默认写到 ~/.sbot/config.json(当前目录已有 sbot.config.json 就更新它;--config 另指),权限 600,完了自动跑一遍 doctor',
+  setup: '用法: sintbot setup [--full] [--config <path>]\n'
+    + '      首次向导:环境检查 → 模型(先看 Claude / Codex 登录,都没有推荐 DeepSeek,填 key 当场试跑)。聊天平台、代理、项目根目录、绑群装完在控制台里配\n'
+    + '      --full:另外在终端里问代理、机器人名与聊天平台凭据(飞书 / Slack / 企业微信)、项目根目录、绑一个群(给没有浏览器的服务器用)\n'
+    + '      回车即默认;已有配置只补缺项、不动已填的;新建默认写到 ~/.sbot/config.json(当前目录已有 sbot.config.json 就更新它;--config 另指),权限 600',
   ui: '用法: sintbot ui [--port <n>] [--host <ip>] [--no-open] [--config <path>]\n'
     + '      sintbot ui --set-password\n'
     + '      浏览器里的控制台(配置模式,不接 daemon):配置 / 健康 / provider 试跑 / 群绑定;默认 http://127.0.0.1:4600\n'
@@ -425,6 +428,46 @@ async function cmdChat(rest) {
   await platform.start((msg) => engine.handleMessage(msg, platform))
 }
 
+// 还没接聊天平台时的 `sbot start --ui`:只开配置模式的控制台(与 `sintbot ui` 同一套),等人在「设置」里接平台。
+// 照拿单实例锁(和正式 daemon 同一把:之后在终端里 sintbot start 会被拦下,不会两个抢一个平台)。
+// 服务托管(SBOT_SUPERVISED=1)时,配置里第一次出现配齐的平台就 3 秒后退出 —— launchd / systemd 拉起来就是正式 daemon、连上平台;
+// 前台跑的只在日志里提示重启。
+async function serveSetupConsole(cfg, { port, host, noOpen }) {
+  const configPath = cfg._path || path.join(process.cwd(), 'sbot.config.json')
+  if (!isLoopbackHost(host) && !((cfg.ui || {}).auth)) return die(`控制台对外(--ui-host ${host})需先设密码:sintbot ui --set-password`)
+  const supervised = process.env[require('../src/service').SUPERVISED_ENV] === '1'
+  const stateDir = path.join(os.homedir(), '.sbot')
+  try { secureDataDir(stateDir) } catch {}
+  const lock = require('../src/core/instancelock').acquire(path.join(stateDir, 'daemon.lock'))
+  if (!lock.ok) return die(`另一个 sbot 已在运行(pid ${lock.holder || '?'})—— 先停掉它(装了服务就 sintbot service uninstall / restart)`)
+  process.on('exit', lock.release)
+  const logTz = normalizeTz(cfg.timezone) // 与正式 daemon 同一口径:按产品时区打戳
+  const logStamp = () => fmtLogStamp(Date.now(), logTz)
+  const log = (m) => process.stderr.write(gray(`[${logStamp()}] · ` + m) + '\n')
+  const ui = createUiServer({ configPath, host, log, setupMode: { supervised } })
+  ui.server.on('error', (e) => die(e.code === 'EADDRINUSE' ? `控制台端口 ${port} 被占用 —— 加 --ui-port <其它> 换端口` : 'ui server error: ' + (e && e.message)))
+  ui.listen(port, host, () => {
+    const url = `http://127.0.0.1:${port}`
+    process.stderr.write('\n' + cyan('  sbot 控制台') + dim('  →  ') + url + gray('  (还没接聊天平台:在「设置」里接飞书 / Slack / 企业微信)') + '\n\n')
+    log(`还没接聊天平台,只开控制台 ${url}` + (supervised ? ';接上平台后自动重启连上' : ''))
+    if (!noOpen) tryOpen(url)
+  })
+  let told = false
+  fs.watchFile(configPath, { interval: 1500 }, (cur, prev) => {
+    if (cur.mtimeMs === prev.mtimeMs || told) return
+    let now
+    try { now = platformsConfigured(loadConfig(configPath)) } catch { return } // 写到一半 / 改坏了:等下一次
+    const names = Object.keys(now).filter((k) => now[k])
+    if (!names.length) return
+    told = true
+    if (supervised) { log(`已接上 ${names.join(' / ')} —— 3 秒后重启守护进程连上`); setTimeout(() => process.exit(0), 3000) }
+    else log(`已接上 ${names.join(' / ')} —— 按 Ctrl-C 后重新运行 sintbot start --ui 连上`)
+  })
+  const bye = () => { try { ui.close() } catch {} process.exit(0) }
+  process.on('SIGINT', bye)
+  process.on('SIGTERM', bye)
+}
+
 // `sbot start` — the daemon: Feishu WS in, engine routes each group message to
 // its bound project, agent runs, reply goes back to the group.
 async function cmdStart(rest) {
@@ -443,6 +486,8 @@ async function cmdStart(rest) {
   // 两个都配就两个都接,群项目各自带 platform 字段说明属于哪边(config.normalizeGroupPlatforms 归一,路由器按它分发)。
   const plat = platformsConfigured(cfg)
   if (!plat.feishu && !plat.wecom && !plat.slack) {
+    // 带 --ui(后台服务就是这么起的):只开控制台,等人在「设置」里接平台 —— 1.0.12 起没平台也装服务,装完就有地方可去
+    if (wantUi) return serveSetupConsole(cfg, { port: Number(values['ui-port']) || 4600, host: values['ui-host'] || '127.0.0.1', noOpen })
     if (cfg.wecom && (cfg.wecom.botId || cfg.wecom.secret)) return die('sbot.config.json 的 wecom 块缺 ' + (cfg.wecom.botId ? 'secret' : 'botId') + '(机器人 API 配置页「使用长连接」处)')
     return die('没有配置任何聊天平台 — 在 sbot.config.json 里加 "feishu" 块(appId/appSecret)、"wecom" 块(botId/secret)或 "slack" 块(botToken/appToken),配几个接几个')
   }
@@ -1214,10 +1259,10 @@ function printPreviewStatus() {
 async function cmdService(rest) {
   const svc = require('../src/service')
   const action = rest[0] && !rest[0].startsWith('-') ? rest[0] : 'status'
-  const { values } = parseArgs({ args: rest.slice(action === rest[0] ? 1 : 0), allowPositionals: true, options: { config: { type: 'string' }, 'ui-host': { type: 'string' }, 'dry-run': { type: 'boolean' }, 'pass-env': { type: 'boolean' }, n: { type: 'string' } } })
+  const { values } = parseArgs({ args: rest.slice(action === rest[0] ? 1 : 0), allowPositionals: true, options: { config: { type: 'string' }, 'ui-host': { type: 'string' }, 'dry-run': { type: 'boolean' }, 'pass-env': { type: 'boolean' }, check: { type: 'boolean' }, n: { type: 'string' } } })
   const platform = process.platform
   const home = os.homedir()
-  const nice = (st) => st.running ? cyan('● 运行中') + (st.pid ? dim(` pid ${st.pid}`) : '') : st.loaded ? yellow(`○ 已加载、未在运行(${st.state || '?'})`) : st.installed ? yellow('○ 已安装、未加载') : gray('○ 未安装')
+  const nice = (st) => st.running ? cyan(tr('● 运行中', '● running')) + (st.pid ? dim(` pid ${st.pid}`) : '') : st.loaded ? yellow(tr(`○ 已加载、未在运行(${st.state || '?'})`, `○ loaded, not running (${st.state || '?'})`)) : st.installed ? yellow(tr('○ 已安装、未加载', '○ installed, not loaded')) : gray(tr('○ 未安装', '○ not installed'))
   if (action === 'install') {
     const configPath = findConfigPath(values.config)
     if (!configPath) return die('没找到配置文件 —— 先跑 sintbot setup(或 --config 指定)')
@@ -1226,27 +1271,27 @@ async function cmdService(rest) {
     let raw
     try { raw = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch (e) { return die(`读不了配置 ${configPath}:${e.message}`) }
     if (uiHost && !isLoopbackHost(uiHost) && !((raw.ui || {}).auth)) return die(`控制台对外(--ui-host ${uiHost})要先设密码:sintbot ui --set-password${values.config ? ' --config ' + values.config : ''} —— 否则服务一启动就退出、被反复拉起`)
-    // 一个聊天平台都没接:sintbot start 一启动就报错退出,装成服务同样是反复拉起的死循环 ⇒ 也在装之前拦。
-    // 退出码 3 单列,install.sh 据此改口「先去控制台接平台」(env: 引用按当前 shell 解析,与服务带 --pass-env 时一致)
+    // 一个聊天平台都没接也照装(1.0.12 起):服务先只开控制台,在「设置」里接好平台后自己重启连上(cmdStart 的配置模式)。
+    // 1.0.10–1.0.11 在这里拦下(退出码 3),结果装完没有任何地方可去 —— 控制台也打不开
     const plat = platformsConfigured(loadConfig(configPath))
-    if (!plat.feishu && !plat.wecom && !plat.slack) {
-      const cfgArg = values.config ? ' --config ' + values.config : ''
-      process.stderr.write(red(`sbot: 还没接聊天平台 —— 装成服务也会一启动就退出、被反复拉起。先运行 sintbot ui${cfgArg},在控制台「设置」里填飞书 / Slack / 企业微信的凭据并绑群(或重跑 sintbot setup),再装服务`) + '\n')
-      process.exit(3)
-    }
+    const noPlatform = !plat.feishu && !plat.wecom && !plat.slack
     // 服务进程拿不到当前 shell 的环境变量:点名配置里的 env: 引用;--pass-env 才把值写进单元文件。
-    // 终端里装又没给 --pass-env 时问一句(默认是):不带进去,服务里用这些 key 的模型 / 平台直接用不了
+    // 终端里装又没给 --pass-env 时问一句(默认是):不带进去,服务里用这些 key 的模型 / 平台直接用不了。
+    // 配置里没写代理、终端里有代理变量时一起列进这一问(不另问):不带进去,服务里连 Claude / ChatGPT 会直连失败
     const refs = svc.envRefs(raw)
     const inShell = refs.filter((v) => process.env[v])
     const nowhere = refs.filter((v) => !process.env[v])
+    const shellProxy = PROXY_ENV_KEYS.filter((k) => process.env[k])
+    const proxyVars = (raw.proxy && raw.proxy.http) || !shellProxy.some((k) => !/^no_proxy$/i.test(k)) ? [] : shellProxy // 只有 NO_PROXY 不算有代理
+    const carry = [...inShell, ...proxyVars]
     let passEnv = !!values['pass-env']
-    if (!passEnv && inShell.length && process.stdin.isTTY) {
+    if (!passEnv && carry.length && process.stdin.isTTY) {
       const rl = readline.createInterface({ input: process.stdin, output: process.stderr })
-      const a = await new Promise((res) => rl.question(`${cyan('?')} 配置用到的环境变量 ${inShell.join(' ')} 服务里拿不到 —— 把它们的值写进服务定义吗?(文件权限 600;以后换 key 要重跑这条命令) ${dim('(Y/n)')} `, res))
+      const a = await new Promise((res) => rl.question(`${cyan('?')} ${tr(`终端里的环境变量 ${carry.join(' ')} 服务里拿不到 —— 把它们的值写进服务定义吗?(文件权限 600;以后改了要重跑这条命令)`, `The service can't see these variables from your terminal: ${carry.join(' ')}. Write their values into the service definition? (file mode 600; re-run this command after changing them)`)} ${dim('(Y/n)')} `, res))
       rl.close()
       passEnv = !/^n/i.test(String(a).trim())
     }
-    const env = passEnv ? Object.fromEntries(inShell.map((v) => [v, process.env[v]])) : {}
+    const env = passEnv ? Object.fromEntries(carry.map((v) => [v, process.env[v]])) : {}
     const tools = ['claude', 'codex'].map((n) => whichSync(n)).filter(Boolean)
     const node = svc.stableNodeBin({ execPath: process.execPath, candidates: [whichSync('node')] })
     const sbotBin = path.resolve(__dirname, 'sbot.js')
@@ -1262,6 +1307,8 @@ async function cmdService(rest) {
     if (node.warn) process.stderr.write(yellow('⚠ ' + node.warn) + '\n')
     if (svc.versionedPath(sbotBin)) process.stderr.write(yellow(`⚠ sbot 装在带版本号的 node 目录下(${sbotBin}),换 node 版本后要重装 sintbot 并重跑 sintbot service install`) + '\n')
     if (inShell.length && !passEnv) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${inShell.join(' ')} 只在当前终端里有,服务里拿不到 —— 加 --pass-env 把值写进服务定义(文件权限 600),或把值直接写进配置(配置本身是 600)`) + '\n')
+    else if (proxyVars.length && !passEnv) process.stderr.write(dim(tr(`  终端里的代理(${proxyVars.join(' ')})没带进服务;服务里要用代理,在控制台「设置 → 机器人与网络」填`, `  Your terminal's proxy (${proxyVars.join(' ')}) was not carried into the service; to use a proxy there, set it in the console under Settings → Bot & network`)) + '\n')
+    if (noPlatform) process.stderr.write(dim(tr('  还没接聊天平台:服务先只开控制台,在「设置」里接好平台后会自动重启并连上', 'No chat platform yet: the service starts with just the console; once you connect one under Settings it restarts itself and connects')) + '\n')
     if (nowhere.length) process.stderr.write(yellow(`⚠ 配置引用的环境变量 ${nowhere.join(' ')} 当前终端里也没有 —— 用到它们的模型 / 平台不会工作`) + '\n')
     if (platform !== 'darwin' && platform !== 'linux') { process.stdout.write(svc.windowsHint(spec) + '\n'); return }
     if (!tools.length) process.stderr.write(yellow('⚠ PATH 里没找到 claude / codex —— 服务能起,但群里的轮次会失败;装好后重跑 sintbot service install') + '\n')
@@ -1270,14 +1317,17 @@ async function cmdService(rest) {
       process.stdout.write(dim(`# ${svc.unitPath(platform, home)}`) + '\n' + svc.render(platform, shown)); return
     }
     const r = svc.install(spec, { platform, home })
-    process.stderr.write(cyan('✓ ') + `已写入 ${r.file}` + (r.backup ? dim(`(原文件备份为 ${path.basename(r.backup)})`) : '') + '\n')
+    process.stderr.write(cyan('✓ ') + tr(`已写入 ${r.file}`, `Wrote ${r.file}`) + (r.backup ? dim(tr(`(原文件备份为 ${path.basename(r.backup)})`, ` (previous file backed up as ${path.basename(r.backup)})`)) : '') + '\n')
     for (const s of r.steps) process.stderr.write(`${s.ok ? cyan('✓') : red('✗')} ${dim(s.cmd)}${s.err && !s.ok ? '  ' + red(s.err.split('\n')[0]) : ''}\n`)
     await new Promise((res) => setTimeout(res, 1500))
-    process.stderr.write(`状态:${nice(svc.status({ platform, home }))}\n` + dim(`配置:${spec.args[spec.args.indexOf('--config') + 1]}\n日志:${spec.errLog}\n`))
+    process.stderr.write(`${tr('状态', 'Status')}:${nice(svc.status({ platform, home }))}\n` + dim(`${tr('配置', 'Config')}:${spec.args[spec.args.indexOf('--config') + 1]}\n${tr('日志', 'Log')}:${spec.errLog}\n`))
     if (platform === 'linux') process.stderr.write(dim('提示:要开机就起(不必先登录),跑一次 loginctl enable-linger $USER') + '\n')
     if (r.steps.some((s) => !s.ok)) process.exit(1)
     return
   }
+  // --check:只给退出码(0 在运行 / 3 装了但没在跑 / 4 没装或这个平台没有自动服务),install.sh 据此决定问不问装服务、要不要重启。
+  // 不用 1、2:1.0.11 及以前不认 --check,报错退出就是 1,install.sh 得能把「不知道」和「没在跑」分开
+  if (action === 'status' && values.check) { const st = svc.status({ platform, home }); process.exit(st.running ? 0 : st.installed || st.loaded ? 3 : 4) }
   if (action === 'status') { const st = svc.status({ platform, home }); process.stdout.write(`${nice(st)}\n` + dim(st.file ? `单元文件:${st.file}${st.installed ? '' : '(不存在)'}\n` : '这个平台没有自动服务(见 sintbot service --help)\n')); return }
   if (action === 'restart') { const r = svc.restart({ platform }); if (!r.ok) return die('重启失败:' + (r.err || '?')); process.stderr.write(cyan('✓ ') + '已重启\n'); return }
   if (action === 'uninstall') { const r = svc.uninstall({ platform, home }); process.stderr.write((r.removed ? cyan('✓ ') + `已停止并删除 ${r.file}` : dim('没有已安装的服务')) + '\n' + dim('日志与配置都保留在 ~/.sbot/') + '\n'); return }
@@ -1301,19 +1351,25 @@ async function cmdService(rest) {
 const SETUP_MAX_ASKS_AFTER_EOF = 60
 
 async function cmdSetup(rest) {
-  const { values } = parseArgs({ args: rest, allowPositionals: true, options: { config: { type: 'string' } } })
+  const { values } = parseArgs({ args: rest, allowPositionals: true, options: { config: { type: 'string' }, full: { type: 'boolean' } } })
   const cfgPath = defaultConfigPath(values.config)
   const examplePath = path.join(__dirname, '..', 'sbot.config.example.json')
+  // 1.0.12 起默认只问环境和模型(用户 10-28 定:是否在中国大陆、代理、项目根目录、聊天平台凭据都不在终端里要,装完在控制台配)。
+  // --full = 旧的完整问答(平台凭据 / 代理 / 项目根目录 / 绑群),给没有浏览器的服务器用;那部分只有中文。
+  const full = !!values.full
+  const T = (zh, en) => tr(zh, en) // 中文 / 英文按 src/clilang.js
+  const lang = tr('zh', 'en')
+  const fromInstaller = process.env.SINTBOT_INSTALLER === '1' // install.sh 调起:不重复报 Node、不打自己的「下一步」
 
   let raw
   let seeded = false
   if (fs.existsSync(cfgPath)) {
     try { raw = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) } catch (e) { return die(`existing config is invalid JSON: ${e.message}`) }
-    process.stdout.write(dim(`更新已有配置 ${cfgPath}`) + '\n')
+    process.stdout.write(dim(T(`更新已有配置 ${cfgPath}`, `Updating the existing config ${cfgPath}`)) + '\n')
   } else if (fs.existsSync(examplePath)) {
     raw = JSON.parse(fs.readFileSync(examplePath, 'utf8'))
     seeded = true
-    process.stdout.write(dim(`以示例为底新建配置,问完再写入 ${cfgPath}`) + '\n')
+    process.stdout.write(dim(T(`新建配置,问完再写入 ${cfgPath}`, `New config; it is written to ${cfgPath} at the end`)) + '\n')
   } else {
     // claude 不钉 model(v0.11.1):写死会覆盖 CLI 自己的默认,每出一代新模型就落后一代(v0.11.0 拍板)
     raw = { agent: { bin: 'claude', permissionMode: 'dontAsk', maxTurnTimeMins: 10, maxConcurrent: 2 }, defaultProvider: 'claude', providers: { claude: {} }, groups: {} }
@@ -1331,6 +1387,9 @@ async function cmdSetup(rest) {
   // On EOF, pending asks resolve to null → the caller falls back to its default,
   // so a short/redirected input just accepts defaults instead of hanging.
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+  // 问题交给 readline 当提示符写(setPrompt + prompt),不直接写 stdout:readline 一重绘这一行(改窗口大小、退格)
+  // 就按它记的提示符重写 —— 默认是 `> `,1.0.11 实装里问题文字被吞成「> y」、试跑时冒出一个 `>`。问完和空闲时置空。
+  rl.setPrompt('')
   const queued = []
   let waiter = null
   let closed = false
@@ -1344,8 +1403,11 @@ async function cmdSetup(rest) {
   // 另给一个「输入已结束」时的答案(endedDef);② 兜底:输入结束后还问了这么多次就中止,配置不落盘。
   let askedAfterEnd = 0
   const ask = async (q, def, endedDef = def) => {
-    process.stdout.write(`${cyan('?')} ${q}${def ? dim(` [${def}]`) : ''} `)
+    const line = `${cyan('?')} ${q}${def ? dim(` [${def}]`) : ''} `
+    if (closed) process.stdout.write(line)
+    else { rl.setPrompt(line); rl.prompt() }
     const a = await nextLine()
+    if (!closed) rl.setPrompt('')
     if (a == null) {
       process.stdout.write('\n')
       if (++askedAfterEnd > SETUP_MAX_ASKS_AFTER_EOF) throw new Error('输入已经结束,向导还在提问 —— 已中止,配置没有写入。请在终端里直接运行 sintbot setup')
@@ -1366,34 +1428,36 @@ async function cmdSetup(rest) {
   }
 
   try {
-    process.stdout.write('\n' + cyan('sintbot setup') + dim(' — 交互式配置 (Enter 用默认值)') + '\n\n')
+    // 安装脚本调起时它自己已经说过「这里只配模型」,不再重复
+    const scope = fromInstaller ? T('(Enter 用默认值)', ' (Enter accepts the default)') : T('配模型(聊天平台、代理、项目目录装完在控制台里配;Enter 用默认值)', ' model setup (chat platform, proxy and project folder are set in the console afterwards; Enter accepts the default)')
+    process.stdout.write('\n' + cyan('sintbot setup') + dim(full ? ' — 完整配置(Enter 用默认值)' : fromInstaller ? scope : T(' — ' + scope, ' —' + scope)) + '\n\n')
 
     // 第 0 步:环境检查 —— 只报不拦(缺了照样能把配置写完,最后的体检会接着报)。
     // 缺 claude / codex 时问一句替新用户装(npm i -g;官方源连不上自动换国内镜像,见 src/installdeps.js)。
-    process.stdout.write(gray('— 环境 —') + '\n')
+    process.stdout.write(gray(T('— 环境 —', '— Environment —')) + '\n')
     const nodeOk = Number(process.versions.node.split('.')[0]) >= 22
-    process.stdout.write(`  ${nodeOk ? cyan('✓') : red('✗')} Node ${process.versions.node}${nodeOk ? '' : red('(需要 ≥ 22)')}\n`)
+    if (!fromInstaller || !nodeOk) process.stdout.write(`  ${nodeOk ? cyan('✓') : red('✗')} Node ${process.versions.node}${nodeOk ? '' : red(T('(需要 ≥ 22)', ' (needs 22 or later)'))}\n`)
     const installDep = (name, binName) => {
       const r = installdeps.installGlobal(name, { log: (l) => process.stdout.write(dim('  ' + l) + '\n') })
       const bin = whichSync(binName)
-      if (r.ok && bin) { process.stdout.write(`  ${cyan('✓')} 已安装 ${binName} ${dim(bin)}\n`); return bin }
+      if (r.ok && bin) { process.stdout.write(`  ${cyan('✓')} ${T('已安装', 'Installed')} ${binName} ${dim(bin)}\n`); return bin }
       if (r.ok) {
         const pre = installdeps.globalPrefix()
-        const dir = pre ? (process.platform === 'win32' ? pre : path.join(pre, 'bin')) : 'npm prefix -g 下的 bin 目录'
-        process.stdout.write(`  ${yellow('!')} 装好了,但当前 PATH 里找不到 ${binName} —— 把 ${dir} 加进 PATH,重开终端再跑一次 sintbot setup\n`)
+        const dir = pre ? (process.platform === 'win32' ? pre : path.join(pre, 'bin')) : T('npm prefix -g 下的 bin 目录', 'the bin folder under npm prefix -g')
+        process.stdout.write(`  ${yellow('!')} ${T(`装好了,但当前 PATH 里找不到 ${binName} —— 把 ${dir} 加进 PATH,重开终端再跑一次 sintbot setup`, `Installed, but ${binName} is not on PATH: add ${dir} to PATH, open a new terminal and run sintbot setup again`)}\n`)
         return null
       }
-      process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,做法见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/install.md「一键安装」\n`)
+      process.stdout.write(`  ${red('✗')} ${T(`安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,做法见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/install.md「一键安装」`, `Install failed (exit code ${r.code}), most likely the npm global folder is not writable; see https://github.com/sintlab/sintbot/blob/main/docs/install.md`)}\n`)
       return null
     }
     const claudeName = (raw.agent && raw.agent.bin) || 'claude'
     let claudeBin = whichSync(claudeName)
     if (claudeBin) process.stdout.write(`  ${cyan('✓')} claude ${dim(claudeBin)}\n`)
     else {
-      process.stdout.write(`  ${red('✗')} 没找到 claude(Claude Code CLI)—— 每一轮都靠它干活\n`)
+      process.stdout.write(`  ${red('✗')} ${T('没找到 claude(Claude Code CLI)—— 每一轮都靠它干活', 'claude (Claude Code CLI) not found; every turn runs on it')}\n`)
       // 没人回答(输入已结束)就不替他装软件
-      if (await askYN(`现在安装 Claude Code(npm i -g ${installdeps.PACKAGES.claude})?`, true, false)) claudeBin = installDep('claude', claudeName)
-      else process.stdout.write(dim(`  稍后自己装:npm i -g ${installdeps.PACKAGES.claude}`) + '\n')
+      if (await askYN(T(`现在安装 Claude Code(npm i -g ${installdeps.PACKAGES.claude})?`, `Install Claude Code now (npm i -g ${installdeps.PACKAGES.claude})?`), true, false)) claudeBin = installDep('claude', claudeName)
+      else process.stdout.write(dim(T(`  稍后自己装:npm i -g ${installdeps.PACKAGES.claude}`, `  Install it later: npm i -g ${installdeps.PACKAGES.claude}`)) + '\n')
     }
     // Claude 登录态留到模型步一起报,那里据此决定推荐走哪条路。官方非交互子命令,0.2s、不联网;
     // 老版本 CLI 没有它(ok:false)⇒ null,当作没探到
@@ -1406,16 +1470,16 @@ async function cmdSetup(rest) {
     let codexBin = whichSync('codex')
     let codexLoggedIn = false
     if (!codexBin) {
-      process.stdout.write(`  ${gray('○')} 没找到 codex(可选:有 ChatGPT 账号时跑 GPT 群、生图)\n`)
-      if (await askYN(`现在安装 Codex CLI(npm i -g ${installdeps.PACKAGES.codex})?有 ChatGPT 账号才用得上`, false)) codexBin = installDep('codex', 'codex')
-      else process.stdout.write(dim(`  要用时再装:npm i -g ${installdeps.PACKAGES.codex},再 codex login`) + '\n')
+      process.stdout.write(`  ${gray('○')} ${T('没找到 codex(可选:有 ChatGPT 账号时跑 GPT 群、生图)', 'codex not found (optional: with a ChatGPT account it runs GPT groups and image generation)')}\n`)
+      if (await askYN(T(`现在安装 Codex CLI(npm i -g ${installdeps.PACKAGES.codex})?有 ChatGPT 账号才用得上`, `Install Codex CLI now (npm i -g ${installdeps.PACKAGES.codex})? Only useful with a ChatGPT account`), false)) codexBin = installDep('codex', 'codex')
+      else process.stdout.write(dim(T(`  要用时再装:npm i -g ${installdeps.PACKAGES.codex},再 codex login`, `  When you need it: npm i -g ${installdeps.PACKAGES.codex}, then codex login`)) + '\n')
     }
     if (codexBin) {
       // 只读本机登录态(不联网);没登录时,GPT 群、生图、claude 额度用完自动切到 codex 都不会成
       const codexLogin = await codexstatus.loginStatus('codex').catch(() => null)
       const codexOut = codexLogin && codexLogin.ok && codexLogin.loggedIn === false
       codexLoggedIn = !!(codexLogin && codexLogin.ok && codexLogin.loggedIn)
-      process.stdout.write(`  ${cyan('✓')} codex ${dim(codexBin)}${codexOut ? '  ' + yellow('没登录 —— GPT 群、生图、额度用完时自动切到 codex 都要它:跑一次 codex login') : ''}\n`)
+      process.stdout.write(`  ${cyan('✓')} codex ${dim(codexBin)}${codexOut ? '  ' + yellow(T('没登录 —— GPT 群、生图、额度用完时自动切到 codex 都要它:跑一次 codex login', 'not logged in; GPT groups, image generation and switching to codex when quota runs out all need it: run codex login')) : ''}\n`)
     }
     // 设计图标库(Lucide / Tabler / Phosphor / Pixelarticons):agent 出设计图时按名字取图标,缺了只能自己画、
     // 与设计图对不上。缺哪套问一句一次装齐(默认装);没人回答(输入已结束)不装,doctor 会接着提示
@@ -1423,32 +1487,31 @@ async function cmdSetup(rest) {
       const iconRoots = () => design.iconRoots({ base: path.join(__dirname, '..'), extra: (raw.design && raw.design.iconsDir) || null })
       const missing = () => Object.entries(iconRoots()).filter(([, v]) => !v).map(([k]) => k)
       const miss = missing()
-      if (!miss.length) process.stdout.write(`  ${cyan('✓')} 设计图标库 ${dim(Object.values(design.ICON_LIBS).map((l) => l.label).join(' · '))}\n`)
+      if (!miss.length) process.stdout.write(`  ${cyan('✓')} ${T('设计图标库', 'Design icon libraries')} ${dim(Object.values(design.ICON_LIBS).map((l) => l.label).join(' · '))}\n`)
       else {
         const libs = miss.map((k) => design.ICON_LIBS[k])
         const pkgs = libs.map((l) => l.pkg)
         const mb = Math.round(libs.reduce((n, l) => n + (l.mb || 0), 0))
-        process.stdout.write(`  ${gray('○')} 设计图标库缺 ${libs.map((l) => l.label).join(' / ')}(出设计图时 agent 按名字取图标)\n`)
-        if (await askYN(`现在安装(npm i -g ${pkgs.join(' ')},约 ${mb} MB)?`, true, false)) {
+        process.stdout.write(`  ${gray('○')} ${T(`设计图标库缺 ${libs.map((l) => l.label).join(' / ')}(出设计图时 agent 按名字取图标)`, `Design icon libraries missing: ${libs.map((l) => l.label).join(' / ')} (the agent picks icons by name when drawing designs)`)}\n`)
+        if (await askYN(T(`现在安装(npm i -g ${pkgs.join(' ')},约 ${mb} MB)?`, `Install them now (npm i -g ${pkgs.join(' ')}, about ${mb} MB)?`), true, false)) {
           const r = installdeps.installPackages(pkgs, { log: (l) => process.stdout.write(dim('  ' + l) + '\n') })
           const still = missing()
-          if (r.ok && !still.length) process.stdout.write(`  ${cyan('✓')} 设计图标库已装\n`)
+          if (r.ok && !still.length) process.stdout.write(`  ${cyan('✓')} ${T('设计图标库已装', 'Design icon libraries installed')}\n`)
           else if (r.ok) {
             const pre = installdeps.globalPrefix()
             const dir = pre ? (process.platform === 'win32' ? path.join(pre, 'node_modules') : path.join(pre, 'lib', 'node_modules')) : 'npm 全局目录下的 node_modules'
-            process.stdout.write(`  ${yellow('!')} 装好了,但 sbot 找不到 ${still.join(' / ')} —— 在配置里把 design.iconsDir 设成 ${dir}\n`)
-          } else process.stdout.write(`  ${red('✗')} 安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,之后可以自己装:npm i -g ${pkgs.join(' ')}\n`)
-        } else process.stdout.write(dim(`  要用时再装:npm i -g ${pkgs.join(' ')}`) + '\n')
+            process.stdout.write(`  ${yellow('!')} ${T(`装好了,但 sbot 找不到 ${still.join(' / ')} —— 在配置里把 design.iconsDir 设成 ${dir}`, `Installed, but sbot cannot find ${still.join(' / ')}; set design.iconsDir to ${dir} in the config`)}\n`)
+          } else process.stdout.write(`  ${red('✗')} ${T(`安装失败(退出码 ${r.code})—— 多半是 npm 全局目录没有写权限,之后可以自己装:npm i -g ${pkgs.join(' ')}`, `Install failed (exit code ${r.code}), most likely the npm global folder is not writable; install them later: npm i -g ${pkgs.join(' ')}`)}\n`)
+        } else process.stdout.write(dim(T(`  要用时再装:npm i -g ${pkgs.join(' ')}`, `  When you need them: npm i -g ${pkgs.join(' ')}`)) + '\n')
       }
     }
-    process.stdout.write(dim(`  配置文件:${cfgPath}`) + '\n\n')
+    process.stdout.write(dim(T(`  配置文件:${cfgPath}`, `  Config file: ${cfgPath}`)) + '\n\n')
 
-    // 地区:决定有国际站的厂商连哪个站、要不要问代理、聊天平台推荐哪个(时区只给默认值,以回答为准)
-    process.stdout.write(gray('— 地区 —') + '\n')
-    const mainland = await askYN('这台机器在中国大陆吗?(决定模型连哪个站点、要不要代理、推荐哪个聊天平台)', setupmodels.looksMainland())
+    // 不问「在不在中国大陆」(隐私,用户 10-28 定):只按时区猜,决定有国际站的厂商先试哪个站、--full 里推荐哪个平台;不写进配置
+    const mainland = setupmodels.looksMainland()
 
     // 模型:推荐顺序 Claude 订阅 → ChatGPT(Codex)→ 都没有推荐 DeepSeek(src/setupmodels.js)
-    process.stdout.write('\n' + gray('— 模型 —') + '\n')
+    process.stdout.write(gray(T('— 模型 —', '— Model —')) + '\n')
     let example = null
     try { example = JSON.parse(fs.readFileSync(examplePath, 'utf8')) } catch {}
     const presetOf = (name) => (example && example.providers && example.providers[name]) || null
@@ -1469,86 +1532,102 @@ async function cmdSetup(rest) {
       const t0 = Date.now()
       try {
         const { result, aborted } = await runner.runTurn({
-          bin: claudeBin || claudeName, prompt: verify.TRIAL_PROMPT, provider, model: provider.model,
+          bin: claudeBin || claudeName, prompt: lang === 'en' ? verify.TRIAL_PROMPT_EN : verify.TRIAL_PROMPT, provider, model: provider.model,
           workdir: os.tmpdir(), permissionMode: (raw.agent && raw.agent.permissionMode) || 'dontAsk', signal: ac.signal,
           extraEnv: { CLAUDE_CODE_MAX_RETRIES: '0' },
         })
         const text = (result && result.text) || ''
-        if (aborted || ac.signal.aborted) return { ok: false, text: `timeout:${Math.round((Date.now() - t0) / 1000)} 秒内没有回复`, ms: Date.now() - t0 }
+        if (aborted || ac.signal.aborted) return { ok: false, text: `timeout: ${T(`${Math.round((Date.now() - t0) / 1000)} 秒内没有回复`, `no reply within ${Math.round((Date.now() - t0) / 1000)} s`)}`, ms: Date.now() - t0 }
         const ok = !!text && !(result && result.isError)
         verify.recordTurn(provider, ok, text) // doctor / 控制台据此报「能用」或「key 不对」
-        return { ok, text: text || '没有返回内容', ms: Date.now() - t0, model: provider.model }
+        return { ok, text: text || T('没有返回内容', 'No output'), ms: Date.now() - t0, model: provider.model }
       } catch (e) {
         verify.recordTurn(provider, false, (e && e.message) || String(e))
         return { ok: false, text: (e && e.message) || String(e), ms: Date.now() - t0 }
       } finally { clearTimeout(timer) }
     }
     // 型号取配置里的(r.model),不靠模型自报:走 Claude Code 的第三方模型常自称 Claude,新用户会以为没切成
-    const reportTurn = (label, r) => process.stdout.write(`  ${cyan('✓')} ${label}${r.model ? ' · ' + r.model : ''} 能用(${(r.ms / 1000).toFixed(1)} 秒):${r.text.replace(/\s+/g, ' ').slice(0, 80)}\n`)
-    // 配一家用 API key 的:选站点 → 告诉去哪拿 key → 粘贴 → 当场试跑,失败说人话、可重试
+    const reportTurn = (label, r) => process.stdout.write(`  ${cyan('✓')} ${label}${r.model ? ' · ' + r.model : ''} ${T(`能用(${(r.ms / 1000).toFixed(1)} 秒)`, `works (${(r.ms / 1000).toFixed(1)} s)`)}: ${r.text.replace(/\s+/g, ' ').slice(0, 80)}\n`)
+    // 配一家用 API key 的:告诉去哪拿 key → 粘贴 → 当场试跑,失败说人话、可重试。
+    // 有国际站的厂商(key 在哪个站开的就得连哪个站):不问人在哪 —— 先试一个站(已有配置按它现在的站,新配按时区),
+    // 认证失败自动换另一个站再试;没装 claude 试跑不了时才问「这个 key 是哪个站开的」(问 key,不问人)
     const configureKeyed = async (name) => {
       const info = setupmodels.PROVIDER_INFO[name] || { label: name }
+      const label = setupmodels.infoText(info, 'label', lang) || name
+      const billing = setupmodels.infoText(info, 'billing', lang)
       const p = ensurePreset(name)
-      if (!p) { process.stdout.write(red(`  没有 ${name} 的预设`) + '\n'); return false }
-      let site = info.site
-      if (info.intl) {
-        const cn = await askYN(`${info.label} 的 key 是在中国站(${setupmodels.host(info.site)})开的吗?否 = 国际站(${setupmodels.host(info.intl.site)})`, mainland)
-        p.baseUrl = cn ? ((presetOf(name) && presetOf(name).baseUrl) || p.baseUrl) : info.intl.baseUrl
-        site = cn ? info.site : info.intl.site
-      }
-      if (site) process.stdout.write(dim(`  在 ${site} 注册 → 充值 → 创建 API key(${info.billing})`) + '\n')
+      if (!p) { process.stdout.write(red(T(`  没有 ${name} 的预设`, `  No preset for ${name}`)) + '\n'); return false }
+      const cnBase = (presetOf(name) && presetOf(name).baseUrl) || p.baseUrl
+      const useSite = (k) => { if (info.intl) p.baseUrl = k === 'intl' ? info.intl.baseUrl : cnBase }
+      const first = !info.intl ? 'cn' : p.baseUrl === info.intl.baseUrl ? 'intl' : setupmodels.keyPresent(p.apiKey) ? 'cn' : mainland ? 'cn' : 'intl'
+      const sites = info.intl ? [first, first === 'cn' ? 'intl' : 'cn'] : ['cn']
+      useSite(sites[0])
+      if (info.intl) process.stdout.write(dim(T(`  在 ${info.site} 或国际站 ${info.intl.site} 注册 → 充值 → 创建 API key(${billing})`, `  Sign up at ${info.site} or the international site ${info.intl.site} → top up → create an API key (${billing})`)) + '\n')
+      else if (info.site) process.stdout.write(dim(T(`  在 ${info.site} 注册 → 充值 → 创建 API key(${billing})`, `  Sign up at ${info.site} → top up → create an API key (${billing})`)) + '\n')
       for (;;) {
-        const had = setupmodels.keyPresent(p.apiKey) ? (String(p.apiKey).startsWith('env:') ? `环境变量 ${p.apiKey.slice(4)}` : '已设置') : ''
-        const key = await askKey(`粘贴 ${info.label} 的 API key${had ? dim(`(当前:${had};留空=保持)`) : '(留空=跳过)'}`)
+        const envRef = setupmodels.keyPresent(p.apiKey) && String(p.apiKey).startsWith('env:') ? p.apiKey.slice(4) : ''
+        const had = setupmodels.keyPresent(p.apiKey) ? (envRef ? T(`环境变量 ${envRef}`, `environment variable ${envRef}`) : T('已设置', 'set')) : ''
+        const key = await askKey(T(`粘贴 ${label} 的 API key`, `Paste your ${label} API key`) + (had ? dim(T(`(当前:${had};留空=保持)`, ` (current: ${had}; empty = keep)`)) : T('(留空=跳过)', ' (empty = skip)')))
         if (key) p.apiKey = key
         if (!setupmodels.keyPresent(p.apiKey)) return false
-        if (!claudeBin) { process.stdout.write(dim('  没装 claude,先不试跑;装好后在控制台「模型」页点测试') + '\n'); return true }
-        process.stdout.write(dim(`  用 ${info.label} 试跑一轮…`) + '\n')
-        const r = await tryTurn(name)
+        if (!claudeBin) {
+          if (info.intl) useSite(await askYN(T(`这个 key 是在国际站 ${setupmodels.host(info.intl.site)} 开的吗?(否 = ${setupmodels.host(info.site)})`, `Was this key created on the international site ${setupmodels.host(info.intl.site)}? (no = ${setupmodels.host(info.site)})`), first === 'intl') ? 'intl' : 'cn')
+          process.stdout.write(dim(T('  没装 claude,先不试跑;装好后在控制台「模型」页点测试', '  claude is not installed, so no test run now; once it is, press Test on the console Models page')) + '\n')
+          return true
+        }
+        let r = null
+        for (const k of sites) {
+          useSite(k)
+          process.stdout.write(dim(T(`  用 ${label}${info.intl ? `(${setupmodels.host(p.baseUrl)})` : ''} 试跑一轮…`, `  Test run with ${label}${info.intl ? ` (${setupmodels.host(p.baseUrl)})` : ''}…`)) + '\n')
+          r = await tryTurn(name)
+          if (r.ok || setupmodels.explainTestFailure(r.text).kind !== 'auth') break // 只有认证失败才可能是站点不对
+        }
         tried.add(name)
-        if (r.ok) { reportTurn(info.label, r); verified.push(name); return true }
-        const why = setupmodels.explainTestFailure(r.text, { baseUrl: p.baseUrl })
+        if (r.ok) { reportTurn(label, r); verified.push(name); return true }
+        useSite(sites[0])
+        const why = setupmodels.explainTestFailure(r.text, { baseUrl: p.baseUrl, lang })
         process.stdout.write(`  ${red('✗')} ${why.text}\n`)
-        if (!(await askYN('再试一次?(可以重新粘贴 key)', why.kind === 'auth' || why.kind === 'network', false))) {
-          process.stdout.write(dim('  key 先保存;跑通之前这个模型的轮次会失败,之后可在控制台「模型」页再测') + '\n')
+        if (!(await askYN(T('再试一次?(可以重新粘贴 key)', 'Try again? (you can paste the key again)'), why.kind === 'auth' || why.kind === 'network', false))) {
+          process.stdout.write(dim(T('  key 先保存;跑通之前这个模型的轮次会失败,之后可在控制台「模型」页再测', '  The key is saved; turns on this model will fail until it works; test it again later on the console Models page')) + '\n')
           return true
         }
       }
     }
     const others = Object.keys(setupmodels.PROVIDER_INFO).filter((n) => n !== setupmodels.RECOMMENDED)
     const pickOthers = async () => {
-      others.forEach((n, i) => process.stdout.write(`    ${i + 1}) ${setupmodels.PROVIDER_INFO[n].label}  ${dim(setupmodels.PROVIDER_INFO[n].billing)}\n`))
-      const sel = await ask('选哪家?序号,可空格分隔多选(留空 = 返回)', '')
+      others.forEach((n, i) => process.stdout.write(`    ${i + 1}) ${setupmodels.infoText(setupmodels.PROVIDER_INFO[n], 'label', lang)}  ${dim(setupmodels.infoText(setupmodels.PROVIDER_INFO[n], 'billing', lang))}\n`))
+      const sel = await ask(T('选哪家?序号,可空格分隔多选(留空 = 返回)', 'Which one? Number(s), space-separated (empty = back)'), '')
       const picked = [...new Set(sel.split(/[\s,]+/).map((x) => others[Number(x) - 1]).filter(Boolean))]
       for (const n of picked) await configureKeyed(n)
       return picked.length > 0
     }
 
     const codexReady = () => !!(codexBin && codexLoggedIn)
-    process.stdout.write(`  Claude 订阅       ${claudeLoggedIn ? cyan('✓ 已登录') : gray(claudeBin ? '○ 未登录' : '○ 没装 claude')}\n`)
-    process.stdout.write(`  ChatGPT(Codex)   ${codexReady() ? cyan('✓ 已登录') : gray(codexBin ? '○ 未登录' : '○ 没装 codex')}\n`)
-    if (readyKeyed().length) process.stdout.write(`  API key 模型      ${cyan('✓')} ${readyKeyed().join(' ')}\n`)
+    const col = (zh, en) => T(zh.padEnd(14 - (zh.length - zh.replace(/[^\x00-\xff]/g, '').length)), en.padEnd(20))
+    process.stdout.write(`  ${col('Claude 订阅', 'Claude subscription')} ${claudeLoggedIn ? cyan(T('✓ 已登录', '✓ logged in')) : gray(claudeBin ? T('○ 未登录', '○ not logged in') : T('○ 没装 claude', '○ claude not installed'))}\n`)
+    process.stdout.write(`  ${col('ChatGPT(Codex)', 'ChatGPT (Codex)')} ${codexReady() ? cyan(T('✓ 已登录', '✓ logged in')) : gray(codexBin ? T('○ 未登录', '○ not logged in') : T('○ 没装 codex', '○ codex not installed'))}\n`)
+    if (readyKeyed().length) process.stdout.write(`  ${col('API key 模型', 'API key models')} ${cyan('✓')} ${readyKeyed().join(' ')}\n`)
     let route = setupmodels.subscriptionRoute({ claudeLoggedIn, codexLoggedIn: codexReady() })
     if (route || readyKeyed().length) {
       // 已经有能用的:不打扰,只问要不要再加一个(群里 /model 可切)
-      if (await askYN('再加一个用 API key 的模型吗?(DeepSeek 等,群里 /model 可切换)', false)) {
-        process.stdout.write(`    1) DeepSeek ${dim('(推荐,按量付费)')}\n    2) 其他:智谱 GLM / MiniMax / 火山方舟\n`)
-        if ((await ask('选', '1')) === '2') await pickOthers()
+      if (await askYN(T('再加一个用 API key 的模型吗?(DeepSeek 等,群里 /model 可切换)', 'Add another model that uses an API key? (DeepSeek etc.; switch in a group with /model)'), false)) {
+        process.stdout.write(`    1) DeepSeek ${dim(T('(推荐,按量付费)', '(recommended, pay as you go)'))}\n    2) ${T('其他:智谱 GLM / MiniMax / 火山方舟', 'Others: Zhipu GLM / MiniMax / Volcano Ark')}\n`)
+        if ((await ask(T('选', 'Choose'), '1')) === '2') await pickOthers()
         else await configureKeyed(setupmodels.RECOMMENDED)
       }
     } else {
-      process.stdout.write('\n  没检测到 Claude 订阅或 Codex 登录。' + cyan('推荐用 DeepSeek') + ':注册充值就能用、按量付费,不需要 Claude 账号。\n')
+      process.stdout.write('\n  ' + T('没检测到 Claude 订阅或 Codex 登录。', 'No Claude subscription or Codex login found. ') + cyan(T('推荐用 DeepSeek', 'DeepSeek is recommended')) + T(':注册充值就能用、按量付费,不需要 Claude 账号。', ': sign up, top up and go, pay as you go, no Claude account needed.') + '\n')
       for (;;) {
-        process.stdout.write(`    1) 用 DeepSeek ${dim('(推荐)')}—— 粘贴 API key\n`
-          + '    2) 用别家:智谱 GLM / MiniMax / 火山方舟\n'
-          + '    3) 用 Claude 订阅 —— 另开一个终端跑 claude auth login,登录好回到这里\n'
-          + `    4) 用 ChatGPT(Codex)—— 另开一个终端跑 codex login(没装先 npm i -g ${installdeps.PACKAGES.codex}),登录好回到这里\n`
-          + '    5) 先跳过(之后在控制台「模型」页添加)\n')
-        const a = await ask('选', '1', '5') // 输入已结束 ⇒ 先跳过(选 1 拿不到 key 会回到这里)
+        process.stdout.write(`    1) ${T('用 DeepSeek', 'DeepSeek')} ${dim(T('(推荐)', '(recommended)'))}${T('—— 粘贴 API key', ': paste an API key')}\n`
+          + `    2) ${T('用别家:智谱 GLM / MiniMax / 火山方舟', 'Another provider: Zhipu GLM / MiniMax / Volcano Ark')}\n`
+          + `    3) ${T('用 Claude 订阅 —— 另开一个终端跑 claude auth login,登录好回到这里', 'Claude subscription: run claude auth login in another terminal, then come back here')}\n`
+          + `    4) ${T(`用 ChatGPT(Codex)—— 另开一个终端跑 codex login(没装先 npm i -g ${installdeps.PACKAGES.codex}),登录好回到这里`, `ChatGPT (Codex): run codex login in another terminal (install first with npm i -g ${installdeps.PACKAGES.codex}), then come back here`)}\n`
+          + `    5) ${T('先跳过(之后在控制台「模型」页添加)', 'Skip for now (add one later on the console Models page)')}\n`)
+        const a = await ask(T('选', 'Choose'), '1', '5') // 输入已结束 ⇒ 先跳过(选 1 拿不到 key 会回到这里)
         if (a === '1') { if (await configureKeyed(setupmodels.RECOMMENDED)) break; continue }
         if (a === '2') { if (await pickOthers() && readyKeyed().length) break; continue }
         if (a === '3' || a === '4') {
-          await ask('登录好了按回车', '')
+          await ask(T('登录好了按回车', 'Press Enter once logged in'), '')
           if (a === '3') claudeLoggedIn = await claudeLogin()
           else {
             codexBin = codexBin || whichSync('codex')
@@ -1556,8 +1635,8 @@ async function cmdSetup(rest) {
             codexLoggedIn = !!(st && st.ok && st.loggedIn)
           }
           route = setupmodels.subscriptionRoute({ claudeLoggedIn, codexLoggedIn: codexReady() })
-          if (route) { process.stdout.write(`  ${cyan('✓')} ${route === 'claude' ? 'Claude 订阅' : 'Codex'} 已登录\n`); break }
-          process.stdout.write(`  ${yellow('!')} 还是没检测到登录\n`)
+          if (route) { process.stdout.write(`  ${cyan('✓')} ${route === 'claude' ? T('Claude 订阅', 'Claude subscription') : 'Codex'} ${T('已登录', 'logged in')}\n`); break }
+          process.stdout.write(`  ${yellow('!')} ${T('还是没检测到登录', 'Still no login found')}\n`)
           continue
         }
         break // 5 或其他:先跳过
@@ -1595,26 +1674,27 @@ async function cmdSetup(rest) {
     const suggest = !seeded && raw.defaultProvider && usable(raw.defaultProvider) ? raw.defaultProvider : auto
     const usableNames = Object.keys(raw.providers).filter(usable)
     if (usableNames.length > 1) {
-      const def = await ask(`默认模型(${usableNames.join('/')};群里 /model 随时切)`, suggest)
+      const def = await ask(T(`默认模型(${usableNames.join('/')};群里 /model 随时切)`, `Default model (${usableNames.join('/')}; switch any time in a group with /model)`), suggest)
       raw.defaultProvider = raw.providers[def] ? def : suggest
-      if (!raw.providers[def]) process.stdout.write(red(`  没有叫 '${def}' 的模型,用 ${suggest}`) + '\n')
+      if (!raw.providers[def]) process.stdout.write(red(T(`  没有叫 '${def}' 的模型,用 ${suggest}`, `  There is no model called '${def}'; using ${suggest}`)) + '\n')
     } else {
       raw.defaultProvider = suggest
-      if (usableNames.length) process.stdout.write(dim(`  默认模型:${suggest}`) + '\n')
+      if (usableNames.length) process.stdout.write(dim(T(`  默认模型:${suggest}`, `  Default model: ${suggest}`)) + '\n')
     }
     // 默认模型还没在本次跑通过(订阅登录那条路):问一句当场试跑
     const dp = raw.defaultProvider
     const canTry = raw.providers[dp] && usable(dp) && (raw.providers[dp].runner === 'codex' ? codexBin : claudeBin)
-    if (canTry && !tried.has(dp) && await askYN(`用 ${dp} 试跑一轮,确认能用?`, true)) {
-      process.stdout.write(dim(`  试跑中…`) + '\n')
+    if (canTry && !tried.has(dp) && await askYN(T(`用 ${dp} 试跑一轮,确认能用?`, `Do a test run with ${dp} to make sure it works?`), true)) {
+      process.stdout.write(dim(T('  试跑中…', '  Running…')) + '\n')
       const r = await tryTurn(dp)
       if (r.ok) { reportTurn(dp, r); verified.push(dp) }
-      else process.stdout.write(`  ${red('✗')} ${setupmodels.explainTestFailure(r.text, { baseUrl: raw.providers[dp].baseUrl }).text}\n`)
+      else process.stdout.write(`  ${red('✗')} ${setupmodels.explainTestFailure(r.text, { baseUrl: raw.providers[dp].baseUrl, lang }).text}\n`)
     }
 
-    // 代理:只有中国大陆、且用到 Claude / ChatGPT 时才问;国内模型端点与飞书自动直连(noProxy)
+    // 代理:默认不问(用户 10-28 定;结尾只给一句建议,服务安装时可把终端里的代理带进去)。--full 里用到 Claude / ChatGPT 才问;
+    // 国内模型端点自动直连(noProxy)
     const officialInUse = !!(claudeLoggedIn || codexReady() || !(raw.providers[raw.defaultProvider] || {}).baseUrl)
-    if (mainland && officialInUse) {
+    if (full && officialInUse) {
       if (await askYN('配置代理?(Claude / ChatGPT 要走代理;国内模型端点与飞书会自动直连)', !!(raw.proxy && raw.proxy.http))) {
         const http = await ask('HTTP 代理地址', (raw.proxy && raw.proxy.http) || 'http://127.0.0.1:7890')
         const noProxy = deriveNoProxy(raw.providers)
@@ -1627,206 +1707,220 @@ async function cmdSetup(rest) {
       delete raw.proxy // 示例里的代理是占位,没问就不写进新配置;已有配置的代理不动
     }
 
-    // 机器人在群里叫什么(自知清单的自称 + 升级播报;企业微信还用它剥正文里的 @)
-    process.stdout.write('\n' + gray('— 聊天平台 —') + '\n')
-    const brand = await ask('机器人在群里叫什么', raw.brand || 'SintBot')
-    if (brand && brand !== 'SintBot') raw.brand = brand
-    else delete raw.brand
+    // 聊天平台 / 机器人名 / 项目根目录 / 绑群:只在 --full 里问。默认流程里这些都在控制台配(「设置」「群 · 项目」),已有配置一律不动
+    if (full) {
+      // 机器人在群里叫什么(自知清单的自称 + 升级播报;企业微信还用它剥正文里的 @)
+      process.stdout.write('\n' + gray('— 聊天平台 —') + '\n')
+      const brand = await ask('机器人在群里叫什么', raw.brand || 'SintBot')
+      if (brand && brand !== 'SintBot') raw.brand = brand
+      else delete raw.brand
 
-    // 接哪些平台:可以同时接;默认 = 已经配好的那些,一个都没有时按地区推荐:中国大陆飞书,其余 Slack。
-    // 飞书只支持中国版(open.feishu.cn,SDK 默认域名);国际版 Lark(larksuite.com)是另一套开放平台,还没接,提示里写明。
-    const realCreds = (v) => v && !String(v).startsWith('env:') && !/x{6,}|XXXX/.test(String(v))
-    const had = [realCreds(raw.feishu && raw.feishu.appId) && 'feishu', realCreds(raw.slack && raw.slack.botToken) && 'slack', realCreds(raw.wecom && raw.wecom.botId) && 'wecom'].filter(Boolean)
-    const platQ = mainland ? '接哪个聊天平台?国内推荐飞书 —— feishu / wecom / slack,空格分隔可多选(none = 先不接)'
-      : '接哪些聊天平台?推荐 Slack —— slack / feishu(飞书中国版,国际版 Lark 还不支持)/ wecom,空格分隔可多选(none = 先不接)'
-    const platIn = (await ask(platQ, had.join(' ') || (mainland ? 'feishu' : 'slack'))).toLowerCase()
-    const plats = platIn === 'none' ? [] : [...new Set(platIn.split(/[\s,]+/).filter((x) => ['feishu', 'slack', 'wecom'].includes(x)))]
-    if (platIn !== 'none' && !plats.length) process.stdout.write(red('  没认出平台名(feishu / slack / wecom),先跳过 —— 之后可重跑 setup 或去控制台配') + '\n')
+      // 接哪些平台:可以同时接;默认 = 已经配好的那些,一个都没有时按地区推荐:中国大陆飞书,其余 Slack。
+      // 飞书只支持中国版(open.feishu.cn,SDK 默认域名);国际版 Lark(larksuite.com)是另一套开放平台,还没接,提示里写明。
+      const realCreds = (v) => v && !String(v).startsWith('env:') && !/x{6,}|XXXX/.test(String(v))
+      const had = [realCreds(raw.feishu && raw.feishu.appId) && 'feishu', realCreds(raw.slack && raw.slack.botToken) && 'slack', realCreds(raw.wecom && raw.wecom.botId) && 'wecom'].filter(Boolean)
+      const platQ = mainland ? '接哪个聊天平台?国内推荐飞书 —— feishu / wecom / slack,空格分隔可多选(none = 先不接)'
+        : '接哪些聊天平台?推荐 Slack —— slack / feishu(飞书中国版,国际版 Lark 还不支持)/ wecom,空格分隔可多选(none = 先不接)'
+      const platIn = (await ask(platQ, had.join(' ') || (mainland ? 'feishu' : 'slack'))).toLowerCase()
+      const plats = platIn === 'none' ? [] : [...new Set(platIn.split(/[\s,]+/).filter((x) => ['feishu', 'slack', 'wecom'].includes(x)))]
+      if (platIn !== 'none' && !plats.length) process.stdout.write(red('  没认出平台名(feishu / slack / wecom),先跳过 —— 之后可重跑 setup 或去控制台配') + '\n')
 
-    if (plats.includes('feishu')) {
-      process.stdout.write(gray('  飞书:开放平台建「企业自建应用」→ 加机器人能力 → 事件订阅选长连接;权限清单见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/platforms/feishu.md') + '\n')
-      raw.feishu = raw.feishu || { onlyWhenMentioned: false }
-      // 从示例新建:示例里的 env: 占位不是用户的值 —— 当作没填,免得默认值显示成 env:FEISHU_APP_ID、还提示「留空=保持不变」
-      if (seeded) for (const k of ['appId', 'appSecret']) if (String(raw.feishu[k] || '').startsWith('env:')) raw.feishu[k] = ''
-      // 示例里的 botOpenId 占位同理 —— 预检失败时下面那句「没填才问」会把它当成已填,原样写进新配置
-      if (/^ou_x/i.test(String(raw.feishu.botOpenId || ''))) raw.feishu.botOpenId = ''
-      // Default = the CURRENT value, incl. an `env:VAR` ref — Enter keeps it. Previously an env:
-      // ref defaulted to '' so a plain Enter wiped it (broke creds for env-managed deploys).
-      raw.feishu.appId = await ask('飞书 appId', raw.feishu.appId || '')
-      const existingSecret = raw.feishu.appSecret || '' // incl. env: ref — 回车=保持不变
-      const secretIn = await askKey(`飞书 appSecret${existingSecret ? '（留空=保持不变）' : ''}`)
-      raw.feishu.appSecret = secretIn || existingSecret
-      if (raw.feishu.onlyWhenMentioned === undefined) raw.feishu.onlyWhenMentioned = false
+      if (plats.includes('feishu')) {
+        process.stdout.write(gray('  飞书:开放平台建「企业自建应用」→ 加机器人能力 → 事件订阅选长连接;权限清单见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/platforms/feishu.md') + '\n')
+        raw.feishu = raw.feishu || { onlyWhenMentioned: false }
+        // 从示例新建:示例里的 env: 占位不是用户的值 —— 当作没填,免得默认值显示成 env:FEISHU_APP_ID、还提示「留空=保持不变」
+        if (seeded) for (const k of ['appId', 'appSecret']) if (String(raw.feishu[k] || '').startsWith('env:')) raw.feishu[k] = ''
+        // 示例里的 botOpenId 占位同理 —— 预检失败时下面那句「没填才问」会把它当成已填,原样写进新配置
+        if (/^ou_x/i.test(String(raw.feishu.botOpenId || ''))) raw.feishu.botOpenId = ''
+        // Default = the CURRENT value, incl. an `env:VAR` ref — Enter keeps it. Previously an env:
+        // ref defaulted to '' so a plain Enter wiped it (broke creds for env-managed deploys).
+        raw.feishu.appId = await ask('飞书 appId', raw.feishu.appId || '')
+        const existingSecret = raw.feishu.appSecret || '' // incl. env: ref — 回车=保持不变
+        const secretIn = await askKey(`飞书 appSecret${existingSecret ? '（留空=保持不变）' : ''}`)
+        raw.feishu.appSecret = secretIn || existingSecret
+        if (raw.feishu.onlyWhenMentioned === undefined) raw.feishu.onlyWhenMentioned = false
 
-      // Precheck (同源 feishuPrecheck):探 bot 身份 + 权限,自动回填 botOpenId。
-      const feUsable = raw.feishu.appId && raw.feishu.appSecret && !String(raw.feishu.appId).startsWith('env:') && !String(raw.feishu.appSecret).startsWith('env:')
-      if (feUsable && await askYN('飞书预检?(探 bot 身份/权限,自动填 botOpenId)', true)) {
-        const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗'), skip: gray('○') }
-        try {
-          const r = await feishuPrecheck(feishuClient(raw.feishu.appId, raw.feishu.appSecret), { appId: raw.feishu.appId })
-          verify.recordPrecheck('feishu', raw.feishu, r.checks)
-          if (r.botOpenId) { raw.feishu.botOpenId = r.botOpenId; process.stdout.write(cyan('  ✓ ') + `botOpenId = ${r.botOpenId}\n`) }
-          if (r.identity && r.identity.appName) process.stdout.write(cyan('  ✓ ') + `应用 = ${r.identity.appName}${r.identity.activateText ? ` (${r.identity.activateText})` : ''}\n`)
-          for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 140))}\n`) // 1.0.4:提示是写好的整句(怎么修),别截在半句
-        } catch (e) { process.stdout.write(red(`  预检失败(${(e && e.message) || e})`) + '\n') }
-        if (!raw.feishu.botOpenId) raw.feishu.botOpenId = await ask('bot openId (可留空)', '')
-      } else {
-        const curOid = String(raw.feishu.botOpenId || '').startsWith('ou_x') ? '' : (raw.feishu.botOpenId || '')
-        raw.feishu.botOpenId = await ask('bot openId (可留空,用于精确 @ 门控)', curOid)
-      }
+        // Precheck (同源 feishuPrecheck):探 bot 身份 + 权限,自动回填 botOpenId。
+        const feUsable = raw.feishu.appId && raw.feishu.appSecret && !String(raw.feishu.appId).startsWith('env:') && !String(raw.feishu.appSecret).startsWith('env:')
+        if (feUsable && await askYN('飞书预检?(探 bot 身份/权限,自动填 botOpenId)', true)) {
+          const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗'), skip: gray('○') }
+          try {
+            const r = await feishuPrecheck(feishuClient(raw.feishu.appId, raw.feishu.appSecret), { appId: raw.feishu.appId })
+            verify.recordPrecheck('feishu', raw.feishu, r.checks)
+            if (r.botOpenId) { raw.feishu.botOpenId = r.botOpenId; process.stdout.write(cyan('  ✓ ') + `botOpenId = ${r.botOpenId}\n`) }
+            if (r.identity && r.identity.appName) process.stdout.write(cyan('  ✓ ') + `应用 = ${r.identity.appName}${r.identity.activateText ? ` (${r.identity.activateText})` : ''}\n`)
+            for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 140))}\n`) // 1.0.4:提示是写好的整句(怎么修),别截在半句
+          } catch (e) { process.stdout.write(red(`  预检失败(${(e && e.message) || e})`) + '\n') }
+          if (!raw.feishu.botOpenId) raw.feishu.botOpenId = await ask('bot openId (可留空)', '')
+        } else {
+          const curOid = String(raw.feishu.botOpenId || '').startsWith('ou_x') ? '' : (raw.feishu.botOpenId || '')
+          raw.feishu.botOpenId = await ask('bot openId (可留空,用于精确 @ 门控)', curOid)
+        }
 
-      // Admins (可多个,建群自动拉入):从通讯录选(推荐)/ 邮箱·手机号 / ou_ openId。
-      if (feUsable) {
-        const cur = Array.isArray(raw.feishu.admins) ? raw.feishu.admins.slice() : (raw.feishu.adminOpenId ? [{ openId: raw.feishu.adminOpenId, name: raw.feishu.adminName || '' }] : [])
-        if (await askYN(`配置管理员?(可多个,建群自动拉入${cur.length ? ';当前 ' + cur.length + ' 人' : ''})`, !cur.length)) {
-          const admins = cur.slice()
-          const addOne = (openId, name) => { if (openId && !admins.some((a) => a.openId === openId)) { admins.push({ openId, name: name || openId }); process.stdout.write(cyan('  + ') + (name || openId) + '\n') } }
-          const cli = feishuClient(raw.feishu.appId, raw.feishu.appSecret)
-          let users = []
-          try { users = (await fetchOrgUsers(cli)).users } catch {}
-          if (users.length) {
-            process.stdout.write(gray(`  通讯录可见 ${users.length} 人:`) + '\n')
-            users.slice(0, 50).forEach((u, i) => process.stdout.write(`    ${cyan(String(i + 1))}) ${u.name}\n`))
-            const pick = await ask('选管理员序号(空格分隔;或输邮箱/手机号/ou_;留空跳过)', '')
-            if (/^[\d\s]+$/.test(pick) && pick.trim()) { for (const n of pick.split(/\s+/).filter(Boolean)) { const u = users[+n - 1]; if (u) addOne(u.openId, u.name) } }
-            else if (pick.trim()) { await setupResolveAdmin(cli, pick.trim(), addOne) }
-          } else {
-            process.stdout.write(gray('  (通讯录取不到 — 需 contact scope + 数据授权范围;可手动输)') + '\n')
-            const q = await ask('管理员 邮箱/手机号/ou_openId(留空跳过)', '')
-            if (q) await setupResolveAdmin(cli, q, addOne)
+        // Admins (可多个,建群自动拉入):从通讯录选(推荐)/ 邮箱·手机号 / ou_ openId。
+        if (feUsable) {
+          const cur = Array.isArray(raw.feishu.admins) ? raw.feishu.admins.slice() : (raw.feishu.adminOpenId ? [{ openId: raw.feishu.adminOpenId, name: raw.feishu.adminName || '' }] : [])
+          if (await askYN(`配置管理员?(可多个,建群自动拉入${cur.length ? ';当前 ' + cur.length + ' 人' : ''})`, !cur.length)) {
+            const admins = cur.slice()
+            const addOne = (openId, name) => { if (openId && !admins.some((a) => a.openId === openId)) { admins.push({ openId, name: name || openId }); process.stdout.write(cyan('  + ') + (name || openId) + '\n') } }
+            const cli = feishuClient(raw.feishu.appId, raw.feishu.appSecret)
+            let users = []
+            try { users = (await fetchOrgUsers(cli)).users } catch {}
+            if (users.length) {
+              process.stdout.write(gray(`  通讯录可见 ${users.length} 人:`) + '\n')
+              users.slice(0, 50).forEach((u, i) => process.stdout.write(`    ${cyan(String(i + 1))}) ${u.name}\n`))
+              const pick = await ask('选管理员序号(空格分隔;或输邮箱/手机号/ou_;留空跳过)', '')
+              if (/^[\d\s]+$/.test(pick) && pick.trim()) { for (const n of pick.split(/\s+/).filter(Boolean)) { const u = users[+n - 1]; if (u) addOne(u.openId, u.name) } }
+              else if (pick.trim()) { await setupResolveAdmin(cli, pick.trim(), addOne) }
+            } else {
+              process.stdout.write(gray('  (通讯录取不到 — 需 contact scope + 数据授权范围;可手动输)') + '\n')
+              const q = await ask('管理员 邮箱/手机号/ou_openId(留空跳过)', '')
+              if (q) await setupResolveAdmin(cli, q, addOne)
+            }
+            raw.feishu.admins = admins
+            delete raw.feishu.adminOpenId; delete raw.feishu.adminName
+            process.stdout.write(dim(`  管理员共 ${admins.length} 人`) + '\n')
           }
-          raw.feishu.admins = admins
-          delete raw.feishu.adminOpenId; delete raw.feishu.adminName
-          process.stdout.write(dim(`  管理员共 ${admins.length} 人`) + '\n')
+        }
+      } else if (seeded) {
+        delete raw.feishu // drop the example placeholder so doctor doesn't flag it
+      }
+
+      if (plats.includes('slack')) {
+        process.stdout.write(gray('  Slack:api.slack.com/apps → Create New App → From a manifest,粘贴 ' + path.join(__dirname, '..', 'docs', 'slack-app-manifest.yaml') + ' 的内容;') + '\n'
+          + gray('         装进 workspace 后取 Bot Token(xoxb-),再在 Basic Information 建一个 App-Level Token(xapp-,勾 connections:write)') + '\n')
+        raw.slack = raw.slack || {}
+        raw.slack.botToken = (await askKey(`Slack Bot Token(xoxb-…)${raw.slack.botToken ? '(留空=保持不变)' : ''}`)) || raw.slack.botToken || ''
+        raw.slack.appToken = (await askKey(`Slack App Token(xapp-…)${raw.slack.appToken ? '(留空=保持不变)' : ''}`)) || raw.slack.appToken || ''
+        if (raw.slack.onlyWhenMentioned === undefined) raw.slack.onlyWhenMentioned = true
+        const usable = realCreds(raw.slack.botToken) && realCreds(raw.slack.appToken)
+        if (usable && await askYN('Slack 预检?(验凭据 / 权限 / 长连接 / 已加入的频道)', true)) {
+          const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗') }
+          try {
+            const r = await require('../src/platform/slack').slackPrecheck(raw.slack.botToken, raw.slack.appToken)
+            verify.recordPrecheck('slack', raw.slack, r.checks)
+            if (r.botUserId) raw.slack.botUserId = r.botUserId
+            if (r.identity) raw.slack.identity = r.identity
+            for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 140))}\n`)
+          } catch (e) { process.stdout.write(red(`  预检失败(${(e && e.message) || e})`) + '\n') }
         }
       }
-    } else if (seeded) {
-      delete raw.feishu // drop the example placeholder so doctor doesn't flag it
-    }
 
-    if (plats.includes('slack')) {
-      process.stdout.write(gray('  Slack:api.slack.com/apps → Create New App → From a manifest,粘贴 ' + path.join(__dirname, '..', 'docs', 'slack-app-manifest.yaml') + ' 的内容;') + '\n'
-        + gray('         装进 workspace 后取 Bot Token(xoxb-),再在 Basic Information 建一个 App-Level Token(xapp-,勾 connections:write)') + '\n')
-      raw.slack = raw.slack || {}
-      raw.slack.botToken = (await askKey(`Slack Bot Token(xoxb-…)${raw.slack.botToken ? '(留空=保持不变)' : ''}`)) || raw.slack.botToken || ''
-      raw.slack.appToken = (await askKey(`Slack App Token(xapp-…)${raw.slack.appToken ? '(留空=保持不变)' : ''}`)) || raw.slack.appToken || ''
-      if (raw.slack.onlyWhenMentioned === undefined) raw.slack.onlyWhenMentioned = true
-      const usable = realCreds(raw.slack.botToken) && realCreds(raw.slack.appToken)
-      if (usable && await askYN('Slack 预检?(验凭据 / 权限 / 长连接 / 已加入的频道)', true)) {
-        const mark = { ok: cyan('✓'), warn: '\x1b[33m!\x1b[0m', fail: red('✗') }
-        try {
-          const r = await require('../src/platform/slack').slackPrecheck(raw.slack.botToken, raw.slack.appToken)
-          verify.recordPrecheck('slack', raw.slack, r.checks)
-          if (r.botUserId) raw.slack.botUserId = r.botUserId
-          if (r.identity) raw.slack.identity = r.identity
-          for (const c of r.checks) process.stdout.write(`  ${mark[c.status] || '?'} ${c.label} ${gray('— ' + (c.detail || '').slice(0, 140))}\n`)
-        } catch (e) { process.stdout.write(red(`  预检失败(${(e && e.message) || e})`) + '\n') }
+      if (plats.includes('wecom')) {
+        process.stdout.write(gray('  企业微信:管理后台「智能机器人 → 新建 → API 模式 → 使用长连接」拿 Bot ID 与 Secret(见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/platforms/wecom.md)') + '\n')
+        raw.wecom = raw.wecom || {}
+        raw.wecom.botId = await ask('企业微信 Bot ID', realCreds(raw.wecom.botId) ? raw.wecom.botId : '')
+        raw.wecom.secret = (await askKey(`企业微信 Secret${raw.wecom.secret ? '(留空=保持不变)' : ''}`)) || raw.wecom.secret || ''
+        raw.wecom.botName = await ask('机器人在企业微信里的名字(用来剥掉正文里的 @)', raw.wecom.botName || brand || 'SintBot')
       }
-    }
 
-    if (plats.includes('wecom')) {
-      process.stdout.write(gray('  企业微信:管理后台「智能机器人 → 新建 → API 模式 → 使用长连接」拿 Bot ID 与 Secret(见 https://github.com/sintlab/sintbot/blob/main/docs/zh-CN/platforms/wecom.md)') + '\n')
-      raw.wecom = raw.wecom || {}
-      raw.wecom.botId = await ask('企业微信 Bot ID', realCreds(raw.wecom.botId) ? raw.wecom.botId : '')
-      raw.wecom.secret = (await askKey(`企业微信 Secret${raw.wecom.secret ? '(留空=保持不变)' : ''}`)) || raw.wecom.secret || ''
-      raw.wecom.botName = await ask('机器人在企业微信里的名字(用来剥掉正文里的 @)', raw.wecom.botName || brand || 'SintBot')
-    }
-
-    // 项目根目录:群项目都放这里,控制台选目录 / 保存绑定 / 风格提炼只认这里面的路径(src/projectsroot.js)。
-    // 一行,回车即默认;多个用 ; 分隔;等于没围的值(/、家目录、/Users …)说原因重问;不存在问一句是否创建。
-    // 回车接受默认时**不落盘**(默认值不写进配置,和别的默认项一样);再跑向导时默认值取现有配置。
-    for (;;) {
-      const cur = resolveProjectsRoots(raw)
-      const defText = cur.roots.join(';')
-      const ans = await ask('项目根目录(群项目都放这里;多个用 ; 分隔)', defText)
-      const list = parseRootsInput(ans)
-      const r = resolveProjectsRoots({ projectsRoots: list })
-      if (r.dropped.length) { for (const d of r.dropped) process.stdout.write(red(`  ✗ ${d.value}:${d.why}`) + '\n'); process.stdout.write(dim('  请重输(留空回车 = 用默认)') + '\n'); continue }
-      if (ans !== defText || cur.fromConfig) raw.projectsRoots = list
-      for (const root of r.roots) {
-        if (fs.existsSync(root)) continue
-        if (await askYN(`  ${root} 不存在,现在创建?`, true)) {
-          try { fs.mkdirSync(root, { recursive: true }); process.stdout.write(cyan('  ✓ 已创建 ') + root + '\n') }
-          catch (e) { process.stdout.write(red(`  创建失败:${(e && e.message) || e}`) + '\n') }
+      // 项目根目录:群项目都放这里,控制台选目录 / 保存绑定 / 风格提炼只认这里面的路径(src/projectsroot.js)。
+      // 一行,回车即默认;多个用 ; 分隔;等于没围的值(/、家目录、/Users …)说原因重问;不存在问一句是否创建。
+      // 回车接受默认时**不落盘**(默认值不写进配置,和别的默认项一样);再跑向导时默认值取现有配置。
+      for (;;) {
+        const cur = resolveProjectsRoots(raw)
+        const defText = cur.roots.join(';')
+        const ans = await ask('项目根目录(群项目都放这里;多个用 ; 分隔)', defText)
+        const list = parseRootsInput(ans)
+        const r = resolveProjectsRoots({ projectsRoots: list })
+        if (r.dropped.length) { for (const d of r.dropped) process.stdout.write(red(`  ✗ ${d.value}:${d.why}`) + '\n'); process.stdout.write(dim('  请重输(留空回车 = 用默认)') + '\n'); continue }
+        if (ans !== defText || cur.fromConfig) raw.projectsRoots = list
+        for (const root of r.roots) {
+          if (fs.existsSync(root)) continue
+          if (await askYN(`  ${root} 不存在,现在创建?`, true)) {
+            try { fs.mkdirSync(root, { recursive: true }); process.stdout.write(cyan('  ✓ 已创建 ') + root + '\n') }
+            catch (e) { process.stdout.write(red(`  创建失败:${(e && e.message) || e}`) + '\n') }
+          }
         }
+        break
       }
-      break
-    }
 
-    if (await askYN('绑定一个 群→项目?', false)) {
-      let chatId = ''
-      let groupName = '' // 从列表里选的群 / 频道名,用来给项目目录出默认值
-      const fe = raw.feishu
-      // 绑到哪个平台的群:只接了一个平台就是它,接了多个先问
-      // 排序按地区(决定默认绑哪边):中国大陆飞书在前,其余 Slack 在前
-      const live = (mainland ? ['feishu', 'wecom', 'slack'] : ['slack', 'feishu', 'wecom']).filter((x) => (x === 'feishu' ? realCreds(fe && fe.appId) : x === 'slack' ? realCreds(raw.slack && raw.slack.botToken) : realCreds(raw.wecom && raw.wecom.botId)))
-      let bindPlat = live[0] || 'feishu'
-      if (live.length > 1) { const a = (await ask(`这个群在哪个平台? (${live.join(' / ')})`, live[0])).toLowerCase(); if (live.includes(a)) bindPlat = a }
-      const usableFeishu = bindPlat === 'feishu' && fe && fe.appId && fe.appSecret && !String(fe.appId).startsWith('env:') && !String(fe.appSecret).startsWith('env:')
-      if (bindPlat === 'slack' && realCreds(raw.slack.botToken)) {
-        try {
-          const chans = await require('../src/platform/slack').fetchSlackChannels(raw.slack.botToken)
-          if (chans.length) {
-            process.stdout.write(gray('  bot 已加入的频道:') + '\n')
-            chans.forEach((c, i) => process.stdout.write(`    ${cyan(String(i + 1))}) #${c.name}  ${dim(c.id)}\n`))
-            const pick = await ask('选择要绑定的频道(序号,或直接粘贴频道 ID;留空跳过)', '')
-            const hit = /^\d+$/.test(pick) && chans[+pick - 1]
-            chatId = hit ? hit.id : pick
-            if (hit) groupName = hit.name
-          } else chatId = await ask('频道 ID(如 C0123ABCD;bot 还没进任何频道 —— 先在频道里 /invite 它)', '')
-        } catch (e) {
-          // 1.0.4:错误码翻成人话(凭据 / 权限 / 网络各自怎么修),不再只甩一个 invalid_auth
-          process.stdout.write(red(`  拉频道列表失败:${require('../src/platform/slack').slackHint(e)}`) + '\n')
-          chatId = await ask('频道 ID(如 C0123ABCD;修好上面的问题后重跑向导就能从列表里选)', '')
-        }
-      } else if (bindPlat === 'wecom') {
-        chatId = await ask('企业微信群 ID(还不知道就留空:先跑起来,在群里 @ 机器人说一句,再到控制台绑定 —— 那里会列出 @ 过它的群)', '')
-      } else if (usableFeishu) {
-        try {
-          const chats = await fetchChats(feishuClient(fe.appId, fe.appSecret))
-          if (chats.length) {
-            process.stdout.write(gray('  bot 所在的群:') + '\n')
-            chats.forEach((c, i) => process.stdout.write(`    ${cyan(String(i + 1))}) ${c.name}  ${dim(c.chatId)}\n`))
-            const pick = await ask('选择要绑定的群(序号,或直接粘贴 chatId;留空跳过)', '')
-            const hit = /^\d+$/.test(pick) && chats[+pick - 1]
-            chatId = hit ? hit.chatId : pick
-            if (hit && hit.name !== '(未命名群)') groupName = hit.name
-          } else {
-            process.stdout.write(gray('  (bot 不在任何群里 — 先把 bot 拉进群再重试,或手动输入)') + '\n')
+      if (await askYN('绑定一个 群→项目?', false)) {
+        let chatId = ''
+        let groupName = '' // 从列表里选的群 / 频道名,用来给项目目录出默认值
+        const fe = raw.feishu
+        // 绑到哪个平台的群:只接了一个平台就是它,接了多个先问
+        // 排序按地区(决定默认绑哪边):中国大陆飞书在前,其余 Slack 在前
+        const live = (mainland ? ['feishu', 'wecom', 'slack'] : ['slack', 'feishu', 'wecom']).filter((x) => (x === 'feishu' ? realCreds(fe && fe.appId) : x === 'slack' ? realCreds(raw.slack && raw.slack.botToken) : realCreds(raw.wecom && raw.wecom.botId)))
+        let bindPlat = live[0] || 'feishu'
+        if (live.length > 1) { const a = (await ask(`这个群在哪个平台? (${live.join(' / ')})`, live[0])).toLowerCase(); if (live.includes(a)) bindPlat = a }
+        const usableFeishu = bindPlat === 'feishu' && fe && fe.appId && fe.appSecret && !String(fe.appId).startsWith('env:') && !String(fe.appSecret).startsWith('env:')
+        if (bindPlat === 'slack' && realCreds(raw.slack.botToken)) {
+          try {
+            const chans = await require('../src/platform/slack').fetchSlackChannels(raw.slack.botToken)
+            if (chans.length) {
+              process.stdout.write(gray('  bot 已加入的频道:') + '\n')
+              chans.forEach((c, i) => process.stdout.write(`    ${cyan(String(i + 1))}) #${c.name}  ${dim(c.id)}\n`))
+              const pick = await ask('选择要绑定的频道(序号,或直接粘贴频道 ID;留空跳过)', '')
+              const hit = /^\d+$/.test(pick) && chans[+pick - 1]
+              chatId = hit ? hit.id : pick
+              if (hit) groupName = hit.name
+            } else chatId = await ask('频道 ID(如 C0123ABCD;bot 还没进任何频道 —— 先在频道里 /invite 它)', '')
+          } catch (e) {
+            // 1.0.4:错误码翻成人话(凭据 / 权限 / 网络各自怎么修),不再只甩一个 invalid_auth
+            process.stdout.write(red(`  拉频道列表失败:${require('../src/platform/slack').slackHint(e)}`) + '\n')
+            chatId = await ask('频道 ID(如 C0123ABCD;修好上面的问题后重跑向导就能从列表里选)', '')
+          }
+        } else if (bindPlat === 'wecom') {
+          chatId = await ask('企业微信群 ID(还不知道就留空:先跑起来,在群里 @ 机器人说一句,再到控制台绑定 —— 那里会列出 @ 过它的群)', '')
+        } else if (usableFeishu) {
+          try {
+            const chats = await fetchChats(feishuClient(fe.appId, fe.appSecret))
+            if (chats.length) {
+              process.stdout.write(gray('  bot 所在的群:') + '\n')
+              chats.forEach((c, i) => process.stdout.write(`    ${cyan(String(i + 1))}) ${c.name}  ${dim(c.chatId)}\n`))
+              const pick = await ask('选择要绑定的群(序号,或直接粘贴 chatId;留空跳过)', '')
+              const hit = /^\d+$/.test(pick) && chats[+pick - 1]
+              chatId = hit ? hit.chatId : pick
+              if (hit && hit.name !== '(未命名群)') groupName = hit.name
+            } else {
+              process.stdout.write(gray('  (bot 不在任何群里 — 先把 bot 拉进群再重试,或手动输入)') + '\n')
+              chatId = await ask('群 chatId (如 oc_xxx)', '')
+            }
+          } catch (e) {
+            process.stdout.write(red(`  拉群列表失败:${feishuHint(e, 'im:chat')}`) + '\n')
             chatId = await ask('群 chatId (如 oc_xxx)', '')
           }
-        } catch (e) {
-          process.stdout.write(red(`  拉群列表失败:${feishuHint(e, 'im:chat')}`) + '\n')
-          chatId = await ask('群 chatId (如 oc_xxx)', '')
+        } else {
+          chatId = await ask('群 chatId (如 oc_xxx;配了飞书可自动列群供选)', '')
         }
-      } else {
-        chatId = await ask('群 chatId (如 oc_xxx;配了飞书可自动列群供选)', '')
+        if (!chatId) {
+          // 没有群就不往下问了(1.0.4 前照问目录和 provider,问完才说「未绑定」)
+          process.stdout.write(gray('  没有群 ID,先不绑定 —— 跑起来后在控制台「群 · 项目」页绑定') + '\n')
+        } else {
+          // 认 `~`、存展开后的绝对路径;写错了当场重问(1.0.2 及以前原样收下 `~/x`,在当前目录建出一个叫 `~` 的文件夹)。
+          // 1.0.4 起有默认值:项目根目录下以群名命名的子目录,回车即用
+          const pr = resolveProjectsRoots(raw)
+          const def = defaultWorkdir(groupName, pr.roots)
+          let workdir = ''
+          for (;;) {
+            const wd = workdirInput(await ask(`项目目录(在 ${describeRoots(pr.roots)} 下,可以用 ~ 开头;回车用默认)`, def))
+            if (wd.path) { workdir = wd.path; break }
+            process.stdout.write(red('  ' + wd.error) + '\n')
+          }
+          // 项目根目录围栏在向导里只提醒不拦:向导与手改配置文件是同一条 operator 路,但要让他知道
+          // 控制台不会认这样的绑定、doctor 会一直提示(围栏判据与控制台同源,src/projectsroot.js)
+          if (!withinRoots(workdir, pr.roots)) process.stdout.write(yellow(`  ⚠ 不在项目根目录(${describeRoots(pr.roots)})下 —— 控制台不会允许这样的绑定,doctor 会提示;向导照记`) + '\n')
+          if (!fs.existsSync(workdir) && await askYN(`  ${workdir} 不存在,现在创建?`, true)) {
+            try { fs.mkdirSync(workdir, { recursive: true }); process.stdout.write(cyan('  ✓ 已创建 ') + workdir + '\n') }
+            catch (e) { process.stdout.write(red(`  创建失败:${(e && e.message) || e}`) + '\n') }
+          }
+          const gp = await ask('该群 provider', raw.defaultProvider)
+          delete raw.groups.oc_example_chat_id
+          raw.groups[chatId] = { workdir, provider: gp, ...(live.length > 1 || bindPlat !== 'feishu' ? { platform: bindPlat } : {}) }
+        }
       }
-      if (!chatId) {
-        // 没有群就不往下问了(1.0.4 前照问目录和 provider,问完才说「未绑定」)
-        process.stdout.write(gray('  没有群 ID,先不绑定 —— 跑起来后在控制台「群 · 项目」页绑定') + '\n')
-      } else {
-        // 认 `~`、存展开后的绝对路径;写错了当场重问(1.0.2 及以前原样收下 `~/x`,在当前目录建出一个叫 `~` 的文件夹)。
-        // 1.0.4 起有默认值:项目根目录下以群名命名的子目录,回车即用
-        const pr = resolveProjectsRoots(raw)
-        const def = defaultWorkdir(groupName, pr.roots)
-        let workdir = ''
-        for (;;) {
-          const wd = workdirInput(await ask(`项目目录(在 ${describeRoots(pr.roots)} 下,可以用 ~ 开头;回车用默认)`, def))
-          if (wd.path) { workdir = wd.path; break }
-          process.stdout.write(red('  ' + wd.error) + '\n')
-        }
-        // 项目根目录围栏在向导里只提醒不拦:向导与手改配置文件是同一条 operator 路,但要让他知道
-        // 控制台不会认这样的绑定、doctor 会一直提示(围栏判据与控制台同源,src/projectsroot.js)
-        if (!withinRoots(workdir, pr.roots)) process.stdout.write(yellow(`  ⚠ 不在项目根目录(${describeRoots(pr.roots)})下 —— 控制台不会允许这样的绑定,doctor 会提示;向导照记`) + '\n')
-        if (!fs.existsSync(workdir) && await askYN(`  ${workdir} 不存在,现在创建?`, true)) {
-          try { fs.mkdirSync(workdir, { recursive: true }); process.stdout.write(cyan('  ✓ 已创建 ') + workdir + '\n') }
-          catch (e) { process.stdout.write(red(`  创建失败:${(e && e.message) || e}`) + '\n') }
-        }
-        const gp = await ask('该群 provider', raw.defaultProvider)
-        delete raw.groups.oc_example_chat_id
-        raw.groups[chatId] = { workdir, provider: gp, ...(live.length > 1 || bindPlat !== 'feishu' ? { platform: bindPlat } : {}) }
-      }
+    }
+    // 默认流程从示例新建:示例里的飞书块是 env: 占位(FEISHU_APP_ID …),当前终端里两个都有值才留(环境变量管凭据的部署),
+    // 否则不写进配置 —— 不然体检一上来就报「feishu 块缺 appSecret」
+    // 示例里的 projectsRoots 就是默认值(~/Projects):不落盘,和 --full 里回车接受默认一样 —— 写进去就成了「配置里指定的根」,
+    // 目录还不存在时体检报失败;没写的默认根在控制台第一次浏览时自动创建
+    if (!full && seeded && JSON.stringify(raw.projectsRoots) === JSON.stringify(['~/Projects'])) delete raw.projectsRoots
+    if (!full && seeded && raw.feishu) {
+      const fe = raw.feishu
+      const envOk = (v) => String(v || '').startsWith('env:') && !!process.env[String(v).slice(4)]
+      if (envOk(fe.appId) && envOk(fe.appSecret)) { if (/^ou_x/i.test(String(fe.botOpenId || ''))) fe.botOpenId = '' }
+      else delete raw.feishu
     }
   } finally {
     rl.close()
@@ -1838,26 +1932,45 @@ async function cmdSetup(rest) {
   const cfgDir = path.dirname(cfgPath)
   if (posix && !fs.existsSync(cfgDir)) fs.mkdirSync(cfgDir, { recursive: true, mode: 0o700 })
   atomicWriteJSON(cfgPath, raw, posix ? { mode: 0o600 } : {})
-  process.stdout.write('\n' + cyan('✓ ') + `已保存 ${cfgPath}\n\n` + gray('— 体检 —') + '\n')
+  process.stdout.write('\n' + cyan('✓ ') + T(`已保存 ${cfgPath}`, `Saved ${cfgPath}`) + '\n')
 
   const cfg = loadConfig(cfgPath)
-  await runDoctor(cfg)
   const cfgArg = cfgPath === path.join(os.homedir(), '.sbot', 'config.json') ? '' : ` --config ${cfgPath}`
-  // 一个平台都没接时守护进程起不来(装服务会被拦下):先去控制台接平台,再装服务
+  if (full) {
+    process.stdout.write('\n' + gray('— 体检 —') + '\n')
+    await runDoctor(cfg)
+  } else {
+    // 新装时「没接平台 / 没绑群 / Claude 没登录」都是正常状态,整屏警告看着像出错:只报失败项,完整体检留给 sintbot doctor
+    const { rows } = await checkHealth(cfg)
+    const failed = rows.filter((r) => r.status === 'fail')
+    if (failed.length) for (const r of failed) process.stdout.write(`${red('✗')} ${r.label.padEnd(22)} ${gray(r.detail)}\n`)
+    else process.stdout.write(cyan('✓ ') + T('体检没有失败项', 'Health check: nothing failed') + '\n')
+    process.stdout.write(dim(T(`  完整体检:sintbot doctor${cfgArg}`, `  Full check: sintbot doctor${cfgArg}`)) + '\n')
+  }
+  if (!((cfg.providers || {})[cfg.defaultProvider] || {}).baseUrl) {
+    process.stdout.write('\n' + yellow(T('⚠ 订阅条款:', '⚠ Subscription terms: ')) + T('用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款;团队使用请改用 API key 或企业账号,并自行确认合规。', 'serving a multi-person group chat from a personal Claude / ChatGPT subscription may break the provider\'s terms; for team use switch to an API key or a business account and check compliance yourself.') + '\n')
+  }
+  if (fromInstaller) return // 后台服务、控制台地址、接下来去哪:install.sh 结尾统一给
+  // 终端里有代理、配置里没有:只给建议(服务进程拿不到终端的环境变量)
+  const shellProxy = !(raw.proxy && raw.proxy.http) && require('../src/core/proxy').proxyDescribe(process.env) // 带认证的只说「带认证」,不打印账号密码
   const plat = platformsConfigured(cfg)
   const noPlatform = !plat.feishu && !plat.wecom && !plat.slack
-  process.stdout.write('\n' + gray('— 下一步 —') + '\n'
-    + `  sintbot agent run --provider ${cfg.defaultProvider} "用一句话自我介绍"${cfgArg}   ${dim('先在终端试一轮')}\n`
-    + (noPlatform
-      ? `  sintbot ui${cfgArg}                              ${dim('还没接聊天平台:在控制台「设置」里填飞书 / Slack / 企业微信的凭据、绑群')}\n`
-        + `  sintbot service install${cfgArg}                 ${dim('接好平台后,装成常驻服务(开机/登录自启,崩溃自动拉起)')}\n`
-      : `  sintbot service install${cfgArg}                 ${dim('装成常驻服务(开机/登录自启,崩溃自动拉起)')}\n`
-        + `  sintbot ui${cfgArg}                              ${dim('打开控制台:绑群、切模型、看实时活动')}\n`)
-    + (!((cfg.providers || {})[cfg.defaultProvider] || {}).baseUrl
-      ? '\n' + yellow('⚠ 订阅条款:') + '用个人的 Claude / ChatGPT 订阅登录来服务多人群聊,可能不符合提供方的使用条款;团队使用请改用 API key 或企业账号,并自行确认合规。\n' : ''))
+  process.stdout.write('\n' + gray(T('— 下一步 —', '— Next —')) + '\n'
+    + `  sintbot service install${cfgArg}   ${dim(T('装成后台服务,控制台常开在 http://127.0.0.1:4600(登录后自启,崩溃自动拉起)', 'install the background service; the console stays at http://127.0.0.1:4600 (starts at login, restarts on crash)'))}\n`
+    + `  sintbot ui${cfgArg}                ${dim(noPlatform ? T('现在就打开控制台:在「设置」里接飞书 / Slack / 企业微信,在「群 · 项目」里绑群', 'open the console now: connect Slack, Feishu or WeCom under Settings, bind a group under Groups') : T('打开控制台:绑群、切模型、看实时活动', 'open the console: bind groups, switch models, watch live activity'))}\n`
+    + `  sintbot chat${cfgArg}              ${dim(T('不接平台也能先在终端里和它聊几句', 'chat with it in the terminal first, no platform needed'))}\n`
+    + (shellProxy ? '\n' + dim(T(`  建议:终端里设了代理(${shellProxy}),后台服务拿不到;装服务时会问要不要带进去,也可以在控制台「设置 → 机器人与网络」填。`, `  Tip: your terminal uses a proxy (${shellProxy}) that the background service can't see; service install offers to carry it over, or set it in the console under Settings → Bot & network.`)) + '\n' : ''))
+}
+
+// 能不能在这台机器上弹浏览器:SSH 进来的会话弹到的是对方屏幕(或根本没有屏幕),Linux 没有图形界面也不弹 —— 只打印地址
+function canOpenBrowser(env = process.env, platform = process.platform) {
+  if (env.SSH_CONNECTION || env.SSH_TTY) return false
+  if (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY) return false
+  return true
 }
 
 function tryOpen(url) {
+  if (!canOpenBrowser()) return
   const isWin = process.platform === 'win32'
   const cmd = isWin ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open'
   try { require('node:child_process').spawn(cmd, isWin ? ['', url] : [url], { shell: isWin, stdio: 'ignore', detached: true }).unref() } catch { /* just print the URL */ }
@@ -1899,7 +2012,17 @@ async function cmdUi(rest) {
   }
   const ui = createUiServer({ configPath, host, log: (m) => process.stderr.write(gray('· ' + m) + '\n') })
   ui.server.on('error', (e) => {
-    if (e.code === 'EADDRINUSE') return die(`端口 ${port} 被占用 — 换端口:sintbot ui --port <其它>`)
+    if (e.code === 'EADDRINUSE') {
+      // 后台服务在跑 = 控制台已经开着(1.0.12 起没平台也装服务):直接打开它,别报「端口被占用」
+      const st = (() => { try { return require('../src/service').status({ platform: process.platform, home: os.homedir() }) } catch { return {} } })()
+      if (st.running) {
+        const url = `http://127.0.0.1:${port}`
+        process.stderr.write(cyan('  ') + tr(`控制台已在后台服务里运行 → ${url}`, `The console is already running in the background service → ${url}`) + '\n')
+        if (!noOpen) tryOpen(url)
+        process.exit(0)
+      }
+      return die(`端口 ${port} 被占用 — 换端口:sintbot ui --port <其它>`)
+    }
     die('ui server error: ' + (e && e.message))
   })
   ui.listen(port, host, () => {

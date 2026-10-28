@@ -12,17 +12,19 @@ macOS / Linux(Linux 为实验性支持):
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-脚本依次做这些事,每一步先检查、已经有的跳过,要改系统的先问你(回车 = 同意):
+脚本分四步,每一步先检查、已经有的跳过,要改系统的先问你(回车 = 同意)。终端里只装好、配好模型:不问你在哪,也不要求填代理、项目目录、聊天平台凭据 —— 这些装完在控制台里配。
 
-1. **Node 22+**:没有或版本太旧时,Mac 上有 Homebrew 就用它装 / 升级;没有 Homebrew(或在 Linux 上)会给出 [nodejs.org](https://nodejs.org) 的下载地址后停下,装好 Node 再运行一次脚本。
-2. **npm 源**:你配过 npm 源就照用;还是官方源时先试连一下,连不上(国内常见)本次改用国内镜像 `registry.npmmirror.com`。
-3. **装 sintbot**:`npm i -g sintbot`。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
-4. **配置向导** `sintbot setup`:第一步检查 Claude Code,没装会问要不要现在装(见下一节);之后是地区、模型(当场试跑一轮)、聊天平台、项目根目录、第一个群。**先按 [platforms/](./platforms/) 建好机器人、拉进群**,向导里才有凭据可填。
-5. **常驻服务**:问要不要 `sintbot service install`(崩溃自动拉起、登录后自启)。选不装的话,结尾会告诉你怎么把守护进程跑起来:前台跑 `sintbot start --ui`,或之后再 `sintbot service install`。向导里聊天平台选了「先不接」的话不会问装服务(守护进程起来会马上退出),而是让你先 `sintbot ui`:在控制台「设置」里接平台、绑群,再装服务。
+1. **环境:Node 22+**:没有或版本太旧时,Mac 上有 Homebrew 就用它装 / 升级;没有 Homebrew(或在 Linux 上)会给出 [nodejs.org](https://nodejs.org) 的下载地址后停下,装好 Node 再运行一次脚本。
+   **npm 源**:你配过 npm 源就照用;还是官方源时先试连一下,连不上(国内常见)本次改用国内镜像 `registry.npmmirror.com`。
+2. **装 sintbot**:`npm i -g sintbot`。已经是最新版就直接跳过,旧版本会问要不要升级。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
+3. **配模型** `sintbot setup`:检查 Claude Code,没装会问要不要现在装(见下一节);然后配模型,当场试跑一轮。见下文[第 2 节](#2-配置sintbot-setup)。
+4. **后台服务**:问要不要 `sintbot service install`(登录后自启、崩溃自动拉起)。装好后控制台常开在 `http://127.0.0.1:4600` —— 还没接聊天平台也开着,脚本会在浏览器里打开它(SSH 连进来装的只打印地址)。服务已经在跑、这次也没升级就跳过这一步;升级了会问要不要重启服务(重启会在已接的群里播报升级)。
+
+结尾给出控制台地址和接下来做什么:在「设置」里接飞书 / Slack / 企业微信,在「群 · 项目」里绑群,然后在群里 @ 机器人。不接平台也能先用 `sintbot chat` 在终端里试。
 
 - 想先看看它会做什么:`curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`(只打印,不执行);脚本源码就是仓库根目录的 [install.sh](../../install.sh)。
 - 没有可交互的终端时(如 CI),向导和常驻服务这两步会跳过,只装包。
-- 脚本的输出语言跟着系统:`LANG` 以 `zh` 开头就是中文,否则英文;想指定就设 `SINTBOT_LANG=zh` 或 `en`,例如 `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=zh bash`。
+- 脚本和向导的输出语言跟着系统:`LANG` 以 `zh` 开头,或者 macOS 的系统语言是中文,就是中文,否则英文;想指定就设 `SINTBOT_LANG=zh` 或 `en`,例如 `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=zh bash`。
 - Windows 不支持一键安装,按下面手动来。
 
 ## Claude Code:安装与登录
@@ -81,25 +83,31 @@ npm link            # 可选:把 sbot 命令链到全局
 
 ## 2. 配置:`sintbot setup`
 
-交互式向导,回车即默认(方括号里的值,`(Y/n)` 大写的那个)。**开始前先按 [platforms/](./platforms/) 把机器人建好、拉进一个群**,向导里才有凭据可填、有群可绑。依次问:
+交互式向导,回车即默认(方括号里的值,`(Y/n)` 大写的那个)。只问这台机器跑起来需要的两样:
 
-1. **地区**:「这台机器在中国大陆吗?」(默认按系统时区猜)。决定有国际站的厂商连哪个站、要不要问代理、聊天平台推荐哪个
+1. **环境**:Claude Code、Codex、设计图标库,缺的会问要不要现在装(见上文「前置」)
 2. **模型**:先显示 Claude 订阅、ChatGPT(Codex)的登录状态和已有 key 的模型,按这个顺序推荐:
    - Claude 已登录 → 默认 Claude;否则 Codex 已登录 → 默认 Codex。此时只问要不要再加一个用 API key 的模型
    - 都没有 → **推荐 DeepSeek**:告诉你去 platform.deepseek.com 拿 key,粘贴后**当场试跑一轮**。也可以选别家(智谱 GLM / MiniMax / 火山方舟)、另开终端登录 Claude 或 Codex 后回来重新检测,或先跳过
-   - 智谱 GLM、MiniMax 有国际站(Z.ai / minimax.io),会问 key 是哪个站开的 —— 选错会 401
+   - 智谱 GLM、MiniMax 有国际站(Z.ai / minimax.io),key 只在开它的那个站能用:向导先试一个站,认证失败自动换另一个站再试;没装 Claude Code 试跑不了时,才问 key 是哪个站开的
    - 试跑失败会说原因:key 不对、余额不足或没实名、连不上(是不是开着全局代理)、模型名不对;可以重新粘贴再试
    - 有多个能用的模型时问默认用哪个(群里 `/model` 随时切);默认模型还没试跑过会问要不要试一轮
    - 没装或没登录 codex 时,codex 预设和「额度用完自动切到 codex」不写进配置。Kimi 不在预设里,要在控制台「模型 · 库 → 添加模型 → 自定义」添加。见 [models.md](./models.md)
-   - **代理分流**:只有在中国大陆、且用到 Claude / ChatGPT 时才问。官方 Claude / ChatGPT 走代理,国内模型端点与飞书直连;`noProxy` 按你启用的 provider 自动生成
-3. **机器人名**:群里怎么称呼它(默认 SintBot)
-4. **聊天平台**:飞书 / Slack / 企业微信,空格分隔可多选(默认按地区:中国大陆 `feishu`,其他地区 `slack`;`none` = 先不接)。每个平台填完凭据会问**要不要预检**,默认是 —— 预检会用你填的凭据真连一次平台接口(飞书还会顺手填上 `botOpenId`;选否就让你手填,可留空,留空的后果见 [feishu.md](./platforms/feishu.md))。飞书另问要不要配管理员(建群时自动拉入)
-5. **项目根目录**:群项目都放这里面(默认 `~/Projects`,多个用 `;` 分隔,不存在会问要不要创建),控制台只认这里面的目录
-6. **绑第一个群**(可选,默认否):选平台 → 选群(飞书会用凭据调接口列出机器人所在的群,拉不到就手填群 ID;企业微信要先在群里 @ 过机器人,或者先跳过、之后在控制台选)→ 填项目目录(不存在会问要不要创建)→ 选模型
 
-配置写到 `~/.sbot/config.json`(权限 600);当前目录已有 `sbot.config.json` 时更新那份。再跑一次 `sintbot setup` 只补缺项,不动已填的(飞书预检每次都会再问,可以借此补上 `botOpenId`)。之后的日常改动(绑群、切模型、权限)在控制台里做:`sintbot ui`。
+配置写到 `~/.sbot/config.json`(权限 600);当前目录已有 `sbot.config.json` 时更新那份。再跑一次 `sintbot setup` 只补缺项,不动已填的。
 
-向导最后自动跑 `sintbot doctor`。✗(失败)必须处理,!(警告)看内容。
+向导最后做一次简短体检,只列失败项;完整的看 `sintbot doctor`。终端里设了代理、配置里没有时,会建议装服务时把代理带进去(见下一节),或在控制台里填。
+
+**其余的都在控制台里配**(`sintbot ui`,装了服务就是 `http://127.0.0.1:4600`):
+
+| 配什么 | 控制台里的位置 |
+|---|---|
+| 聊天平台凭据(飞书 / Slack / 企业微信)、预检、飞书管理员 | 「设置」,每个平台都有分步指南;另见 [platforms/](./platforms/) |
+| 把群绑到项目目录 | 「群 · 项目」 |
+| 机器人名字、网络代理 | 「设置 → 机器人与网络」 |
+| 项目根目录 | 控制台里只读(它是控制台能绑哪些目录的围栏)。默认 `~/Projects`;要改就编辑配置里的 `projectsRoots`,或运行 `sintbot setup --full` |
+
+**`sintbot setup --full`**:在终端里问旧的完整一套,给没有浏览器的服务器用 —— 代理分流、机器人名、聊天平台凭据与预检、项目根目录、绑第一个群。
 
 ## 3. 常驻:`sintbot service install`
 
@@ -114,9 +122,10 @@ sintbot service status | restart | logs | uninstall
 - 日志:`~/.sbot/logs/err.log`(`sintbot service logs` 看末尾)
 - 服务里固定的是:node 的路径、sbot 入口、配置文件绝对路径,以及当前 shell 的 PATH(`claude` / `codex` 所在目录排最前)。**换了 node、挪了配置、新装了 claude 之后,重跑一次 `sintbot service install`**
 - node 路径:Homebrew 装的 node 实际在带版本号的目录里,升级后旧路径就没了 —— install 会换成指向同一个程序、不带版本号的路径(如 `/opt/homebrew/bin/node`)。nvm / volta 这类找不到稳定路径的照用原路径,并提醒你换 node 版本后重装服务
-- 环境变量:服务里**没有**你 shell 里的变量。配置里写了 `"env:变量名"` 的,install 会点名哪些在服务里拿不到;可以把这些值写进服务定义(文件权限设为 600,`--dry-run` 打印时值是遮住的)—— 在终端里装时会问一句(默认是),加 `--pass-env` 就不问直接写,换了 key 要重跑 install;或者干脆在配置里填明文(配置文件本身就是 600)
+- 环境变量:服务里**没有**你 shell 里的变量。配置里写了 `"env:变量名"` 的,install 会点名哪些在服务里拿不到(配置里没写代理、shell 里有 `https_proxy` 这类变量时,也一起列出);可以把这些值写进服务定义(文件权限设为 600,`--dry-run` 打印时值是遮住的)—— 在终端里装时会问一句(默认是),加 `--pass-env` 就不问直接写,换了 key 要重跑 install;或者干脆在配置里填明文(配置文件本身就是 600;代理在控制台「设置 → 机器人与网络」填)
 - 控制台对外(`--ui-host` 非本机地址)而没设密码时,install 直接拒绝 —— 否则服务每次一启动就退出
-- 一个聊天平台(飞书 / Slack / 企业微信)都没配时,install 同样拒绝(退出码 3),理由相同:先 `sintbot ui` 在控制台「设置」里接平台,再装
+- 还没接聊天平台也照装:服务先只开控制台,在「设置」里接好平台、保存后,几秒内自己重启并连上(1.0.10、1.0.11 这种情况会拒绝安装)
+- 服务在跑时运行 `sintbot ui`,会直接打开服务里的控制台,不报端口被占用
 - ⚠ 装了服务就别再手动 `sintbot start`:同一个系统用户只允许一个守护进程(锁文件 `~/.sbot/daemon.lock`),第二个会报出已在运行的那个的 pid 后退出。另一台机器或另一个系统用户用**同一个机器人应用**再起一个的话:飞书和 Slack 会把每条消息**随机交给其中一个连接**(另一个就收不到),企业微信则是新连接顶掉旧连接,10 分钟内被顶两次就不再重连
 
 ### 升级
@@ -149,12 +158,12 @@ sudo pmset -a sleep 0 disablesleep 1 autorestart 1 powernap 0
 
 ## 代理
 
-在中国大陆:官方 Claude、ChatGPT / Codex、Slack 要走代理,国内模型端点、飞书、企业微信直连。setup 里开「代理分流」后,配置里的 `proxy` 块会:
+在中国大陆:官方 Claude、ChatGPT / Codex、Slack 要走代理,国内模型端点、飞书、企业微信直连。在控制台「设置 → 机器人与网络」填代理(或用 `sintbot setup --full`)后,配置里的 `proxy` 块会:
 
 - 注入到每次 spawn 的 `claude` / `codex` 子进程(不覆盖 shell 里已有的值);
 - 也用于守护进程自己连 Slack(Node 的 `fetch` / WebSocket 不读 `HTTP_PROXY` 环境变量,所以单独处理)。
 
-**国内模型端点要直连**:DeepSeek、智谱、MiniMax、火山方舟绕到境外再连回来,既慢,也可能触发对方的风控。setup 开代理分流时,`noProxy` 会按你启用的 provider 自动生成;如果是自己在 shell 里配的代理,把这些域名加进 `NO_PROXY`:
+**国内模型端点要直连**:DeepSeek、智谱、MiniMax、火山方舟绕到境外再连回来,既慢,也可能触发对方的风控。在控制台或向导里填代理时,`noProxy` 会按你启用的 provider 自动生成;如果是自己在 shell 里配的代理,把这些域名加进 `NO_PROXY`:
 
 ```bash
 export NO_PROXY=api.deepseek.com,open.bigmodel.cn,api.minimaxi.com,ark.cn-beijing.volces.com,localhost,127.0.0.1
@@ -167,7 +176,7 @@ export NO_PROXY=api.deepseek.com,open.bigmodel.cn,api.minimaxi.com,ark.cn-beijin
 | 现象 | 原因与做法 |
 |---|---|
 | 体检或群里报「未登录」/ `Not logged in` | 默认模型还是 `claude`,但这台机器没登录 Claude。只用 DeepSeek 等:重跑 `sintbot setup` 选模型,或群里 `/model deepseek`、控制台给群换模型;要用 Claude 就跑 `claude auth login` |
-| 试跑报「key 不对」(401) | key 没复制完整,或 key 和站点不是同一个(智谱 / MiniMax 的中国站与国际站互不通用)。重跑 `sintbot setup` 重新选站点、粘贴 |
+| 试跑报「key 不对」(401) | key 没复制完整。智谱 / MiniMax 向导已经把中国站和国际站都试过了,说明 key 本身不对。重跑 `sintbot setup` 重新粘贴 |
 | 报余额不足 / 未实名 | 到厂商后台充值、完成实名后再试 |
 | 很慢或连不上国内模型 | 开着全局代理(梯子)时请求会绕到境外:把模型域名设成直连,见上文「代理」 |
 | npm 安装很慢或失败 | 加 `--registry https://registry.npmmirror.com`;一键安装和向导会自动换 |
