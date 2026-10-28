@@ -26,7 +26,11 @@ test('setup finds the right site for a MiniMax key by trying both, without askin
     fs.mkdirSync(bin)
     fs.symlinkSync(process.execPath, path.join(bin, 'node'))
     fs.writeFileSync(path.join(bin, 'claude'), FAKE_CLAUDE, { mode: 0o755 })
+    // 设计图标库放一份假的:CI 机器上没装,向导会多问一句「现在安装?」,下面按顺序给的回答就错位了
+    const icons = path.join(tmp, 'icons')
+    for (const def of Object.values(require('../../src/design').ICON_LIBS)) fs.mkdirSync(path.join(icons, def.pkg), { recursive: true })
     const cfg = path.join(tmp, 'config.json')
+    fs.writeFileSync(cfg, JSON.stringify({ agent: { bin: 'claude' }, providers: { claude: {} }, defaultProvider: 'claude', groups: {}, design: { iconsDir: icons } }), { mode: 0o600 })
     // 回答:不装 codex · 菜单选 2(别家)· 选 2(MiniMax)· 粘贴 key
     const r = spawnSync(process.execPath, [BIN, 'setup', '--config', cfg], {
       cwd: tmp, input: '\n2\n2\nsk-test-key\n', encoding: 'utf8', timeout: 50000,
