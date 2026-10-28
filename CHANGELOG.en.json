@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.0.13",
+    "name": "An even shorter install: almost nothing to answer",
+    "items": [
+      {
+        "t": "No questions for what can be done automatically",
+        "d": "The one-line install upgrades to the latest version directly. The wizard installs Claude Code when it is missing, picks the default model itself and runs a trial turn, and no longer asks about adding more models; Codex and the design icon libraries are optional and only get a one-line install hint. If you are already logged in to Claude or Codex, the whole install asks one thing: whether to install the background service."
+      },
+      {
+        "t": "Keys and proxy go into the service automatically",
+        "d": "Installing the background service writes the environment-variable keys the config refers to, and your terminal's proxy, into the service definition (mode 600) without asking. Run sintbot service install again after changing a key or the proxy."
+      },
+      {
+        "t": "Less output",
+        "d": "The install no longer shows npm progress or harmless warnings, and the background service reports a single line when it is up."
+      }
+    ]
+  },
+  {
     "version": "1.0.12",
     "name": "Simpler install: the terminal sets up the model, the console does the rest",
     "items": [
