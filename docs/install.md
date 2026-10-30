@@ -132,6 +132,10 @@ sintbot service status | restart | logs | uninstall
 
 ### Upgrade
 
+The console's **Settings → Software updates** checks for stable releases at startup and once daily; you can also check manually. Automatic checks are always on. An administrator must confirm before installation. SintBot waits for every group task and queue to clear, then installs only the exact version just checked. It never escalates privileges: if the global install is not writable or this process is not running from that install, use the terminal instead.
+
+After verifying the installed version, a managed background service restarts automatically. A foreground process must be restarted manually. You can ignore the detected version and choose whether to announce an upgrade in groups. A failed network check leaves the last successful result intact.
+
 ```bash
 npm i -g sintbot@latest && sintbot service restart
 ```

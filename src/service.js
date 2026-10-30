@@ -20,7 +20,7 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { execFileSync } = require('node:child_process')
+const { execFileSync, execFile } = require('node:child_process')
 
 const LABEL = 'com.sbot.daemon'      // launchd 标签(与早期手写 plist 同名 ⇒ 装新版直接替换旧的)
 const UNIT = 'sbot.service'          // systemd --user 单元名
@@ -176,6 +176,35 @@ function run(bin, args, opts = {}) {
 
 const uid = () => (typeof process.getuid === 'function' ? process.getuid() : 0)
 
+// launchctl bootout may return before the old job has fully left the GUI domain.
+// Keep the wait synchronous and strictly bounded: service install is a CLI action,
+// and a failed unload must never race straight into bootstrap.
+function sleepSync(ms) {
+  if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+function launchdServiceMissing(message) {
+  return /could not find service|service[^\n]*not found|no such service|not found in domain/i.test(String(message || ''))
+}
+
+function launchdBootstrapRace(result) {
+  return result && (result.code === 5 || /bootstrap failed:\s*5|input\/output error/i.test(String(result.err || '')))
+}
+
+// { ok:true, waitedMs } when unloaded; otherwise a bounded, actionable failure.
+function waitForLaunchdUnload(target, { runCommand = run, wait = sleepSync, timeoutMs = 2000, intervalMs = 100 } = {}) {
+  const tries = Math.floor(Math.max(0, timeoutMs) / Math.max(1, intervalMs)) + 1
+  for (let i = 0; i < tries; i++) {
+    const r = runCommand('launchctl', ['print', target])
+    if (!r.ok) {
+      if (launchdServiceMissing(r.err)) return { ok: true, waitedMs: i * intervalMs }
+      return { ok: false, waitedMs: i * intervalMs, err: r.err || 'launchctl print 失败,无法确认服务状态' }
+    }
+    if (i < tries - 1) wait(intervalMs)
+  }
+  return { ok: false, waitedMs: (tries - 1) * intervalMs, err: `等待 launchd 卸载超时(${timeoutMs}ms),未尝试重新加载` }
+}
+
 // 状态(只读):{ installed, running, pid, detail }
 function status({ platform = process.platform, home = os.homedir() } = {}) {
   const file = unitPath(platform, home)
@@ -197,7 +226,7 @@ function status({ platform = process.platform, home = os.homedir() } = {}) {
 }
 
 // 写单元文件(已有且内容不同 ⇒ 先备份)并加载。返回 { file, backup, steps: [{cmd, ok, err}] }
-function install(spec, { platform = process.platform, home = os.homedir() } = {}) {
+function install(spec, { platform = process.platform, home = os.homedir(), runCommand = run, wait = sleepSync, launchdTimeoutMs = 2000, launchdPollMs = 100 } = {}) {
   const file = unitPath(platform, home)
   if (!file) throw new Error('这个平台不支持自动安装服务')
   const text = render(platform, spec)
@@ -212,10 +241,38 @@ function install(spec, { platform = process.platform, home = os.homedir() } = {}
   // 单元文件里写了环境变量的值(多半是 key)⇒ 只给自己读写;没写就是普通权限
   if (Object.keys(spec.env || {}).length) fs.chmodSync(file, 0o600)
   const steps = []
-  const step = (bin, args, tolerate) => { const r = run(bin, args); steps.push({ cmd: [bin, ...args].join(' '), ok: r.ok || !!tolerate, err: r.ok ? '' : r.err }); return r }
+  const step = (bin, args, tolerate) => { const r = runCommand(bin, args); steps.push({ cmd: [bin, ...args].join(' '), ok: r.ok || !!tolerate, err: r.ok ? '' : r.err }); return r }
   if (platform === 'darwin') {
-    step('launchctl', ['bootout', `gui/${uid()}/${LABEL}`], true) // 没加载过会报错,忽略
-    step('launchctl', ['bootstrap', `gui/${uid()}`, file])
+    const target = `gui/${uid()}/${LABEL}`
+    const bootoutArgs = ['bootout', target]
+    const out = runCommand('launchctl', bootoutArgs)
+    const absentBefore = !out.ok && launchdServiceMissing(out.err)
+    steps.push({ cmd: ['launchctl', ...bootoutArgs].join(' '), ok: out.ok || absentBefore, err: out.ok || absentBefore ? '' : out.err })
+    // A missing job is normal on first install; any other bootout failure is not.
+    if (!out.ok && !absentBefore) return { file, backup, steps }
+    const unloaded = waitForLaunchdUnload(target, { runCommand, wait, timeoutMs: launchdTimeoutMs, intervalMs: launchdPollMs })
+    steps.push({ cmd: 'launchctl wait for bootout', ok: unloaded.ok, err: unloaded.ok ? '' : unloaded.err })
+    if (!unloaded.ok) return { file, backup, steps }
+
+    const bootstrapArgs = ['bootstrap', `gui/${uid()}`, file]
+    const first = runCommand('launchctl', bootstrapArgs)
+    if (first.ok) steps.push({ cmd: ['launchctl', ...bootstrapArgs].join(' '), ok: true, err: '' })
+    else if (launchdBootstrapRace(first)) {
+      // A race may report EIO even though launchd accepted the job. Since the
+      // previous job was confirmed absent, a now-loaded job is the new one.
+      const after = runCommand('launchctl', ['print', target])
+      if (after.ok) steps.push({ cmd: ['launchctl', ...bootstrapArgs].join(' '), ok: true, err: '' })
+      else if (launchdServiceMissing(after.err)) {
+        wait(100)
+        const retry = runCommand('launchctl', bootstrapArgs)
+        if (retry.ok) steps.push({ cmd: ['launchctl', ...bootstrapArgs].join(' '), ok: true, err: '' })
+        else {
+          const afterRetry = runCommand('launchctl', ['print', target])
+          const loaded = afterRetry.ok
+          steps.push({ cmd: ['launchctl', ...bootstrapArgs].join(' '), ok: loaded, err: loaded ? '' : retry.err })
+        }
+      } else steps.push({ cmd: ['launchctl', ...bootstrapArgs].join(' '), ok: false, err: after.err || first.err })
+    } else steps.push({ cmd: ['launchctl', ...bootstrapArgs].join(' '), ok: false, err: first.err })
   } else {
     step('systemctl', ['--user', 'daemon-reload'])
     step('systemctl', ['--user', 'enable', UNIT])
@@ -228,6 +285,19 @@ function restart({ platform = process.platform } = {}) {
   if (platform === 'darwin') return run('launchctl', ['kickstart', '-k', `gui/${uid()}/${LABEL}`])
   if (platform === 'linux') return run('systemctl', ['--user', 'restart', UNIT])
   return { ok: false, err: '这个平台不支持' }
+}
+
+// Async form for a daemon restarting itself after an in-place package upgrade.
+// systemctl restart waits for the old process to exit, so the daemon must keep
+// its event loop free to handle SIGTERM while this command is in flight.
+function restartAsync({ platform = process.platform } = {}) {
+  let bin, args
+  if (platform === 'darwin') { bin = 'launchctl'; args = ['kickstart', '-k', `gui/${uid()}/${LABEL}`] }
+  else if (platform === 'linux') { bin = 'systemctl'; args = ['--user', 'restart', UNIT] }
+  else return Promise.resolve({ ok: false, err: '这个平台不支持' })
+  return new Promise((resolve) => execFile(bin, args, { encoding: 'utf8', windowsHide: true }, (e, stdout, stderr) => {
+    resolve(e ? { ok: false, out: String(stdout || ''), err: String(stderr || e.message || e).trim(), code: e.code ?? e.status } : { ok: true, out: String(stdout || '') })
+  }))
 }
 
 function uninstall({ platform = process.platform, home = os.homedir() } = {}) {
@@ -244,4 +314,4 @@ function uninstall({ platform = process.platform, home = os.homedir() } = {}) {
   return { file, removed, steps }
 }
 
-module.exports = { LABEL, UNIT, SUPERVISED_ENV, xmlEsc, sdQuote, buildPath, versionedPath, stableNodeBin, envRefs, serviceSpec, launchdPlist, systemdUnit, unitPath, render, windowsHint, status, install, restart, uninstall }
+module.exports = { LABEL, UNIT, SUPERVISED_ENV, xmlEsc, sdQuote, buildPath, versionedPath, stableNodeBin, envRefs, serviceSpec, launchdPlist, systemdUnit, unitPath, render, windowsHint, status, install, restart, restartAsync, uninstall, launchdServiceMissing, launchdBootstrapRace, waitForLaunchdUnload }

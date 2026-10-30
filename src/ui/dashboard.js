@@ -101,8 +101,11 @@ function failedTurns(rows, now) {
 //   leftovers  残留的后台进程(同上)
 //   preview    服务整个项目目录的预览(全部代码都在局域网上可读)
 //   health     健康检查没通过的项(一行汇总,排最前:它是「现在就坏着」,没有发生时刻可排)
-function buildInbox({ ledgerRows = [], issues = null, previews = [], leftovers = null, health = null, takeovers = [], groups = {}, dismissed = new Set(), now = Date.now() } = {}) {
+function buildInbox({ ledgerRows = [], issues = null, previews = [], leftovers = null, health = null, update = null, takeovers = [], groups = {}, dismissed = new Set(), now = Date.now() } = {}) {
   const items = []
+  if (update && update.available && update.latestVersion) {
+    items.push({ key: `update:${update.latestVersion}`, kind: 'update', from: update.currentVersion || '', to: update.latestVersion, ts: update.checkedAt || now, dismissable: true })
+  }
   for (const f of failedTurns(ledgerRows, now)) {
     items.push({ key: `failed:${f.chatId}:${f.ts}`, kind: 'failed', chatId: f.chatId, group: groupLabel(groups, f.chatId), ts: f.ts,
       sender: f.sender || '', text: f.text || '', err: f.err ? String(f.err) : '', dismissable: true })

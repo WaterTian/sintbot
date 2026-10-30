@@ -1,6 +1,9 @@
 // `sbot service` 的单元文件全由纯函数生成 —— 这里钉住生成结果;真正动系统的 launchctl / systemctl 不在单测里跑。
 const test = require('node:test')
 const assert = require('node:assert')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 const svc = require('../../src/service')
 
 const SPEC = svc.serviceSpec({
@@ -122,3 +125,87 @@ test('service: --pass-env 的变量写进 plist / systemd 单元,值照样转义
   assert.deepEqual(svc.systemdUnit(SPEC).match(/^Environment=.*$/gm), ['Environment=PATH=' + SPEC.pathEnv, 'Environment=SBOT_SUPERVISED=1'])
   assert.match(svc.launchdPlist(SPEC), /<key>SBOT_SUPERVISED<\/key><string>1<\/string>/)
 })
+
+// launchctl is injected here: these regressions must never touch the real
+// com.sbot.daemon job while the production service is running.
+function withServiceHome(fn) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sintbot-service-test-'))
+  try { fn(home) } finally { fs.rmSync(home, { recursive: true, force: true }) }
+}
+function serviceTestSpec(home) {
+  return svc.serviceSpec({ nodeBin: '/opt/node/bin/node', sbotBin: '/opt/lib/node_modules/sintbot/bin/sbot.js',
+    configPath: path.join(home, '.sbot', 'config.json'), uiHost: '0.0.0.0', home, pathEnv: '/opt/node/bin:/usr/bin:/bin' })
+}
+
+test('service: macOS reinstall waits for bootout to finish before bootstrap', () => withServiceHome((home) => {
+  const calls = []
+  let prints = 0
+  const runCommand = (bin, args) => {
+    calls.push([bin, ...args])
+    if (args[0] === 'bootout') return { ok: true, out: '' }
+    if (args[0] === 'print') {
+      prints++
+      return prints < 3
+        ? { ok: true, out: 'state = running' }
+        : { ok: false, err: 'Could not find service "gui/501/com.sbot.daemon" in domain' }
+    }
+    if (args[0] === 'bootstrap') return { ok: true, out: '' }
+    throw new Error(`unexpected command: ${bin} ${args.join(' ')}`)
+  }
+  const spec = serviceTestSpec(home)
+  const r = svc.install(spec, { platform: 'darwin', home, runCommand, wait: () => {}, launchdTimeoutMs: 200, launchdPollMs: 100 })
+  assert.ok(r.steps.every((s) => s.ok), JSON.stringify(r.steps))
+  assert.equal(calls.filter((c) => c[1] === 'bootstrap').length, 1)
+  assert.ok(calls.findIndex((c) => c[1] === 'bootstrap') > calls.findLastIndex((c) => c[1] === 'print'))
+}))
+
+test('service: macOS first install treats only a known missing job as normal', () => withServiceHome((home) => {
+  const calls = []
+  const runCommand = (bin, args) => {
+    calls.push([bin, ...args])
+    if (args[0] === 'bootout' || args[0] === 'print') return { ok: false, err: 'Could not find service in domain' }
+    if (args[0] === 'bootstrap') return { ok: true, out: '' }
+    throw new Error(`unexpected command: ${bin} ${args.join(' ')}`)
+  }
+  const r = svc.install(serviceTestSpec(home), { platform: 'darwin', home, runCommand, wait: () => {} })
+  assert.ok(r.steps.every((s) => s.ok), JSON.stringify(r.steps))
+  assert.ok(calls.some((c) => c[1] === 'bootstrap'))
+}))
+
+test('service: macOS unexpected bootout errors stop before bootstrap', () => withServiceHome((home) => {
+  const calls = []
+  const runCommand = (bin, args) => {
+    calls.push([bin, ...args])
+    return { ok: false, err: 'Operation not permitted', code: 1 }
+  }
+  const r = svc.install(serviceTestSpec(home), { platform: 'darwin', home, runCommand, wait: () => {} })
+  assert.equal(r.steps[0].ok, false)
+  assert.ok(!calls.some((c) => c[1] === 'bootstrap'))
+}))
+
+test('service: macOS timeout refuses to race into bootstrap', () => withServiceHome((home) => {
+  const calls = []
+  const runCommand = (bin, args) => {
+    calls.push([bin, ...args])
+    return args[0] === 'bootout' ? { ok: true } : { ok: true, out: 'state = running' }
+  }
+  const r = svc.install(serviceTestSpec(home), { platform: 'darwin', home, runCommand, wait: () => {}, launchdTimeoutMs: 2, launchdPollMs: 1 })
+  assert.ok(r.steps.some((s) => !s.ok && s.cmd === 'launchctl wait for bootout'))
+  assert.ok(!calls.some((c) => c[1] === 'bootstrap'))
+}))
+
+test('service: macOS retries one launchd EIO race after confirming the job is still absent', () => withServiceHome((home) => {
+  const calls = []
+  const runCommand = (bin, args) => {
+    calls.push([bin, ...args])
+    if (args[0] === 'bootout') return { ok: true }
+    if (args[0] === 'print') return { ok: false, err: 'Could not find service in domain' }
+    if (args[0] === 'bootstrap' && calls.filter((c) => c[1] === 'bootstrap').length === 1)
+      return { ok: false, err: 'Bootstrap failed: 5: Input/output error', code: 5 }
+    if (args[0] === 'bootstrap') return { ok: true }
+    throw new Error(`unexpected command: ${bin} ${args.join(' ')}`)
+  }
+  const r = svc.install(serviceTestSpec(home), { platform: 'darwin', home, runCommand, wait: () => {} })
+  assert.ok(r.steps.every((s) => s.ok), JSON.stringify(r.steps))
+  assert.equal(calls.filter((c) => c[1] === 'bootstrap').length, 2)
+}))

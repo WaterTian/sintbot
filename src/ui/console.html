@@ -1164,6 +1164,7 @@ function inboxHtml(){
       `<a class="iconbtn sm" href="/browser" target="_blank" rel="noopener" title="打开接管页" style="flex:none">${IC.ext}</a>`,
       (it.pageTitle||it.pageUrl)?full(esc(it.pageTitle||it.pageUrl)):'');
     if(it.kind==='issues')return line('反馈','--warn',`${it.count} 条反馈待处理`,go('ovIssues','滚到反馈本'));
+    if(it.kind==='update')return line('更新','--ember',`发现新版 v${esc(it.to)}`,go('updateCard','打开版本更新'));
     if(it.kind==='leftovers')return line('进程','--warn',`${it.count} 个后台进程还在跑`,go('ovLeftovers','滚到后台进程'));
     if(it.kind==='preview')return line('预览','--fail','预览在服务整个项目目录',go('ovPreviews','滚到预览服务'));
     // 每个检查项单独一个节点:英文界面按整段文字逐个翻译
@@ -1175,7 +1176,7 @@ function inboxHtml(){
     <div class="card ovgroups" style="margin-bottom:22px">${items.map(row).join('')}</div>`;
 }
 function bindInbox(){
-  $$('#overview [data-ibgo]').forEach(b=>b.onclick=()=>{const el=$('#'+b.dataset.ibgo);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
+  $$('#overview [data-ibgo]').forEach(b=>b.onclick=()=>{if(b.dataset.ibgo==='updateCard'){$$('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab==='settings'));$$('.tab').forEach(t=>t.classList.toggle('on',t.id==='settings'));}const el=$('#'+b.dataset.ibgo);if(el)requestAnimationFrame(()=>el.scrollIntoView({behavior:'smooth',block:'start'}));});
   $$('#overview [data-ibdis]').forEach(b=>b.onclick=async()=>{
     try{const r=await api('/api/inbox/dismiss','POST',{key:b.dataset.ibdis});S.inbox=r.inbox||[];paintInbox();toast('已忽略','ok');}catch(e){toast(e.message,'err');}});
 }
@@ -3215,6 +3216,7 @@ async function pgSend(){
 /* ── settings ── */
 function renderSettings(){
   const a=S.agent,fe=S.feishu,px=S.proxy,net=S.net||{};
+  const upd=S.update||null;
   // 项目根目录:控制台**只读**(产品决定 —— 它是围栏的策略,登上控制台就能改等于围栏只剩一次点击)。
   // 这里只把现状说清:每条根在不在、配置里被忽略的值、哪些群在根外;改要走安装向导或机器上的配置文件。
   const pri=S.projectsRootsInfo||{roots:[],dropped:[],outside:[],configured:null,fromConfig:false};
@@ -3235,6 +3237,14 @@ function renderSettings(){
     <div class="hint" style="margin-top:9px">${net.lan
       ?`<b style="color:var(--risk)">已对局域网开放</b> · ${net.authOn?'需密码':'<b style="color:var(--fail)">未设密码(异常)</b>'} · HTTP 明文,仅可信网络用(最稳走 SSH 隧道)。`
       :'仅本机可访问 · 要对外开放:先设访问密码,再把绑定地址改为 0.0.0.0。'}</div>
+    <div class="inline" style="gap:14px;margin-top:13px;flex-wrap:wrap">
+      <label class="inline" style="gap:6px;cursor:pointer"><input type="checkbox" id="netLan" ${net.lan?'checked':''} style="width:auto"/> <span class="dim">局域网访问</span></label>
+      <label class="inline" style="gap:6px;cursor:pointer"><input type="checkbox" id="netPublic" ${net.publicEnabled?'checked':''} style="width:auto"/> <span class="dim">公网飞书登录</span></label>
+    </div>
+    ${!net.authOn?`<div class="field" style="margin:10px 0 0;max-width:320px"><label class="f">访问密码</label><input id="netPass" type="password" autocomplete="new-password" placeholder="局域网开启时设置,至少 6 位"/><div class="hint" style="margin-top:4px">只保存 scrypt 哈希;开启局域网前必填</div></div>`:''}
+    <div class="hint" style="margin-top:7px">${net.publicEnabled?(net.publicReady?'公网登录已启用':'公网登录待配置'): '公网登录已关闭'}${!net.publicReady&&net.feishuLogin&&net.feishuLogin.why?` · ${esc(net.feishuLogin.why)}`:''} · 开关只控制本程序入口,不会改动反向代理或隧道。</div>
+    <button class="btn primary" id="netSave" style="margin-top:12px">保存访问设置</button>
+    <div class="hint" style="margin-top:7px">局域网监听按当前端口即时切换;关闭后只允许本机访问。系统防火墙可能仍会拦截。</div>
     ${INJECTED_TOKEN?'':'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="logoutBtn" title="作废这次登录;其它设备上的登录不受影响">退出登录</button><button class="btn" id="logoutAllBtn" title="作废这台机器签发过的全部登录(所有设备都要重新登录),手机丢了用这个">退出所有设备</button></div>'}
     ${prSection}
   </div>`;
@@ -3262,6 +3272,23 @@ function renderSettings(){
   </div>`;
   const verhistCard=`<div class="card" style="grid-column:1/-1" id="verhistCard"><div class="lbl">版本历史</div>
     <div id="verhistBox"><div class="empty">加载中…</div></div></div>`;
+  const updateJob=upd&&upd.job;
+  const updateBusy=!!(updateJob&&['queued','installing','restarting','restart-needed'].includes(updateJob.state));
+  const updateText=!upd?'后台版本检查不可用':updateJob?esc(updateJob.message||updateJob.state):upd.available?`检测到新版本 v${esc(upd.latestVersion)} · 当前 v${esc(upd.currentVersion)}`:upd.checkedAt?`当前为最新版本 v${esc(upd.currentVersion)}`:'尚未检查新版';
+  const updateCard=`<div class="card" style="grid-column:1/-1" id="updateCard"><div class="lbl">软件更新</div>
+    <div id="updateStatus" class="hint" style="margin:0 0 12px;color:var(--ink)">${updateText}</div>
+    ${upd&&upd.available?`<div class="hint" style="margin:-4px 0 12px">版本差异与发布说明：<a href="https://github.com/sintlab/sintbot/releases/tag/v${encodeURIComponent(upd.latestVersion)}" target="_blank" rel="noopener" style="color:var(--ember-soft)">查看 v${esc(upd.latestVersion)} 发布说明</a></div>`:''}
+    <div class="inline" style="gap:14px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="dim">自动检查稳定版(启动时及每天)</span>
+      <label class="inline" style="gap:6px;cursor:pointer"><input type="checkbox" id="updAnnounce" ${upd&&upd.announce!==false?'checked':''} style="width:auto"/> <span class="dim">升级后向群里播报(记住选择)</span></label>
+    </div>
+    <div class="inline" style="gap:8px;flex-wrap:wrap">
+      <button class="btn" id="updCheck" ${!upd?'disabled':''}>检查新版</button>
+      <button class="btn primary" id="updInstall" ${!upd||!upd.available||updateBusy?'disabled':''}>现在升级</button>
+      <button class="btn" id="updIgnore" ${!upd||!upd.available?'disabled':''}>忽略此版本</button>
+    </div>
+    <div class="hint" style="margin-top:10px">只安装检测到的稳定版本;所有群任务与队列清空后才会安装。需要可写的全局安装目录,不会提权;后台服务会自动重启,前台运行需手动重启。</div>
+  </div>`;
   $('#settings').innerHTML=`<div class="grid cols2 stagger">
     ${netCard}
     <div class="card"><div class="lbl">运行限制</div>
@@ -3284,6 +3311,7 @@ function renderSettings(){
     ${fxFeishuCard(fe)}
     ${fxSlackCard(S.slack||null)}
     ${fxWecomCard(S.wecom||null)}
+    ${updateCard}
     ${aboutCard}
     ${verhistCard}
   </div>`;
@@ -3291,6 +3319,33 @@ function renderSettings(){
   $('#bSave').onclick=async()=>{const brand=$('#bBrand').value.trim(),http=$('#pxHttp').value.trim();
     if(http&&!/^https?:\/\/\S+$/i.test(http)){toast('代理地址要像 http://127.0.0.1:7890','err');return;}
     try{await api('/api/agent','POST',{brand});S=await api('/api/proxy','POST',{enabled:!!http,http});toast('已保存','ok');renderSettings();}catch(e){toast(e.message,'err');}};
+  $('#netSave').onclick=async()=>{
+    const lanEnabled=$('#netLan').checked,publicEnabled=$('#netPublic').checked;
+    const patch={lanEnabled,publicEnabled};
+    const pw=$('#netPass');if(pw&&pw.value)patch.password=pw.value;
+    if(lanEnabled&&!net.lan&&!net.authOn&&(!patch.password||patch.password.length<6)){toast('开启局域网访问前要设置至少 6 位访问密码','err');return;}
+    if(lanEnabled!==!!net.lan&&!confirm(lanEnabled?'开启后,同一可信局域网内可访问登录页;继续?':'关闭后,远程设备将无法访问控制台;继续?'))return;
+    if(publicEnabled!==!!net.publicEnabled&&!confirm(publicEnabled?'启用公网飞书登录入口?这不会修改反向代理或隧道。':'关闭公网入口并让现有飞书登录退出?'))return;
+    const b=$('#netSave');b.disabled=true;
+    try{const r=await api('/api/ui/network','POST',patch);
+      if(r.rebinding){toast('访问地址正在切换;页面即将重载','ok');setTimeout(()=>location.reload(),1200);return;}
+      S=r;toast('访问设置已保存','ok');renderSettings();
+    }catch(e){toast(e.message,'err');b.disabled=false;}
+  };
+  const saveUpdatePrefs=async(patch)=>{try{S=await api('/api/ui/update-settings','POST',patch);renderSettings();}catch(e){toast(e.message,'err');}};
+  $('#updAnnounce').onchange=()=>saveUpdatePrefs({announce:$('#updAnnounce').checked});
+  $('#updCheck').onclick=async()=>{const b=$('#updCheck');b.disabled=true;b.textContent='检查中…';
+    try{await api('/api/update/check','POST',{});S=await api('/api/state');await refreshInbox();renderSettings();renderOverview();toast('版本检查完成','ok');}
+    catch(e){toast(e.message,'err');b.disabled=false;b.textContent='检查新版';}};
+  $('#updInstall').onclick=async()=>{const u=S.update||{},version=u.latestVersion;if(!version)return;
+    const announce=$('#updAnnounce').checked;
+    if(!confirm(`将从 v${u.currentVersion} 升级到 v${version}。${announce?'安装完成后会向未暂停的群播报；':'本次不向群播报。'}所有群任务结束后才开始安装，后台服务会重启。继续?`))return;
+    const b=$('#updInstall');b.disabled=true;
+    try{const r=await api('/api/update/start','POST',{version,announce});S.update={...r,announce};await refreshInbox();renderSettings();renderOverview();toast('更新已排队，群任务空闲后开始','ok');}
+    catch(e){toast(e.message,'err');b.disabled=false;}};
+  $('#updIgnore').onclick=async()=>{const version=(S.update||{}).latestVersion;if(!version)return;
+    try{const r=await api('/api/update/ignore','POST',{version});S.update={...r,announce:$('#updAnnounce').checked};await refreshInbox();renderSettings();renderOverview();toast('已忽略此版本','ok');}
+    catch(e){toast(e.message,'err');}};
   // 只开着控制台的守护进程(还没接平台):第一次接上平台时说一句接下来会发生什么(服务托管的会自己重启连上)
   {const pl=S.platforms||{};if(S.setupMode&&(pl.feishu||pl.slack||pl.wecom)&&!window._sbRestartToast){window._sbRestartToast=1;toast(S.setupMode.supervised?'已接上聊天平台 —— 后台服务几秒后自动重启并连上':'已接上聊天平台 —— 在终端里重启 sintbot start --ui 连上','ok');}}
   bindWecomCard();
@@ -4440,6 +4495,38 @@ const I18N_EN=[
   [";改后即时生效,不用重启。","; changes apply immediately, no restart needed."],
   ["公网","Public"],
   ["局域网","LAN"],
+  ["局域网访问","LAN access"],
+  ["公网飞书登录","Public Feishu sign-in"],
+  ["访问密码","Access password"],
+  ["局域网开启时设置,至少 6 位","Set when enabling LAN access; at least 6 characters"],
+  ["只保存 scrypt 哈希;开启局域网前必填","Only a scrypt hash is stored; required before enabling LAN access"],
+  ["公网登录已启用","Public sign-in is enabled"],
+  ["公网登录待配置","Public sign-in needs configuration"],
+  ["公网登录已关闭","Public sign-in is off"],
+  ["保存访问设置","Save access settings"],
+  ["开关只控制本程序入口,不会改动反向代理或隧道。","These switches control this app only; they do not change the reverse proxy or tunnel."],
+  ["局域网监听按当前端口即时切换;关闭后只允许本机访问。系统防火墙可能仍会拦截。","LAN binding changes immediately on the current port; when off, only this machine can connect. The system firewall may still block access."],
+  ["软件更新","Software updates"],
+  ["后台版本检查不可用","Version checks are unavailable in this console"],
+  ["自动检查稳定版(启动时及每天)","Automatically checks for stable releases at startup and daily"],
+  ["升级后向群里播报(记住选择)","Announce upgrades in groups (remember this choice)"],
+  ["检查新版","Check for updates"],
+  ["现在升级","Upgrade now"],
+  ["忽略此版本","Ignore this version"],
+  ["版本差异与发布说明：","Changes and release notes: "],
+  ["尚未检查新版","No version check has run yet"],
+  ["当前为最新版本","This is the latest version"],
+  ["检测到新版本","A new version is available"],
+  ["更新已排队，群任务空闲后开始","Update queued; installation will start when all group tasks are idle"],
+  ["已忽略此版本","This version was ignored"],
+  ["版本检查完成","Version check complete"],
+  ["访问地址正在切换;页面即将重载","Changing the access address; this page will reload"],
+  ["访问设置已保存","Access settings saved"],
+  ["开启局域网访问前要设置至少 6 位访问密码","Set an access password of at least 6 characters before enabling LAN access"],
+  ["开启后,同一可信局域网内可访问登录页;继续?","Enabling lets devices on the trusted LAN reach the sign-in page. Continue?"],
+  ["关闭后,远程设备将无法访问控制台;继续?","Remote devices will lose console access. Continue?"],
+  ["启用公网飞书登录入口?这不会修改反向代理或隧道。","Enable public Feishu sign-in? This will not change the reverse proxy or tunnel."],
+  ["关闭公网入口并让现有飞书登录退出?","Disable public access and sign out existing Feishu sessions?"],
   ["访问地址","Access URLs"],
   ["已对外,未检测到局域网 IPv4","Open to the network, but no LAN IPv4 was detected"],
   ["已对局域网开放","Open on the LAN"],
@@ -5046,6 +5133,18 @@ const I18N_EN_RX=[
   [/^✕ 加载失败:([\s\S]+)$/,"✕ Failed to load: $1"],
   [/^加载失败:([\s\S]+)$/,"Failed to load: $1"],
   [/^登录失败 \(HTTP (\d+)\)$/,"Sign-in failed (HTTP $1)"],
+  [/^检测到新版本 v([\d.]+) · 当前 v([\d.]+)$/,"New version v$1 · current v$2"],
+  [/^当前为最新版本 v([\d.]+)$/,"v$1 is the latest version"],
+  [/^等待所有群任务结束后更新$/,"Waiting for all group tasks to finish"],
+  [/^正在检查安装位置并安装指定版本$/,"Checking the install location and installing the selected version"],
+  [/^已安装，正在重启后台服务$/,"Installed; restarting the background service"],
+  [/^已安装新版；后台服务未能自动重启，请手动重启$/,"The new version is installed, but the background service did not restart; restart it manually"],
+  [/^已安装新版；当前不是受托管服务，请手动重启 SintBot$/,"The new version is installed; restart SintBot manually"],
+  [/^更新完成并已重启$/,"Update completed and restarted"],
+  [/^更新后未能自动重启，请手动重启服务$/,"The update could not restart automatically; restart the service manually"],
+  [/^等待群任务结束超时；可在任务空闲后重新发起$/,"Timed out waiting for group tasks; retry when they are idle"],
+  [/^当前运行的是开发目录或非全局副本；请在终端手动更新$/,"This is a development or non-global install; update it from a terminal"],
+  [/^将从 v([\d.]+) 升级到 v([\d.]+)。([\s\S]*)$/,(a,from,to,what)=>`Upgrade from v${from} to v${to}. ${what.replace('所有群任务结束后才开始安装，后台服务会重启。','Installation waits until all group tasks finish, then restarts the background service.').replace('本次不向群播报。','This update will not be announced in groups.').replace('安装完成后会向未暂停的群播报；','After installation, it will be announced in active groups;')}`],
 ];
 /* I18N_DICT_END */
 

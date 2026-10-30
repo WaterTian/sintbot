@@ -1,5 +1,24 @@
 [
   {
+    "version": "1.0.14",
+    "date": "2026-10-30",
+    "name": "Steadier service installs and better console controls",
+    "items": [
+      {
+        "t": "More reliable service reinstalls",
+        "d": "A reinstall now waits for the old background service to fully unload before starting the new one, reducing cases where the service is left unloaded."
+      },
+      {
+        "t": "Software updates from the console",
+        "d": "Stable releases are checked at startup and daily, with a manual check available too. An administrator confirms an upgrade, which waits for every group task and queue to clear before installing the exact version."
+      },
+      {
+        "t": "Manage console access in Settings",
+        "d": "Set a password for LAN access and toggle LAN binding or public Feishu sign-in. Turning off public sign-in revokes existing Feishu sessions; a failed binding change restores the previous settings."
+      }
+    ]
+  },
+  {
     "version": "1.0.13",
     "name": "An even shorter install: almost nothing to answer",
     "items": [

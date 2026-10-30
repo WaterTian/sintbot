@@ -23,7 +23,7 @@
 | `timezone` | 产品时区(IANA 名,默认 `Asia/Shanghai`):消息时间戳、定时任务、控制台时钟都按它,与主机时区无关 |
 | `brand` | 机器人在群里的名字(默认 SintBot) |
 | `alerts` | `{ chatId }`:运维告警群(不要绑项目) |
-| `ui` | 控制台:`publicUrl`(公网入口,见 [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md))· `auth`(由 `sintbot ui --set-password` 写入) |
+| `ui` | 控制台:`host`(监听地址,默认本机)· `auth`(访问密码哈希,由设置页或 `sintbot ui --set-password` 写入)· `publicUrl`(公网入口,见 [PUBLIC-ACCESS.md](./PUBLIC-ACCESS.md))· `publicEnabled`(公网飞书登录开关,默认开)· `announceUpdates`(升级后群播报偏好)。稳定版始终在启动时及每天自动检查 |
 | `preview` | 群预览服务:端口段、闲置回收、监听地址,见 [PREVIEW.md](./PREVIEW.md) |
 | `browser` | `{ cdpUrl, takeoverMinutes }`:常驻浏览器地址与接管链接时效,见 [BROWSER.md](./BROWSER.md) |
 | `instance` | 这台机器在反馈本里怎么自称(多台机器汇总时区分用) |

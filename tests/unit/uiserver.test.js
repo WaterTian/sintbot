@@ -36,9 +36,9 @@ function rawReq(port, { method = 'GET', path: reqPath = '/', headers = {}, body 
 }
 
 // Boot a server on a valid config, hand the extracted page token to the test body.
-async function withServer(configJson, fn) {
+async function withServer(configJson, fn, options = {}) {
   const cfgPath = tmpConfig(configJson)
-  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), ledgerPath: path.join(path.dirname(cfgPath), 'turns.jsonl'), inboxDismissPath: path.join(path.dirname(cfgPath), 'inbox-dismissed.json'), verifyFile: path.join(path.dirname(cfgPath), 'verify.json'), configPath: cfgPath, log: () => {} })
+  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), ledgerPath: path.join(path.dirname(cfgPath), 'turns.jsonl'), inboxDismissPath: path.join(path.dirname(cfgPath), 'inbox-dismissed.json'), verifyFile: path.join(path.dirname(cfgPath), 'verify.json'), configPath: cfgPath, updater: options.updater || null, log: () => {} })
   const port = await listen(ui)
   const page = await rawReq(port, { path: '/' })
   const m = page.body.match(/TOKEN='([0-9a-f]{32})'/)
@@ -232,6 +232,97 @@ test('ui: /api/state exposes the console access address (net block)', async () =
     assert.ok(Array.isArray(s.net.lanUrls))
     for (const u of s.net.lanUrls) assert.match(u, /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+$/)
   } finally { ui.close() }
+})
+
+test('ui: network access changes are authenticated, LAN access requires a password, public login requires Feishu readiness', async () => {
+  await withServer(VALID_CFG, async ({ port, token, cfgPath }) => {
+    const post = (body) => rawReq(port, { method: 'POST', path: '/api/ui/network', headers: { 'X-Sbot-Token': token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    assert.equal((await rawReq(port, { method: 'POST', path: '/api/ui/network', headers: { 'Content-Type': 'application/json' }, body: '{"lanEnabled":true}' })).status, 401)
+    assert.equal((await post({ lanEnabled: true, publicEnabled: false })).status, 400)
+    assert.equal((await post({ lanEnabled: false, publicEnabled: true })).status, 400)
+    assert.equal(JSON.parse(fs.readFileSync(cfgPath, 'utf8')).ui, undefined, 'rejected settings are not persisted')
+  })
+})
+
+test('ui: LAN access toggle rebinds immediately and can return to loopback', async () => {
+  const cfgPath = tmpConfig(VALID_CFG)
+  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), configPath: cfgPath, log: () => {} })
+  const port = await listen(ui)
+  const page = await rawReq(port, { path: '/' })
+  const token = (page.body.match(/TOKEN='([0-9a-f]{32})'/) || [])[1]
+  const post = (body) => rawReq(port, { method: 'POST', path: '/api/ui/network', headers: { 'X-Sbot-Token': token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const waitHost = async (host) => {
+    for (let i = 0; i < 30; i++) {
+      const address = ui.server.address()
+      if (address && address.address === host) return
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    assert.fail(`listener did not change to ${host}`)
+  }
+  try {
+    const opened = await post({ lanEnabled: true, password: 's3cret-pass', publicEnabled: false })
+    assert.equal(opened.status, 202)
+    await waitHost('0.0.0.0')
+    const publicOff = JSON.parse((await rawReq(port, { path: '/api/state', headers: { 'X-Sbot-Token': token } })).body)
+    assert.equal(publicOff.net.lan, true)
+    assert.equal(publicOff.net.publicEnabled, false)
+    const closed = await post({ lanEnabled: false, publicEnabled: false })
+    assert.equal(closed.status, 202)
+    await waitHost('127.0.0.1')
+  } finally { ui.close() }
+})
+
+test('ui: a failed LAN rebind restores the previous loopback listener and config', async () => {
+  const cfgPath = tmpConfig(VALID_CFG)
+  const ui = createUiServer({ sessionsPath: path.join(path.dirname(cfgPath), 'ui-sessions.json'), auditPath: path.join(path.dirname(cfgPath), 'audit.jsonl'), configPath: cfgPath, log: () => {} })
+  const port = await listen(ui)
+  const page = await rawReq(port, { path: '/' })
+  const token = (page.body.match(/TOKEN='([0-9a-f]{32})'/) || [])[1]
+  const originalListen = ui.server.listen.bind(ui.server)
+  ui.server.listen = (listenPort, host, ...rest) => {
+    if (host === '0.0.0.0') {
+      process.nextTick(() => ui.server.emit('error', Object.assign(new Error('address in use'), { code: 'EADDRINUSE' })))
+      return ui.server
+    }
+    return originalListen(listenPort, host, ...rest)
+  }
+  try {
+    const r = await rawReq(port, { method: 'POST', path: '/api/ui/network', headers: { 'X-Sbot-Token': token, 'Content-Type': 'application/json' }, body: JSON.stringify({ lanEnabled: true, password: 's3cret-pass', publicEnabled: false }) })
+    assert.equal(r.status, 202)
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    assert.equal(ui.server.address().address, '127.0.0.1')
+    const raw = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
+    assert.equal(raw.ui.host, '127.0.0.1')
+    assert.ok(raw.ui.auth, 'the access password hash remains configured')
+  } finally { ui.close() }
+})
+
+test('ui: updater status appears in state and inbox; update actions and announcement preference are delegated', async () => {
+  const calls = []
+  const fakeUpdater = {
+    status: () => ({ currentVersion: '1.0.0', latestVersion: '1.1.0', checkedAt: 100, source: 'npm', available: true, ignoredVersion: '', job: null }),
+    check: async (o) => { calls.push(['check', o]); return fakeUpdater.status() },
+    startUpgrade: (o) => { calls.push(['start', o]); return { ...fakeUpdater.status(), job: { state: 'queued', to: o.version } } },
+    ignore: (v) => { calls.push(['ignore', v]); return { ...fakeUpdater.status(), available: false, ignoredVersion: v } },
+    close() {},
+  }
+  await withServer(VALID_CFG, async ({ port, token, cfgPath }) => {
+    const H = { 'X-Sbot-Token': token, 'Content-Type': 'application/json' }
+    let state = JSON.parse((await rawReq(port, { path: '/api/state', headers: H })).body)
+    assert.equal(state.update.latestVersion, '1.1.0')
+    assert.equal(state.update.announce, true)
+    assert.ok(state.inbox.some((i) => i.kind === 'update' && i.to === '1.1.0'))
+    const started = await rawReq(port, { method: 'POST', path: '/api/update/start', headers: H, body: JSON.stringify({ version: '1.1.0', announce: false }) })
+    assert.equal(started.status, 202)
+    assert.deepEqual(calls.find((x) => x[0] === 'start'), ['start', { version: '1.1.0', announce: false }])
+    const saved = await rawReq(port, { method: 'POST', path: '/api/ui/update-settings', headers: H, body: JSON.stringify({ announce: false }) })
+    assert.equal(saved.status, 200)
+    const raw = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
+    assert.equal(raw.ui.announceUpdates, false)
+    assert.equal(Object.hasOwn(raw.ui, 'autoUpdateCheck'), false)
+    const oldToggle = await rawReq(port, { method: 'POST', path: '/api/ui/update-settings', headers: H, body: JSON.stringify({ autoCheck: false }) })
+    assert.equal(oldToggle.status, 400, 'automatic checks can no longer be disabled through the old preference')
+  }, { updater: fakeUpdater })
 })
 
 test('ui: /api/state exposes the bot timezone clock (time block, 顶栏时钟) + host tz for reference', async () => {

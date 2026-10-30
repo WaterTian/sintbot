@@ -162,6 +162,8 @@ Acceptance (hitting the public entry point from another machine with `curl -Z`):
 ## 8. Passwords, sessions and upgrade paths
 
 - There is no password on the public internet. LAN password login remains; keep that password in a password manager and **never write it into a repository or any document**.
+- **Settings → Server** has separate controls for LAN listening and Feishu sign-in on the public entry. Enabling LAN access requires an access password; the listener changes immediately, while the system firewall remains an operator setting. Turning off public Feishu sign-in revokes existing Feishu sessions, but does not edit nginx or the SSH tunnel.
+- This setup's tunnel forwards to the Mac's LAN address, so turning off LAN listening also makes that public tunnel unable to reach the console. To pause public sign-in only, keep LAN listening enabled and turn off **Public Feishu sign-in**.
 - Session tokens are stored on disk (`~/.sbot/ui-sessions.json`, 0600) for a fixed 30 days; "Sign out" on the Settings page voids this device's, and "Sign out all devices" revokes them all.
 - Known limitation: if a separately started console process (`sintbot ui`) and the daemon's built-in console are open **at the same time**, each keeps its own in-memory table and overwrites the same session file in full. That only loses sign-ins and never grants extra access; running only the daemon's console, as usual, avoids it.
 - For more security: add **client certificates** at the nginx layer (a private CA signs a certificate for each device; without one, a device can't even knock on the door), with Feishu sign-in unchanged. It is one change in nginx and nothing else.

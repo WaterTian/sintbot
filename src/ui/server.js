@@ -32,7 +32,7 @@ const { createIssues, summarize, fingerprint } = require('../core/issues') // �
 const leftover = require('../leftover') // 遗留进程:对话轮次结束后仍在跑的后台 shell —— 同一条道理,那条每 5 秒打线上接口的循环跑了 35 天就是因为没处看见(v0.11.108)
 const { withFileLock } = require('../core/store') // 反馈本改状态要与 CLI/群命令共用同一把跨进程锁
 const { redact } = require('../core/redact') // 出站脱敏:预览停止通知里含 agent 提供的 label
-const { verifyPassword } = require('./auth')
+const { hashPassword, verifyPassword } = require('./auth')
 const feishulogin = require('./feishulogin') // 控制台「用飞书登录」:OAuth 授权码流程的纯逻辑(公网入口;只放行管理员名单)
 const { createSessionStore } = require('./sessions') // 登录会话落盘 + 30 天过期(守护进程重启不再把人登出)
 const { listWecomSessions, wecomAuthShow } = require('../platform/wecom')
@@ -208,7 +208,7 @@ function bindNoticeText(workdir, platform = 'feishu', cmd = '/help') {
   return `✅ 本群已绑定项目「${path.basename(String(workdir || '')) || '(未命名)'}」\n${platform === 'wecom' ? '@我 派单(只有 @ 我的消息我才收得到)' : '直接发消息或 @我 派单'};${cmd} 查看命令`
 }
 
-function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, control = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, ledgerPath = null, inboxDismissPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null, verifyFile = null, setupMode = null } = {}) {
+function createUiServer({ configPath, getLiveState = null, getConnHealth = null, onConfigChange = null, onHostChange = null, control = null, updater = null, host = '127.0.0.1', log = () => {}, issuesPath = null, sessionsPath = null, auditPath = null, ledgerPath = null, inboxDismissPath = null, fetchImpl = null, cdpImpl = null, onTakeoverClaim = null, onTakeoverExpire = null, onTakeoverEnd = null, takeoverNow = null, wecomExec = null, verifyFile = null, setupMode = null } = {}) {
   // wecomExec:企业微信命令行工具的执行器注入(只为可测;生产走默认 execFile)
   // verifyFile:凭据验证记录的落点注入(只为可测;生产 = ~/.sbot/verify.json)
   const vopts = verifyFile ? { file: verifyFile } : undefined
@@ -257,14 +257,18 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
     const publicUrl = feishulogin.normalizePublicUrl(ui.publicUrl)
     const appId = resolveRef(fe.appId), appSecret = resolveRef(fe.appSecret), admins = adminList(fe)
     const r = feishulogin.feishuLoginReadiness({ publicUrl, appId, appSecret, admins })
-    return { ready: r.ready, why: r.why, publicUrl: publicUrl || '', redirectUri: publicUrl ? feishulogin.redirectUri(publicUrl) : '', appId, appSecret, admins }
+    const enabled = ui.publicEnabled !== false // 未出现这个字段的旧配置保持原行为
+    return { ready: enabled && r.ready, configured: r.ready, enabled, why: !enabled ? '公网登录已关闭' : r.why,
+      publicUrl: publicUrl || '', redirectUri: publicUrl ? feishulogin.redirectUri(publicUrl) : '', appId, appSecret, admins }
   }
   // Host 白名单:环回时只认 loopback(防 DNS-rebinding);对外(--host 非环回)额外放行私网段
   // IPv4(10./192.168./172.16-31./169.254.)。攻击者域名不匹配私网 IP 模式 → rebinding 仍挡住。
-  const loopbackBind = /^(127\.0\.0\.1|localhost|::1)$/i.test(String(host))
-  const HOST_OK = loopbackBind
+  let activeHost = String(host)
+  let loopbackBind = /^(127\.0\.0\.1|localhost|::1)$/i.test(activeHost)
+  const hostPattern = () => loopbackBind
     ? /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i
     : /^(127\.0\.0\.1|localhost|\[::1\]|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|169\.254(\.\d{1,3}){2})(:\d+)?$/i
+  let HOST_OK = hostPattern()
   const authed = (req, url) => { const t = req.headers['x-sbot-token'] || url.searchParams.get('token'); return (!!t && t === token) || sessions.has(t) }
   // 是否已配访问密码(配了 ⇒ 页面不发 token,走登录)。config 读坏时的裁决见 authConfiguredFrom。
   const authConfigured = () => authConfiguredFrom(() => (readRaw().ui || {}).auth, loopbackBind)
@@ -329,9 +333,11 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
   // 「需要你处理」:从 state 各区取数(反馈本 / 预览 / 残留进程 / 健康)+ 账本 + 接管票,不再各算一遍
   const buildInboxFor = ({ issues, previews, leftovers, health }, raw) => {
     try {
+      const update = updater ? { ...updater.status(), announce: !raw || !raw.ui || raw.ui.announceUpdates !== false } : null
       return dashboard.buildInbox({
         ledgerRows: ledgerTail.rows(),
         issues, previews, leftovers, health,
+        update,
         takeovers: takeoverStore.pending(),
         groups: (raw && raw.groups) || {},
         dismissed: inboxDismiss.set(),
@@ -606,14 +612,18 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         const port = addr && typeof addr === 'object' ? addr.port : null
         return {
           lan: !loopbackBind,
+          host: activeHost,
           port,
           local: port ? `http://127.0.0.1:${port}` : null,
           lanUrls: (!loopbackBind && port) ? lanIPv4().map((ip) => `http://${ip}:${port}`) : [],
           authOn: authConfigured(),
           publicUrl: fli.publicUrl, // 公网地址(飞书登录回调的根;设置页可填)
+          publicEnabled: fli.enabled,
+          publicReady: fli.configured,
           feishuLogin: { ready: fli.ready, why: fli.why, redirectUri: fli.redirectUri },
         }
       })(),
+      update: updater ? { ...updater.status(), announce: !raw.ui || raw.ui.announceUpdates !== false } : null,
     }
     state.inbox = buildInboxFor(state, raw)
     return state
@@ -806,6 +816,31 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       if (p === '/api/changelog' && req.method === 'GET') return sendJSON(res, 200, { changelog: readChangelog() })
       // 同一份版本历史的英文本(界面切英文时才拉;缺的版本前端按 version 回退中文)
       if (p === '/api/changelog-en' && req.method === 'GET') return sendJSON(res, 200, { changelog: readChangelogEn() })
+      if (p === '/api/update/check' && req.method === 'POST') {
+        if (!updater) return sendJSON(res, 503, { error: '版本检查暂不可用' })
+        return sendJSON(res, 200, await updater.check())
+      }
+      if (p === '/api/update/start' && req.method === 'POST') {
+        if (!updater) return sendJSON(res, 503, { error: '版本升级暂不可用' })
+        const { version, announce } = await body(req)
+        try { return sendJSON(res, 202, updater.startUpgrade({ version, announce })) }
+        catch (e) { return sendJSON(res, 409, { error: e.message, update: updater.status() }) }
+      }
+      if (p === '/api/update/ignore' && req.method === 'POST') {
+        if (!updater) return sendJSON(res, 503, { error: '版本升级暂不可用' })
+        const { version } = await body(req)
+        try { return sendJSON(res, 200, updater.ignore(version)) }
+        catch (e) { return sendJSON(res, 400, { error: e.message }) }
+      }
+      if (p === '/api/ui/update-settings' && req.method === 'POST') {
+        const patch = await body(req)
+        if (typeof patch.announce !== 'boolean') return sendJSON(res, 400, { error: '请提供升级播报偏好' })
+        const raw = readRaw(); raw.ui = raw.ui || {}
+        raw.ui.announceUpdates = patch.announce
+        delete raw.ui.autoUpdateCheck
+        writeRaw(raw)
+        return sendJSON(res, 200, await buildState())
+      }
       // codex 可用模型(codex 面板「模型」下拉):app-server model/list 实时探测(当前
       // 账号真实可用集,含各模型支持的推理强度),失败回退内置预设;探测要 spawn 进程
       // +触网 → 10 分钟缓存。
@@ -1057,6 +1092,67 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
         const t = String(publicUrl || '').trim()
         if (t) { const n = feishulogin.normalizePublicUrl(t); if (!n) return sendJSON(res, 400, { error: '公网地址要写成 https://域名(可带端口),不带路径' }); raw.ui.publicUrl = n } else delete raw.ui.publicUrl
         writeRaw(raw); return sendJSON(res, 200, await buildState())
+      }
+      if (p === '/api/ui/network' && req.method === 'POST') {
+        const patch = await body(req); const raw = readRaw(); raw.ui = raw.ui || {}
+        const previousHost = activeHost
+        let nextHost = activeHost
+        if (typeof patch.lanEnabled === 'boolean') {
+          if (patch.lanEnabled && patch.password) {
+            const password = String(patch.password)
+            if (password.length < 6) return sendJSON(res, 400, { error: '访问密码至少 6 位' })
+            raw.ui.auth = hashPassword(password)
+          }
+          if (patch.lanEnabled && !raw.ui.auth) return sendJSON(res, 400, { error: '开启局域网访问前要先设置访问密码' })
+          if (patch.lanEnabled !== !loopbackBind) {
+            nextHost = patch.lanEnabled ? '0.0.0.0' : '127.0.0.1'
+            raw.ui.host = nextHost
+          }
+        }
+        if (typeof patch.publicEnabled === 'boolean') {
+          const wasEnabled = raw.ui.publicEnabled !== false
+          if (patch.publicEnabled) {
+            const fe = raw.feishu || {}; const publicUrl = feishulogin.normalizePublicUrl(raw.ui.publicUrl)
+            const ready = feishulogin.feishuLoginReadiness({ publicUrl, appId: resolveRef(fe.appId), appSecret: resolveRef(fe.appSecret), admins: adminList(fe) })
+            if (!ready.ready) return sendJSON(res, 400, { error: `公网登录尚未就绪：${ready.why}` })
+          }
+          raw.ui.publicEnabled = patch.publicEnabled
+          if (wasEnabled && !patch.publicEnabled) {
+            const n = sessions.revokeWhere((session) => session && session.via === 'feishu')
+            if (n) audit.append({ kind: 'ui-public-access-revoked', sessions: n, ts: Date.now() })
+          }
+        }
+        writeRaw(raw)
+        audit.append({ kind: 'ui-network-settings', lan: nextHost !== '127.0.0.1', publicEnabled: raw.ui.publicEnabled !== false,
+          hostChanged: nextHost !== previousHost, ts: Date.now() })
+        if (nextHost !== previousHost) {
+          const responseSocket = res.socket
+          let rebindStarted = false
+          const startRebind = () => {
+            if (rebindStarted) return
+            rebindStarted = true
+            clearTimeout(rebindFallback)
+            setImmediate(() => rebindHost(nextHost).catch((e) => {
+              try {
+                const latest = readRaw(); latest.ui = latest.ui || {}; latest.ui.host = previousHost
+                writeRaw(latest)
+              } catch (rollbackErr) { log('ui host rollback failed: ' + (rollbackErr && rollbackErr.message)) }
+              audit.append({ kind: 'ui-network-rebind', ok: false, from: nextHost, to: previousHost, ts: Date.now() })
+              log('ui host change failed: ' + (e && e.message))
+            }))
+          }
+          // Wait for the switching response's connection to close before closing
+          // the listener; a fixed delay can still reset the response under load.
+          const rebindFallback = setTimeout(startRebind, 1000)
+          if (rebindFallback.unref) rebindFallback.unref()
+          if (responseSocket && !responseSocket.destroyed) responseSocket.once('close', startRebind)
+          res.writeHead(202, { 'Content-Type': 'application/json; charset=utf-8', Connection: 'close' })
+          res.end(JSON.stringify({ ok: true, rebinding: true, lan: nextHost !== '127.0.0.1' }), () => {
+            if (!responseSocket || responseSocket.destroyed) startRebind()
+          })
+          return
+        }
+        return sendJSON(res, 200, await buildState())
       }
       if (p === '/api/feishu' && req.method === 'POST') {
         const { appId, appSecret, botOpenId, adminOpenId, adminName, onlyWhenMentioned } = await body(req); const raw = readRaw()
@@ -2152,6 +2248,40 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
     }
   })
 
+  function setActiveHost(value) {
+    const changed = activeHost !== String(value)
+    activeHost = String(value)
+    loopbackBind = /^(127\.0\.0\.1|localhost|::1)$/i.test(activeHost)
+    HOST_OK = hostPattern()
+    if (changed && onHostChange) { try { onHostChange(activeHost, server.address()) } catch (e) { log('ui host callback: ' + (e && e.message)) } }
+  }
+  function listenAgain(bindHost, port) {
+    return new Promise((resolve, reject) => {
+      const onError = (e) => { server.removeListener('listening', onListening); reject(e) }
+      const onListening = () => { server.removeListener('error', onError); setActiveHost(bindHost); resolve() }
+      server.once('error', onError)
+      server.once('listening', onListening)
+      server.listen(port, bindHost)
+    })
+  }
+  async function rebindHost(nextHost) {
+    if (!['127.0.0.1', '0.0.0.0'].includes(nextHost)) throw new Error('只支持本机或全部局域网接口')
+    const address = server.address()
+    if (!address || typeof address !== 'object') throw new Error('控制台尚未监听端口')
+    const oldHost = activeHost
+    if (nextHost === oldHost) return
+    for (const client of sseClients) { try { client.end() } catch {} }
+    sseClients.clear()
+    const stopped = new Promise((resolve, reject) => server.close((e) => e ? reject(e) : resolve()))
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections()
+    await stopped
+    try { await listenAgain(nextHost, address.port) }
+    catch (e) {
+      try { await listenAgain(oldHost, address.port) } catch (restoreErr) { log('ui host restore listen failed: ' + (restoreErr && restoreErr.message)) }
+      throw e
+    }
+  }
+
   // Broadcast live state + heartbeat over SSE (cheap; no health probe here).
   const tick = setInterval(() => {
     if (!sseClients.size) return
@@ -2164,6 +2294,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
   return {
     server,
     listen(port, host, cb) { server.listen(port, host, cb) },
+    rebind: rebindHost,
     // let a daemon push turn events into the console's activity feed
     pushEvent(type, data) {
       if (type === 'turn') recordActivity(data) // also buffer it for replay (下一步 ②)
@@ -2175,7 +2306,7 @@ function createUiServer({ configPath, getLiveState = null, getConnHealth = null,
       }
       for (const c of sseClients) { try { c.write(msg) } catch { sseClients.delete(c) } }
     },
-    close() { clearInterval(tick); for (const c of sseClients) { try { c.end() } catch {} } try { browserRoutes.close() } catch {} server.close() },
+    close() { clearInterval(tick); for (const c of sseClients) { try { c.end() } catch {} } try { browserRoutes.close() } catch {} server.close(); if (typeof server.closeAllConnections === 'function') server.closeAllConnections(); if (updater) updater.close() },
     _browserRoutes: browserRoutes, // 测试探 CDP 会话注册表用
   }
 }

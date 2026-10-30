@@ -61,6 +61,7 @@ const feishulogin = require('../src/ui/feishulogin') // 公网地址归一(ui.pu
 const { buildTakeoverCard } = require('../src/platform/takeovercard') // 「接管浏览器」的群内卡片(四态:等人来 / 接管中 / 已结束 / 已过期)
 const cdp = require('../src/cdp') // 接管卡片上的页面截图:CLI 直接连常驻浏览器截一张
 const { hashPassword } = require('../src/ui/auth')
+const updateFeature = require('../src/updater')
 
 const dim = (s) => `\x1b[2m${s}\x1b[0m`
 const cyan = (s) => `\x1b[36m${s}\x1b[0m`
@@ -487,7 +488,7 @@ async function cmdStart(rest) {
   const plat = platformsConfigured(cfg)
   if (!plat.feishu && !plat.wecom && !plat.slack) {
     // 带 --ui(后台服务就是这么起的):只开控制台,等人在「设置」里接平台 —— 1.0.12 起没平台也装服务,装完就有地方可去
-    if (wantUi) return serveSetupConsole(cfg, { port: Number(values['ui-port']) || 4600, host: values['ui-host'] || '127.0.0.1', noOpen })
+    if (wantUi) return serveSetupConsole(cfg, { port: Number(values['ui-port']) || 4600, host: (cfg.ui && cfg.ui.host) || values['ui-host'] || '127.0.0.1', noOpen })
     if (cfg.wecom && (cfg.wecom.botId || cfg.wecom.secret)) return die('sbot.config.json 的 wecom 块缺 ' + (cfg.wecom.botId ? 'secret' : 'botId') + '(机器人 API 配置页「使用长连接」处)')
     return die('没有配置任何聊天平台 — 在 sbot.config.json 里加 "feishu" 块(appId/appSecret)、"wecom" 块(botId/secret)或 "slack" 块(botToken/appToken),配几个接几个')
   }
@@ -524,6 +525,7 @@ async function cmdStart(rest) {
   const log = (m) => process.stderr.write(gray(`[${logStamp()}] · ` + m) + '\n')
   if (tightened.length) log(`状态目录权限已收紧(目录 700、文件 600):${tightened.length} 项`)
   let ui = null
+  let updaterManager = null
   let platform = null // set below; the UI (created first) reads WS health through this ref(多平台路由器,src/platform/multi.js)
   // 把一条消息交给引擎:**合成消息**(控制台插话 / 定时任务 / 续做 / 画布确认)没有真实适配器,按 chatId 查出它所属平台的
   // 适配器再喂 —— 引擎读的 skillCmd / features / chatLabel 是适配器上的,喂路由器会让企微群的清单按飞书口径写。
@@ -709,7 +711,7 @@ async function cmdStart(rest) {
   const reloadCfg = () => {
     try {
       const c = loadConfig(values.config); applyProxyEnv(c); engine.reload(c)
-      if (ui) engine.publicUrl = feishulogin.normalizePublicUrl((c.ui || {}).publicUrl) // 公网地址跟着配置热更(控制台设置页改了即生效)
+      if (ui) engine.publicUrl = (c.ui || {}).publicEnabled === false ? null : feishulogin.normalizePublicUrl((c.ui || {}).publicUrl) // 公网入口关闭时不再向群内清单宣传
       log('config reloaded (hot)')
     } catch (e) { log('reload failed: ' + (e && e.message)) }
   }
@@ -720,7 +722,8 @@ async function cmdStart(rest) {
   if (wantUi) {
     const configPath = cfg._path || path.join(process.cwd(), 'sbot.config.json')
     const uiPort = Number(values['ui-port']) || 4600
-    const uiHost = values['ui-host'] || '127.0.0.1'
+    // 控制台设置页可持久切换绑定地址;保存的 host 优先于服务单元里的旧参数。
+    const uiHost = (cfg.ui && cfg.ui.host) || values['ui-host'] || '127.0.0.1'
     const uiLoopback = isLoopbackHost(uiHost)
     // Advertise the console address in the agent's self-knowledge manifest (群项目基础能力).
     // For LAN binding, use the first LAN IP so group members get a reachable URL, not 127.0.0.1.
@@ -729,9 +732,20 @@ async function cmdStart(rest) {
     engine.uiLocalUrl = `http://127.0.0.1:${uiPort}`
     // 公网地址(v0.11.72 起的入口):群里 /help 与清单给人的是它,不是局域网 IP —— 出了局域网 LAN 地址
     // 打不开、还要密码,而公网入口只认飞书登录。归一判据与控制台「飞书登录」就绪判据同源(feishulogin)。
-    engine.publicUrl = feishulogin.normalizePublicUrl((cfg.ui || {}).publicUrl)
+    engine.publicUrl = (cfg.ui || {}).publicEnabled === false ? null : feishulogin.normalizePublicUrl((cfg.ui || {}).publicUrl)
     // Fail-closed: LAN exposure requires a console password (set via `sbot ui --set-password`).
     if (!uiLoopback && !((cfg.ui || {}).auth)) die(`控制台对外(--ui-host ${uiHost})需先设密码:sintbot ui --set-password`)
+    const service = require('../src/service')
+    updaterManager = updateFeature.createUpdater({
+      currentVersion: require('../package.json').version,
+      stateFile: path.join(os.homedir(), '.sbot', 'update.json'),
+      getLiveState: () => engine.liveState(),
+      fetchImpl: require('../src/core/proxy').getProxyFetch() || globalThis.fetch,
+      getManagedService: () => { const st = service.status(); return !!st.running && st.pid === process.pid },
+      restartManagedService: () => service.restartAsync(),
+      setAnnouncementBaseline: (version) => store.setLastVersion(version),
+      log,
+    })
     // 接管卡片翻状态:有人兑换 ⇒「正在接管中」;点「结束」/ 到时 ⇒「接管已结束」;票过期没人来 ⇒「已过期」。boardClient 在下面才定义,hook 只在运行时才调,不踩 TDZ。
     const flipTakeoverCard = (state) => (meta) => {
       if (!meta || !meta.cardId || !boardClient) return
@@ -748,6 +762,13 @@ async function cmdStart(rest) {
       getLiveState: () => engine.liveState(),
       getConnHealth: () => (platform && platform.connHealth ? platform.connHealth() : null), // 各平台连接健康度({ feishu, wecom } 字典,路由器出)
       onConfigChange: reloadCfg,
+      onHostChange: (boundHost, address) => {
+        const port = address && typeof address === 'object' ? address.port : uiPort
+        const loopback = isLoopbackHost(boundHost)
+        engine.uiUrl = `http://${loopback ? '127.0.0.1' : (lanIPv4()[0] || '127.0.0.1')}:${port}`
+        engine.uiLocalUrl = `http://127.0.0.1:${port}`
+      },
+      updater: updaterManager,
       control: {
         setProvider: (chatId, name) => store.setProvider(chatId, name),   // 实时切模型(下一轮生效)
         // 某群**实际在用**的模型(临时切换到备用时是备用,与 /status · 账本同口径)—— 控制台改 provider 型号时判「受影响群」
@@ -803,6 +824,7 @@ async function cmdStart(rest) {
       }
       process.stderr.write('\n')
       if (!noOpen) tryOpen(url)
+      if (updaterManager) void updaterManager.start().catch((e) => log('update check: ' + (e && e.message)))
     })
   }
   // 配了哪个平台就建哪个适配器;路由器按群分发(连接状态事件带 platform 名,控制台一行一个平台)。
@@ -1267,9 +1289,9 @@ async function cmdService(rest) {
     const configPath = findConfigPath(values.config)
     if (!configPath) return die('没找到配置文件 —— 先跑 sintbot setup(或 --config 指定)')
     // 控制台对外又没设密码:daemon 一启动就会拒绝退出,装成服务就是每 15 秒拉起一次的死循环 ⇒ 装之前就拦
-    const uiHost = values['ui-host']
     let raw
     try { raw = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch (e) { return die(`读不了配置 ${configPath}:${e.message}`) }
+    const uiHost = values['ui-host'] || ((raw.ui || {}).host)
     if (uiHost && !isLoopbackHost(uiHost) && !((raw.ui || {}).auth)) return die(`控制台对外(--ui-host ${uiHost})要先设密码:sintbot ui --set-password${values.config ? ' --config ' + values.config : ''} —— 否则服务一启动就退出、被反复拉起`)
     // 一个聊天平台都没接也照装(1.0.12 起):服务先只开控制台,在「设置」里接好平台后自己重启连上(cmdStart 的配置模式)。
     // 1.0.10–1.0.11 在这里拦下(退出码 3),结果装完没有任何地方可去 —— 控制台也打不开
@@ -1974,7 +1996,7 @@ async function cmdUi(rest) {
 
   applyProxyEnv(cfg)
   const port = Number(values.port) || 4600
-  const host = values.host || '127.0.0.1'
+  const host = values.host || (cfg.ui && cfg.ui.host) || '127.0.0.1'
   const loopback = isLoopbackHost(host)
   // Fail-closed: never expose the operator console to the LAN without a password.
   if (!loopback) {
