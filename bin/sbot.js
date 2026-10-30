@@ -12,6 +12,7 @@ const { pathToFileURL } = require('node:url')
 const path = require('node:path')
 const readline = require('node:readline')
 const { parseArgs } = require('node:util')
+const { createReadlineSecretMask } = require('../src/cli-secret')
 const { tr } = require('../src/clilang')
 const { PROXY_ENV_KEYS } = require('../src/core/proxy')
 const { loadConfig, findConfigPath, defaultConfigPath, applyProxyEnv, deriveNoProxy, resolveSecret, platformsConfigured, chatPlatform } = require('../src/config')
@@ -1406,6 +1407,7 @@ async function cmdSetup(rest) {
   // On EOF, pending asks resolve to null → the caller falls back to its default,
   // so a short/redirected input just accepts defaults instead of hanging.
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+  const secretMask = createReadlineSecretMask(rl)
   // 问题交给 readline 当提示符写(setPrompt + prompt),不直接写 stdout:readline 一重绘这一行(改窗口大小、退格)
   // 就按它记的提示符重写 —— 默认是 `> `,1.0.11 实装里问题文字被吞成「> y」、试跑时冒出一个 `>`。问完和空闲时置空。
   rl.setPrompt('')
@@ -1421,11 +1423,13 @@ async function cmdSetup(rest) {
   // 1.0.8 的模型菜单默认「1」→ key 为空 → 回菜单,3 分钟往输出里写了 18 GB。所以 ① 会转圈或有副作用的问题
   // 另给一个「输入已结束」时的答案(endedDef);② 兜底:输入结束后还问了这么多次就中止,配置不落盘。
   let askedAfterEnd = 0
-  const ask = async (q, def, endedDef = def) => {
+  const ask = async (q, def, endedDef = def, { maskInput = false } = {}) => {
     const line = `${cyan('?')} ${q}${def ? dim(` [${def}]`) : ''} `
     if (closed) process.stdout.write(line)
     else { rl.setPrompt(line); rl.prompt() }
-    const a = await nextLine()
+    if (maskInput && !closed) secretMask.start(line)
+    let a
+    try { a = await nextLine() } finally { if (maskInput) secretMask.stop() }
     if (!closed) rl.setPrompt('')
     if (a == null) {
       process.stdout.write('\n')
@@ -1438,10 +1442,10 @@ async function cmdSetup(rest) {
     const a = (await ask(`${q} ${dim(defYes ? '(Y/n)' : '(y/N)')}`, '', endedYes ? 'y' : 'n')).toLowerCase()
     return a ? a[0] === 'y' : !!defYes
   }
-  // Key/secret prompt: echoes visibly (so you can see the paste landed) and then
-  // confirms the length — fully hiding it made it look like nothing was entered.
+  // Key/secret prompt: mask terminal echo so a local AI agent's terminal capture
+  // cannot copy the credential into its transcript; confirm receipt by length.
   const askKey = async (q) => {
-    const v = await ask(q, '')
+    const v = await ask(q, '', undefined, { maskInput: true })
     if (v) process.stdout.write(dim(`  ✓ 已记录（${v.length} 位）`) + '\n')
     return v
   }
@@ -1917,6 +1921,7 @@ async function cmdSetup(rest) {
       else delete raw.feishu
     }
   } finally {
+    secretMask.restore()
     rl.close()
   }
 

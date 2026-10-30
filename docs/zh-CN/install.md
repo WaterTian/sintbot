@@ -2,7 +2,7 @@
 
 [English](../install.md) · 简体中文
 
-新用户用[一键安装](#一键安装)最省事;手动装就是三步:装包 → `sintbot setup` → `sintbot service install`。下面按平台补充细节。
+新用户用[一键安装](#一键安装)最省事;手动装就是三步:装包 → `sintbot setup` → `sintbot service install`。如果请 AI 助手安装并带你完成首次使用,先看[AI 安装与首次使用说明](./AI-ASSISTED-INSTALL.md),让流程留在目标电脑上,凭据不进聊天。下面按平台补充细节。
 
 ## 一键安装
 
@@ -12,9 +12,9 @@ macOS / Linux(Linux 为实验性支持):
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-脚本分四步,每一步先检查、已经有的跳过,要改系统的先问你(回车 = 同意)。终端里只装好、配好模型:不问你在哪,也不要求填代理、项目目录、聊天平台凭据 —— 这些装完在控制台里配。
+脚本分四步,每一步先检查、已经有的跳过。通过 Homebrew 安装 / 升级 Node、安装后台服务前会先询问(回车 = 接受默认值);安装或升级 SintBot 本身属于这次安装流程。模型配置时若缺少必需的 Claude Code CLI,向导会自动安装。终端里只装好、配好模型:不问你在哪,也不要求填代理、项目目录、聊天平台凭据 —— 这些装完在控制台里配。
 
-1. **环境:Node 22+**:没有或版本太旧时,Mac 上有 Homebrew 就用它装 / 升级;没有 Homebrew(或在 Linux 上)会给出 [nodejs.org](https://nodejs.org) 的下载地址后停下,装好 Node 再运行一次脚本。
+1. **环境:Node 22+**:没有或版本太旧时,交互安装会先询问;Mac 上有 Homebrew 可用它装 / 升级,否则会给出 [nodejs.org](https://nodejs.org) 的下载地址后停下。没有交互终端时不会自动装 / 升级 Node,真实安装会直接停止。
    **npm 源**:你配过 npm 源就照用;还是官方源时先试连一下,连不上(国内常见)本次改用国内镜像 `registry.npmmirror.com`。
 2. **装 sintbot**:`npm i -g sintbot`。已经是最新版就直接跳过,旧版本直接升级。npm 全局目录没有写权限时不会用 sudo,而是给出改装到用户目录的命令。
 3. **配模型** `sintbot setup`:检查 Claude Code,没装就装上(见下一节);然后配模型,当场试跑一轮。见下文[第 2 节](#2-配置sintbot-setup)。
@@ -22,8 +22,8 @@ curl -fsSL https://sintbot.com/install.sh | bash
 
 结尾给出控制台地址和接下来做什么:在「设置」里接飞书 / Slack / 企业微信,在「群 · 项目」里绑群,然后在群里 @ 机器人。不接平台也能先用 `sintbot chat` 在终端里试。
 
-- 想先看看它会做什么:`curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`(只打印,不执行);脚本源码就是仓库根目录的 [install.sh](../../install.sh)。
-- 没有可交互的终端时(如 CI),向导和常驻服务这两步会跳过,只装包。
+- 想先看看它会做什么:`curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`(不安装、不修改、也不提问;npm 可用时检查源和最新版,并读取服务状态,还会提示模型向导可能安装必需组件和发送计费试跑);脚本源码就是仓库根目录的 [install.sh](../../install.sh)。
+- 没有可交互的终端时(如 CI),若已有 Node 22+ 仍可能只装包,向导和常驻服务会跳过并提示未完成;若没有合格 Node,真实安装会停止。无交互 `--dry-run` 仍可预览计划。
 - 脚本和向导的输出语言跟着系统:`LANG` 以 `zh` 开头,或者 macOS 的系统语言是中文,就是中文,否则英文;想指定就设 `SINTBOT_LANG=zh` 或 `en`,例如 `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=zh bash`。
 - Windows 不支持一键安装,按下面手动来。
 

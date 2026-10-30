@@ -2,10 +2,10 @@
 # SintBot 一键安装(macOS / Linux)
 #
 #   curl -fsSL https://sintbot.com/install.sh | bash
-#   bash install.sh --dry-run      # 只打印要做什么,不改动任何东西
+#   bash install.sh --dry-run      # 预览计划,不安装 / 修改;会查 npm 源、最新版和服务状态
 #
 # 做的事:[1/4] Node ≥ 22 与 npm 源 → [2/4] npm i -g sintbot(已是最新就跳过)→ [3/4] sintbot setup 配模型
-#        → [4/4](问一句)装成后台服务,控制台常开在 http://127.0.0.1:4600。每一步先检查,已有就跳过;要动系统的先问。不用 sudo。
+#        → [4/4](问一句)装成后台服务,控制台常开在 http://127.0.0.1:4600。Homebrew Node 与后台服务先问;程序包和必需的 Claude CLI 随安装流程直接装。不用 sudo。
 # 终端里只装好、配好模型:不问是否在中国大陆、不要求配代理 / 项目目录 / 聊天平台凭据(用户 2026-10-28 定),这些装完在控制台里配。
 # 国内网络:npm 官方源连不上时自动改用 npmmirror;你自己配过 npm 源就照用。
 # 源码与说明:https://github.com/sintlab/sintbot(docs/install.md;中文 docs/zh-CN/install.md「一键安装」)
@@ -28,6 +28,7 @@ main() {
   done
 
   PKG="${SINTBOT_PKG:-sintbot}"
+  NODE_OK=0
   OFFICIAL="https://registry.npmjs.org/"
   MIRROR="https://registry.npmmirror.com/"
   REG=""
@@ -42,7 +43,7 @@ main() {
   if { : < /dev/tty; } 2>/dev/null; then TTY="/dev/tty"; fi
 
   say ""
-  say "$(t 'SintBot 一键安装(约 1 分钟,不用 sudo)' 'SintBot installer (about a minute, no sudo)')$([ "$DRY" = 1 ] && t '(演练:只打印,不执行)' ' (dry run: print only, change nothing)')"
+  say "$(t 'SintBot 一键安装(约 1 分钟,不用 sudo)' 'SintBot installer (about a minute, no sudo)')$([ "$DRY" = 1 ] && t '(预览:不安装或修改;如 npm 可用会检查源和最新版)' ' (preview: no installs or changes; checks registry/version when npm is available)')"
   say ""
 
   case "$(uname -s)" in
@@ -105,16 +106,31 @@ node_major() { node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo
 step_node() {
   say "$(t '[1/4] 环境' '[1/4] Environment')"
   if command -v node >/dev/null 2>&1 && [ "$(node_major)" -ge 22 ]; then
+    NODE_OK=1
     say "  ✓ Node $(node -v)"
     return
   fi
   if command -v node >/dev/null 2>&1; then say "  $(t "✗ 当前是 Node $(node -v),版本太旧" "✗ Node $(node -v) is too old")"; else say "  $(t '✗ 没找到 Node' '✗ Node not found')"; fi
+  if [ "$DRY" = 1 ]; then
+    if [ "$OS" = mac ] && command -v brew >/dev/null 2>&1; then
+      say "  $(t '预览:真实安装会询问是否用 Homebrew 安装 / 升级 Node(默认同意)' 'Preview: a real install would ask to install / upgrade Node with Homebrew (default: yes)')"
+      say "      brew install node  $(t '(若已安装则 brew upgrade node)' '(or brew upgrade node if already installed)')"
+    else
+      say "  $(t '预览:真实安装会停下,请先安装 Node 22+。' 'Preview: a real install would stop; install Node 22 or later first.')"
+      say "      https://nodejs.org  $(t '(或 nvm install 22)' '(or: nvm install 22)')"
+    fi
+    return
+  fi
+  if [ -z "$TTY" ] && [ "$DRY" != 1 ]; then
+    say "  $(t '没有交互终端,不会自动安装或升级 Node。请先手动装 Node 22+,再在本机终端重新运行安装程序。' 'No interactive terminal; Node will not be installed or upgraded automatically. Install Node 22 or later, then rerun the installer in a local terminal.')"
+    exit 1
+  fi
   if [ "$OS" = mac ] && command -v brew >/dev/null 2>&1; then
     if ask_yn "$(t '用 Homebrew 安装 / 升级 Node?' 'Install or upgrade Node with Homebrew?')" Y; then
       if brew list node >/dev/null 2>&1; then run brew upgrade node; else run brew install node; fi
       hash -r 2>/dev/null || true
       if [ "$DRY" = 1 ] || { command -v node >/dev/null 2>&1 && [ "$(node_major)" -ge 22 ]; }; then
-        [ "$DRY" = 1 ] || say "  ✓ Node $(node -v)"
+        if [ "$DRY" = 0 ]; then NODE_OK=1; say "  ✓ Node $(node -v)"; fi
         return
       fi
       say "  $(t '✗ 装完仍不是 Node 22+(可能 PATH 里有别的 node 排在前面,用 which -a node 看)' '✗ Still not Node 22+ (another node may come first on PATH; check with: which -a node)')"
@@ -126,6 +142,10 @@ step_node() {
 
 step_registry() {
   local configured
+  if [ "$NODE_OK" != 1 ] || ! command -v npm >/dev/null 2>&1; then
+    say "  $(t 'Node 22+ / npm 不可用,跳过源检查' 'Node 22+ / npm unavailable; registry check skipped')"
+    return
+  fi
   configured="$(npm config get registry 2>/dev/null || true)"
   case "$configured" in
     https://registry.npmjs.org|https://registry.npmjs.org/|"") ;;
@@ -148,6 +168,7 @@ npm_g() {
 # SINTBOT_PKG 指向本地包时不查;查不到(网络、私有源)就照常装 / 问升级
 step_latest() {
   [ "$PKG" = sintbot ] || return 0
+  [ "$NODE_OK" = 1 ] && command -v npm >/dev/null 2>&1 || return 0
   if [ -n "$REG" ]; then LATEST="$(npm view sintbot version --registry "$REG" 2>/dev/null || true)"; else LATEST="$(npm view sintbot version 2>/dev/null || true)"; fi
 }
 
@@ -172,7 +193,11 @@ step_install() {
       # 版本真变了才算升级(重装同一版本不用重启服务)
       npm_g "$PKG"
       hash -r 2>/dev/null || true
-      [ "$DRY" = 1 ] || [ "$(sintbot version 2>/dev/null || true)" = "$cur" ] || UPGRADED=1
+      if [ "$DRY" = 1 ]; then
+        [ -n "$cur" ] && [ -n "$LATEST" ] && [ "$cur" != "$LATEST" ] && UPGRADED=1
+      else
+        [ "$(sintbot version 2>/dev/null || true)" = "$cur" ] || UPGRADED=1
+      fi
     fi
   else
     npm_g "$PKG"
@@ -186,6 +211,16 @@ step_install() {
 
 step_setup() {
   say "$(t '[3/4] 配模型' '[3/4] Model')"
+  if [ "$DRY" = 1 ]; then
+    say "  $(t '预览:交互配置可能自动安装缺少的 Claude Code CLI,并向选中的模型发一条试跑请求(可能消耗额度 / 产生费用)。' 'Preview: interactive setup may install the missing Claude Code CLI and send one trial request to the selected model (may use quota / incur a charge).')"
+    if [ -z "$TTY" ]; then
+      say "  $(t '无交互终端,真实安装会跳过模型配置。' 'No interactive terminal; a real install would skip model setup.')"
+      return
+    fi
+    say "  $(t '聊天平台、代理、项目目录这些装完在控制台里配,这里只配模型。' 'Only the model is set up here; chat platform, proxy and project folder are set in the console afterwards.')"
+    run sintbot setup
+    return
+  fi
   if [ -z "$TTY" ]; then
     say "  $(t '没有可交互的终端,跳过。请在终端里运行:sintbot setup' 'No interactive terminal; skipped. Run this in a terminal: sintbot setup')"
     return
@@ -201,10 +236,13 @@ step_service() {
   # 已经装了服务:没升级就不再问;升级了问要不要重启换成新版本(重启后守护进程会在已接的群里播报升级)
   # 0 在运行 / 3 装了但没在跑 / 4 没装;别的(老版本不认 --check)当不知道,照常问
   local st=4
-  if [ "$DRY" = 0 ]; then st=0; sintbot service status --check >/dev/null 2>&1 || st=$?; fi
+  if [ "$DRY" = 0 ] || command -v sintbot >/dev/null 2>&1; then st=0; sintbot service status --check >/dev/null 2>&1 || st=$?; fi
   if [ "$st" = 0 ]; then
     SERVICE=1
-    if [ "$UPGRADED" = 1 ] && [ -n "$TTY" ]; then
+    if [ "$UPGRADED" = 1 ] && [ "$DRY" = 1 ]; then
+      say "  $(t '预览:会询问是否重启后台服务以切换到新版本(已接入的群会收到升级播报)' 'Preview: would ask to restart the service to use the new version (connected groups are notified).')"
+      run sintbot service restart
+    elif [ "$UPGRADED" = 1 ] && [ -n "$TTY" ]; then
       if ask_yn "$(t '后台服务还在跑旧版本,现在重启换成新版本?(会在已接的群里播报升级)' 'The background service is still on the old version. Restart it now? (it announces the upgrade in connected groups)')" Y; then run sintbot service restart; fi
     elif [ "$UPGRADED" = 1 ]; then
       say "  $(t '后台服务还在跑旧版本,换成新版本:sintbot service restart(会在已接的群里播报升级)' 'The background service is still on the old version; to switch: sintbot service restart (it announces the upgrade in connected groups)')"
@@ -213,12 +251,20 @@ step_service() {
     fi
     return
   fi
-  # 没有终端时不装:服务是长期改动,要人确认
-  if [ -z "$TTY" ]; then say "  $(t '跳过。需要时运行:sintbot service install' 'Skipped. When you need it: sintbot service install')"; return; fi
+  local q=""
+  if [ "$st" = 3 ]; then q="$(t '后台服务装了但没在跑,重新装一遍?' 'The background service is installed but not running. Reinstall it?')"
+  else q="$(t "装成后台服务(登录后自启、崩溃自动拉起;控制台常开在 $CONSOLE)?" "Install the background service (starts at login, restarts on crash; the console stays at $CONSOLE)?")"; fi
   if [ "$DRY" = 1 ]; then
-    if ask_yn "$(t "装成后台服务(登录后自启、崩溃自动拉起;控制台常开在 $CONSOLE)?" "Install the background service (starts at login, restarts on crash; the console stays at $CONSOLE)?")" Y; then run sintbot service install; SERVICE=1; fi
+    if [ -z "$TTY" ]; then
+      say "  $(t '无交互终端,真实安装会跳过;需要时再运行 sintbot service install。' 'No interactive terminal; a real install would skip this. Run sintbot service install later if needed.')"
+    else
+      say "  $(t '预览:会询问是否安装 / 重新安装后台服务(默认是)' 'Preview: would ask whether to install / reinstall the background service (default: yes)')"
+      run sintbot service install
+    fi
     return
   fi
+  # 没有终端时不装:服务是长期改动,要人确认
+  if [ -z "$TTY" ]; then say "  $(t '跳过。需要时运行:sintbot service install' 'Skipped. When you need it: sintbot service install')"; return; fi
   # 预检(--dry-run 只打印、不动系统):装不成的不问(比如控制台对外却没设密码)
   local pre rc
   pre="$(sintbot service install --dry-run 2>&1 >/dev/null < /dev/null)" && rc=0 || rc=$?
@@ -227,9 +273,6 @@ step_service() {
     printf '%s\n' "$pre" | sed 's/^/    /'
     return
   fi
-  local q
-  if [ "$st" = 3 ]; then q="$(t '后台服务装了但没在跑,重新装一遍?' 'The background service is installed but not running. Reinstall it?')"
-  else q="$(t "装成后台服务(登录后自启、崩溃自动拉起;控制台常开在 $CONSOLE)?" "Install the background service (starts at login, restarts on crash; the console stays at $CONSOLE)?")"; fi
   if ask_yn "$q" Y; then
     # 终端里的环境变量(配置引用的 key、代理)sintbot service install 自动写进服务定义,不问
     run sintbot service install < "$TTY"
@@ -258,6 +301,20 @@ open_console() {
 
 step_done() {
   say ""
+  if [ "$DRY" = 1 ]; then
+    say "$(t '预览结束,没有安装或修改。上面列出真实安装将执行 / 询问的步骤。' 'Preview complete; nothing was installed or changed. The steps above show what a real install would run or ask.')"
+    if [ -z "$TTY" ]; then
+      say "  $(t '真实安装请在目标电脑的交互终端运行;无交互终端时缺少 Node 22+ 会停止,否则可能只安装程序包。' 'Run the real install in an interactive terminal on the target computer; without one, it stops if Node 22+ is missing, or may install only the package.')"
+    fi
+    say "$(t '文档:https://github.com/sintlab/sintbot' 'Docs: https://github.com/sintlab/sintbot')"
+    return
+  fi
+  if [ -z "$TTY" ]; then
+    say "$(t '✓ 程序包已安装,但安装还没完成:没有交互终端,模型配置和后台服务都已跳过。请在这台电脑的终端运行 sintbot setup;需要常驻时再运行 sintbot service install。' '✓ Package installed, but setup is incomplete: no interactive terminal was available, so model setup and the background service were skipped. Run sintbot setup in a terminal on this computer; run sintbot service install later if you want it to stay running.')"
+    if [ "$SERVICE" = 1 ]; then say "  $(t '后台服务已在运行,不要再启动第二个。' 'The background service is already running; do not start a second daemon.')"; fi
+    say "$(t '文档:https://github.com/sintlab/sintbot' 'Docs: https://github.com/sintlab/sintbot')"
+    return
+  fi
   if [ "$SERVICE" = 1 ]; then
     # 等控制台起来(服务刚装好要几秒),再打开浏览器
     local up=0 i

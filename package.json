@@ -15,6 +15,10 @@
     "sbot.config.example.json",
     "README.md",
     "README.zh-CN.md",
+    "docs/install.md",
+    "docs/AI-ASSISTED-INSTALL.md",
+    "docs/zh-CN/install.md",
+    "docs/zh-CN/AI-ASSISTED-INSTALL.md",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md",
     "docs/slack-app-manifest.yaml"

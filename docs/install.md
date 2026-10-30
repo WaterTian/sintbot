@@ -2,7 +2,7 @@
 
 English · [简体中文](./zh-CN/install.md)
 
-The [one-line install](#one-line-install) is the easiest path for new users. A manual install takes three steps: install the package, run `sintbot setup`, then run `sintbot service install`. The sections below add platform-specific details.
+The [one-line install](#one-line-install) is the easiest path for new users. A manual install takes three steps: install the package, run `sintbot setup`, then run `sintbot service install`. If an AI assistant will install and configure it, follow the [AI-assisted install and first-use guide](./AI-ASSISTED-INSTALL.md) to keep the flow on the target machine and credentials out of chat. The sections below add platform-specific details.
 
 The package installs two equivalent commands, `sintbot` and `sbot`.
 
@@ -14,9 +14,9 @@ On macOS and Linux (Linux support is experimental):
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-The script runs four numbered steps. Each step checks first and skips work that is already done, and anything that changes your system asks first (Enter means yes). The terminal only installs SintBot and sets up a model: it does not ask where you are or for a proxy, a projects folder or chat platform credentials. You set those in the console afterwards.
+The script runs four numbered steps and skips work that is already done. It prompts before a Homebrew Node install or upgrade and before installing the background service (Enter accepts the default); installing or upgrading SintBot is part of the requested install. During model setup, a missing required Claude Code CLI is installed automatically. The terminal only installs SintBot and sets up a model: it does not ask where you are or for a proxy, a projects folder or chat platform credentials. You set those in the console afterwards.
 
-1. **Environment: Node.js 22+.** If Node is missing or too old, the script installs or upgrades it with Homebrew on a Mac that has Homebrew. Otherwise (no Homebrew, or Linux), it prints the [nodejs.org](https://nodejs.org) download link and stops; install Node, then run the script again.
+1. **Environment: Node.js 22+.** In an interactive install, the script asks first. It can install or upgrade Node with Homebrew on a Mac that has Homebrew; otherwise (no Homebrew, or Linux), it prints the [nodejs.org](https://nodejs.org) download link and stops. Without an interactive terminal, a real install stops instead of installing or upgrading Node automatically.
    **npm registry.** If you have configured a registry, the script uses it. If you are on the official registry, it first tests the connection. If the official registry is unreachable (common in mainland China), it uses the `registry.npmmirror.com` mirror for this run.
 2. **Install sintbot.** It runs `npm i -g sintbot`. If the latest version is already installed, it says so and moves on; an older version is upgraded. If the global npm directory is not writable, it does not fall back to `sudo`; it prints the commands that move the global directory into your home folder.
 3. **Model**, `sintbot setup`. The wizard installs Claude Code if it is missing (see the next section), then sets up a model with a live trial turn. See [section 2](#2-configure-sintbot-setup).
@@ -24,8 +24,8 @@ The script runs four numbered steps. Each step checks first and skips work that 
 
 The script ends with the console address and what to do next: connect Slack, Feishu or WeCom under Settings, bind a group under Groups, then @mention the bot in that group. `sintbot chat` lets you try it in the terminal first.
 
-- To see what the script would do without changing anything, run `curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`. The script source is [install.sh](../install.sh) at the root of the repository.
-- Without an interactive terminal (for example in CI), the wizard and service steps are skipped and only the package is installed.
+- To preview the script without installing or changing the system or answering prompts, run `curl -fsSL https://sintbot.com/install.sh | bash -s -- --dry-run`. When npm is available, it checks registry reachability and the latest version; it also reads service status and warns that setup may install the required CLI and send a billable trial request. The script source is [install.sh](../install.sh) at the root of the repository.
+- Without an interactive terminal (for example in CI), a real install stops if Node 22+ is missing. If Node is already available, it may install only the package; the wizard and service steps are skipped and setup is reported as incomplete. A non-interactive `--dry-run` can still preview the plan.
 - The script and the wizard print Chinese if your locale is Chinese (`LANG` starting with `zh`) or, on macOS, the system language is Chinese; otherwise English. Set `SINTBOT_LANG=en` or `SINTBOT_LANG=zh` to choose, for example `curl -fsSL https://sintbot.com/install.sh | SINTBOT_LANG=en bash`.
 - The one-line install does not support Windows; follow the manual steps below.
 

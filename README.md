@@ -43,7 +43,9 @@ Full source, docs and tests are public and downloadable under the [PolyForm Shie
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-The script checks for Node.js 22+, installs sintbot, sets up a model with a live trial turn and offers to install the background service, then opens the console at http://127.0.0.1:4600. It asks before every change and never uses `sudo`. Read [install.sh](./install.sh) first, or add `--dry-run` to see what it would do.
+The script checks for Node.js 22+, installs or upgrades sintbot, sets up a model with a live trial turn and offers to install the background service, then opens the console at http://127.0.0.1:4600. It asks before Homebrew Node changes and background-service setup, and never uses `sudo`. Read [install.sh](./install.sh) first, or add `--dry-run` to preview the plan.
+
+Installing and setting up SintBot with an AI assistant? Follow the [AI-assisted install and first-use guide](./docs/AI-ASSISTED-INSTALL.md); it covers the target-machine terminal, first console setup and a safe first task.
 
 To install by hand instead:
 

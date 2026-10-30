@@ -43,7 +43,9 @@ SintBot 是一个跑在你自己机器上的守护进程,把能写代码的 AI �
 curl -fsSL https://sintbot.com/install.sh | bash
 ```
 
-脚本会检查并装好 Node.js 22+、装 sintbot、配好模型(当场试跑一轮),再问要不要装成后台服务,最后打开控制台 http://127.0.0.1:4600。每一步先问再动,不用 `sudo`。可以先读 [install.sh](./install.sh),或加 `--dry-run` 只看它会做什么。
+脚本会检查 Node.js 22+、安装或升级 sintbot、配置模型(当场试跑一轮),并询问是否安装后台服务,最后打开控制台 http://127.0.0.1:4600。安装或升级 Node 的 Homebrew 操作和后台服务会先询问,不用 `sudo`。可以先读 [install.sh](./install.sh),或加 `--dry-run` 预览计划。
+
+想让本机 AI 助手帮忙安装并完成首次使用?先看[AI 安装与首次使用说明](./docs/zh-CN/AI-ASSISTED-INSTALL.md),里面有本机终端、控制台初始配置和安全试跑步骤。
 
 也可以手动装:
 
