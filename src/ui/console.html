@@ -596,6 +596,15 @@ label.f{display:block;font-family:var(--sans);font-size:11.5px;font-weight:600;l
 .fx-org-row.on:hover{background:none;color:var(--ok)}
 
 h2.sec{font-family:var(--sans);font-size:14px;letter-spacing:.2px;color:var(--ink);margin:34px 2px 14px;font-weight:700}
+/* 风格与图标库都是按需入口,在「模型」页保持低强调并默认折叠。 */
+.library-fold{margin-top:30px}
+.library-fold>summary{list-style:none;cursor:pointer;user-select:none;display:flex;align-items:center;gap:7px;margin:0 2px;padding:7px 0;color:var(--faint);font-family:var(--sans);font-size:12px;font-weight:500;transition:color .16s}
+.library-fold>summary::-webkit-details-marker{display:none}
+.library-fold>summary:hover{color:var(--dim)}
+.library-fold>summary .caret{display:inline-flex;color:var(--faint);transition:transform .2s}
+.library-fold>summary .caret svg{width:13px;height:13px}
+.library-fold[open]>summary .caret{transform:rotate(90deg)}
+.library-fold-content{padding-top:10px}
 /* 版本历史(设置页):时间线式;当前版本行 ember 高亮 */
 #verhistBox{max-height:240px;overflow-y:auto}
 .update-history{margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
@@ -1541,16 +1550,34 @@ function renderProviders(){
     <h2 class="sec" style="margin-top:32px">插件库 · MCP</h2>
     <div class="hint" style="margin:0 2px 14px">本机装好的 MCP · 按运行时分两套 · 命令行安装、即时刷新</div>
     <div id="plugLib"><span class="spin"></span></div>
-    <h2 class="sec" style="margin-top:32px">设计风格库<button class="btn ghost" id="styleRescan" title="重新扫描风格预设(导入或改过自定义风格后用)" style="margin-left:10px;padding:2px 9px;font-size:10.5px;vertical-align:middle">重新扫描</button><button class="btn" id="styleNew" title="用一张表单配一套自己的风格:色板、圆角、字重逐项定,右侧实时看效果。存进库后全部群都能用" style="margin-left:6px;padding:2px 9px;font-size:10.5px;vertical-align:middle">＋ 新建风格</button></h2>
-    <div class="hint" style="margin:0 2px 14px">图标由风格档的 tokens 实时派生,改了色板/圆角当场跟着变 · 在群里说一句即可给某个项目定风格 · 当前哪个项目用哪套,看「群·项目」页群卡的「设计风格」行</div>
-    <div id="styleLib"><span class="spin"></span></div>
-    <h2 class="sec" style="margin-top:32px">图标库</h2>
-    <div class="hint" style="margin:0 2px 14px">与设计风格<b>平级</b>:风格管怎么画(颜色/字体/圆角/描边),图标库管图形从哪来、叫什么名 · 一个项目分别选,在「群·项目」页那个群的「图标」行</div>
-    <div id="iconLib"><span class="spin"></span></div>`;
-  // 风格库与插件库同性质(全局资源、按群使用)⇒ 同住「模型」页;此前放在「群·项目」页底部,
-  // 既概念错位、又占掉那一页 45% 版面(得滚过所有群卡才看得见)。
-  loadStyleLib();
-  loadIconLib();
+    <details class="library-fold" id="styleLibFold"${styleLibFoldOpen?' open':''}>
+      <summary><span class="caret">${IC.chevronRight}</span><span>设计风格库</span><span class="hint" style="font-size:10.5px;font-weight:400">按需管理</span></summary>
+      <div class="library-fold-content">
+        <div class="inline" style="justify-content:space-between;gap:8px;margin:0 2px 10px;flex-wrap:wrap">
+          <div class="hint">仅在全新产品且未定方向时按需使用预设</div>
+          <div class="inline" style="gap:6px"><button class="btn ghost" id="styleRescan" title="重新扫描风格预设(导入或改过自定义风格后用)" style="padding:2px 9px;font-size:10.5px">重新扫描</button><button class="btn" id="styleNew" title="用一张表单配一套自己的风格:色板、圆角、字重逐项定,右侧实时看效果。存进库后全部群都能用" style="padding:2px 9px;font-size:10.5px">＋ 新建风格</button></div>
+        </div>
+        <div id="styleLib"><span class="spin"></span></div>
+      </div>
+    </details>
+    <details class="library-fold" id="iconLibFold"${iconLibFoldOpen?' open':''}>
+      <summary><span class="caret">${IC.chevronRight}</span><span>图标库</span><span class="hint" style="font-size:10.5px;font-weight:400">按需查看</span></summary>
+      <div class="library-fold-content">
+        <div class="hint" style="margin:0 2px 14px">与设计风格<b>平级</b>:风格管怎么画(颜色/字体/圆角/描边),图标库管图形从哪来、叫什么名 · 一个项目分别选,在「群·项目」页那个群的「图标」行</div>
+        <div id="iconLib"><span class="spin"></span></div>
+      </div>
+    </details>`;
+  // 风格库按需展开再加载与绘制,默认折叠以降低存在感;页内重绘时保留用户刚才的展开状态。
+  const styleFold=$('#styleLibFold');
+  if(styleFold){
+    styleFold.addEventListener('toggle',()=>{styleLibFoldOpen=styleFold.open;if(styleFold.open)loadStyleLib();});
+    if(styleFold.open)loadStyleLib();
+  }
+  const iconFold=$('#iconLibFold');
+  if(iconFold){
+    iconFold.addEventListener('toggle',()=>{iconLibFoldOpen=iconFold.open;if(iconFold.open)loadIconLib();});
+    if(iconFold.open)loadIconLib();
+  }
   $('#styleRescan').onclick=async()=>{styleLib=null;$('#styleLib').innerHTML='<span class="spin"></span>';await loadStyleLib();toast('风格库已重新扫描','ok');};
   $('#styleNew').onclick=()=>openStyleModal(null);
   if($('#showAll'))$('#showAll').onclick=()=>{showAll=!showAll;renderProviders();};
@@ -1861,6 +1888,7 @@ async function paintGroupIconStrips(){
    把它们并排放,「换一套到底换了什么」一眼就有答案。
    ⚠ 图标包不随产品分发(四套合计约 160MB) ⇒ 没装的如实标「未安装」,不留空白(空白会被读成「这套是空的」)。*/
 let iconLib=null;
+let iconLibFoldOpen=false;
 /* 取一次就缓存。⚠ 样张是**系统的属性、不是项目的属性** ⇒ 它不进 /api/state 那条 15s 心跳:
    塞进去就是每个绑定群每次心跳多读 8 个 svg、多背几 KB,而这份数据全部群共用同一套。
    群卡「图标」行那排缩略图因此也走这里,前端按系统名对上 —— 同一份数据两处用,服务端零额外开销。*/
@@ -1947,6 +1975,7 @@ function fitStrips(box){
 function refitAllStrips(){for(const id of ['#iconLib','#groups']){const b=$(id);if(b)fitStrips(b);}}
 /* 风格库(只读):内置预设 + ~/.sbot/design-styles 自定义。 */
 let styleLib=null;
+let styleLibFoldOpen=false;
 async function loadStyleLib(){
   const box=$('#styleLib'); if(!box)return;
   if(styleLib){paintStyleLib();return;}
@@ -3993,6 +4022,9 @@ const I18N_EN=[
   ["插件库 · MCP","Plugin library · MCP"],
   ["本机装好的 MCP · 按运行时分两套 · 命令行安装、即时刷新","MCP servers installed on this machine · two sets, one per runtime · installed from the command line, refreshes instantly"],
   ["设计风格库","Design style library"],
+  ["按需管理","Manage on demand"],
+  ["按需查看","View on demand"],
+  ["仅在全新产品且未定方向时按需使用预设","Use presets on demand only for a new product with no visual direction"],
   ["重新扫描风格预设(导入或改过自定义风格后用)","Rescan style presets (after importing or editing a custom style)"],
   ["重新扫描","Rescan"],
   ["用一张表单配一套自己的风格:色板、圆角、字重逐项定,右侧实时看效果。存进库后全部群都能用","Build your own style with a form: set palette, radius and weight one by one, with a live preview on the right. Once saved to the library every group can use it"],
