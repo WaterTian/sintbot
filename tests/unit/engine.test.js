@@ -3054,20 +3054,19 @@ test('engine: 项目没有风格档时不提 check(没依据可查)', async () =
   assert.match(p, /【你是 SintBot】/, '对照组:清单确实注入了')
 })
 
-// v0.11.49:一份档都没有时,整块设计口径原先**一个字都不出现** ⇒ 新项目连「有设计规范这回事」
-// 都不知道,agent 不会想到去落一份,群成员也无从知道。与「17 份内置档声明了却报未启用」同病:
-// 能力早就有,**到不了新项目**。
-test('engine: 新项目(零风格档)也要被告知「有风格档这回事」+ 怎么落', async () => {
+// 2026-10-30:预设不适合所有项目,只在明确从零设计新产品且缺少视觉方向时推荐;
+// 日常页面任务不再收到「还没有风格档」或自动挑候选的提示。
+test('engine: 零风格档只在全新产品且未定方向时允许推荐风格库', async () => {
   const { r, get } = capRunnerPrompt()
   const eng = new Engine(baseCfg(), { runner: r, store: mkStore() })
   eng.styleDocs = () => []
   await eng.handleMessage(mkMsg('x'), mkPlatform()); await tick()
   const p = get().prompt
-  assert.match(p, /还没有风格档/, '不说这句,新项目就是彻底的沉默')
-  assert.match(p, /design styles/, '得给出「看有哪些」的入口')
-  assert.match(p, /design use/, '以及「怎么落」')
-  // ⭐ 风格是人的判断:替用户挑等于把这个决定悄悄替他做了 —— 这句必须在
-  assert.match(p, /别替用户挑|问清楚群里/, '必须写死「先问群里」,否则它会自己选一个落下去')
+  assert.match(p, /【风格库提示边界】/, '要明确限制推荐适用范围')
+  assert.match(p, /仅在明确启动全新产品/, '只有新产品且无方向时才允许推荐')
+  assert.match(p, /不要主动提风格库/, '普通页面任务应保持安静')
+  assert.match(p, /符合条件时.*需要时再展示少量候选预览.*由对方选定后保存/, '新产品场景保留可执行的选择流程')
+  assert.doesNotMatch(p, /还没有风格档|这次的活儿若涉及.*设计/, '不再把缺少风格档描述成当前任务的缺陷')
 })
 
 // 对照:有档时**绝不能**再冒出「还没有风格档」那段(两段互斥,漏了会同时说两套话)

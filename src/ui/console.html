@@ -2521,8 +2521,8 @@ function renderGroups(){
           <div style="flex:1;min-width:0">${permInner}</div></div>
         <div class="kv" style="align-items:flex-start"><span class="kk">基础技能</span>
           <div style="flex:1;min-width:0">
-            <div class="inline" style="gap:6px;flex-wrap:wrap">${isWe?'<span class="chip cap" title="发送(文件/图片/消息) · 拉近 7 天群历史 —— 均针对本群;企业微信没有编辑/撤回/表情回应">企业微信 · 收发群消息</span>':'<span class="chip cap" title="发送(文件/图片/消息) · 拉历史 · 回复/编辑/撤回 · 下载文件 · 表情回应 —— 均针对本群">飞书 · 收发/管理群消息</span>'}<span class="chip cap" title="群里直接对它说「每天9点拉构建报告」就会创建;支持创建/修改/删除定时任务,到点触发执行或只发提醒 —— 下方「定时任务」区可查看/管理">定时任务</span><span class="chip cap" title="内置多套设计风格预设,也能从参考网址/参考图提炼;挑方向时会把候选画成预览图发群里让你指着选(图由风格档 tokens 派生);写进项目 DESIGN.md 后该项目生图/图表全程遵循;全部风格见「模型 · 库」页的「设计风格库」">设计风格档</span></div>
-            <div class="hint" style="margin-top:5px">默认内建 · ${isWe?'企业微信收发/拉历史':'飞书收发/拉历史/回复编辑撤回/下载/表情'} · <b>定时任务</b>(群里说一句即可让 agent 创建/修改) · <b>设计风格档</b>(内置预设/参考图提色,落盘 DESIGN.md) · <b>生图</b>(需机器已登录 codex,借订阅后台生图) · agent 首轮自知(身份/项目/模型/权限/控制台地址 + 已启用插件)${baseSkillNote}</div>
+            <div class="inline" style="gap:6px;flex-wrap:wrap">${isWe?'<span class="chip cap" title="发送(文件/图片/消息) · 拉近 7 天群历史 —— 均针对本群;企业微信没有编辑/撤回/表情回应">企业微信 · 收发群消息</span>':'<span class="chip cap" title="发送(文件/图片/消息) · 拉历史 · 回复/编辑/撤回 · 下载文件 · 表情回应 —— 均针对本群">飞书 · 收发/管理群消息</span>'}<span class="chip cap" title="群里直接对它说「每天9点拉构建报告」就会创建;支持创建/修改/删除定时任务,到点触发执行或只发提醒 —— 下方「定时任务」区可查看/管理">定时任务</span><span class="chip cap" title="按需使用:仅从零设计新产品且未定视觉方向时推荐预设;也可按要求提炼参考并写入项目 DESIGN.md">设计风格档</span></div>
+            <div class="hint" style="margin-top:5px">默认内建 · ${isWe?'企业微信收发/拉历史':'飞书收发/拉历史/回复编辑撤回/下载/表情'} · <b>定时任务</b>(群里说一句即可让 agent 创建/修改) · <b>设计风格档</b>(新产品设计时按需使用) · <b>生图</b>(需机器已登录 codex,借订阅后台生图) · agent 首轮自知(身份/项目/模型/权限/控制台地址 + 已启用插件)${baseSkillNote}</div>
           </div></div>
         <div class="kv" style="align-items:flex-start"><span class="kk">插件</span>
           <div style="flex:1;min-width:0">
@@ -2590,7 +2590,7 @@ function renderGroups(){
                   <div class="hint" style="margin-top:3px;line-height:1.55">${esc(st.description||'—')}</div>
                   <button class="btn" data-stylecollect="${esc(g.chatId)}" data-stylerel="${esc(st.rel||'')}" title="把这一份复制进全局风格库,之后别的群也能直接挑到它(项目里那份不动)" style="padding:2px 9px;font-size:10.5px;margin-top:8px">收录进风格库</button>
                 </div></div>`).join('')
-            :'<span class="dim">未设置 · 设计任务开始时 agent 会先从风格库挑候选发群里让你选</span>'}
+            :'<span class="dim">未设置 · 仅从零设计新产品且未定方向时推荐风格库</span>'}
             ${(g.styles||[]).length>1?'<div class="hint faint" style="margin-top:10px;line-height:1.6">这个项目有多份风格档 —— 出图时按任务挑对应那份(小程序与后台网站的圆角、间距、字号本来就该不一样)</div>':''}
           </div></div>
         <div class="kv" style="align-items:flex-start"><span class="kk">图标</span>
@@ -4291,11 +4291,11 @@ const I18N_EN=[
   ["飞书 · 收发/管理群消息","Feishu · send and manage group messages"],
   ["群里直接对它说「每天9点拉构建报告」就会创建;支持创建/修改/删除定时任务,到点触发执行或只发提醒 —— 下方「定时任务」区可查看/管理","Just tell it in the group \"pull the build report at 9 every day\" and it creates one; supports creating/editing/deleting scheduled tasks that run the agent or just send a reminder when due — view/manage them in the \"Scheduled tasks\" section below"],
   ["定时任务","Scheduled tasks"],
-  ["内置多套设计风格预设,也能从参考网址/参考图提炼;挑方向时会把候选画成预览图发群里让你指着选(图由风格档 tokens 派生);写进项目 DESIGN.md 后该项目生图/图表全程遵循;全部风格见「模型 · 库」页的「设计风格库」","Ships with multiple design style presets and can extract one from a reference URL or image; when choosing a direction it renders candidates as previews and posts them to the group for you to point at (derived from the profile tokens); once written to the project DESIGN.md, every image and chart in that project follows it; see all styles under \"Design style library\" on the Models · Library page"],
+  ["按需使用:仅从零设计新产品且未定视觉方向时推荐预设;也可按要求提炼参考并写入项目 DESIGN.md","On demand: presets are recommended only for a new product with no visual direction; references can also be extracted and saved to the project DESIGN.md when requested"],
   ["设计风格档","Design style profiles"],
   ["默认内建 · 飞书收发/拉历史/回复编辑撤回/下载/表情 ·","Built in by default · Feishu send/receive, history, reply/edit/recall, download, reactions · "],
   ["(群里说一句即可让 agent 创建/修改) ·"," (one sentence in the group lets the agent create or edit them) · "],
-  ["(内置预设/参考图提色,落盘 DESIGN.md) ·"," (built-in presets / colors extracted from references, saved to DESIGN.md) · "],
+  ["(新产品设计时按需使用) ·"," (used on demand for new product design) · "],
   ["生图","Image generation"],
   ["(需机器已登录 codex,借订阅后台生图) · agent 首轮自知(身份/项目/模型/权限/控制台地址 + 已启用插件)"," (requires codex signed in on this machine; generates via the subscription in the background) · agent self-awareness on the first turn (identity/project/model/permissions/console URL + enabled plugins)"],
   ["(需机器已登录 codex,借订阅后台生图) · agent 首轮自知(身份/项目/模型/权限/控制台地址 + 已启用插件) ·"," (requires codex signed in on this machine; generates via the subscription in the background) · agent self-awareness on the first turn (identity/project/model/permissions/console URL + enabled plugins) · "],
@@ -4361,7 +4361,7 @@ const I18N_EN=[
   ["(未命名)","(untitled)"],
   ["这份档管这一块","This profile covers this platform"],
   ["把这一份复制进全局风格库,之后别的群也能直接挑到它(项目里那份不动)","Copy this profile into the global style library so other groups can pick it too (the project copy stays untouched)"],
-  ["未设置 · 设计任务开始时 agent 会先从风格库挑候选发群里让你选","Not set · when a design task starts, the agent picks candidates from the style library and posts them to the group for you to choose"],
+  ["未设置 · 仅从零设计新产品且未定方向时推荐风格库","Not set · the style library is recommended only for a new product with no visual direction"],
   ["这个项目有多份风格档 —— 出图时按任务挑对应那份(小程序与后台网站的圆角、间距、字号本来就该不一样)","This project has several style profiles — the matching one is chosen per task when generating images (a mini program and an admin site should not share radii, spacing, and type sizes)"],
   ["图标","Icons"],
   ["未选 · 取图标会取不到","Not chosen · icon lookups will fail"],
