@@ -1,5 +1,24 @@
 [
   {
+    "version": "1.0.16",
+    "date": "2026-10-30",
+    "name": "Safer AI-assisted setup, quieter design tools",
+    "items": [
+      {
+        "t": "Safer AI-assisted installation",
+        "d": "API keys are masked as they are entered in the local terminal, keeping them out of AI conversation logs. Without an interactive terminal, the installer stops if Node is missing or too old; otherwise it skips model setup and the background service and explains what remains."
+      },
+      {
+        "t": "Clearer install and first-use flow",
+        "d": "Add bilingual guides for AI-assisted installation and first use. The one-line preview lists planned operations and confirmations, and warns that a model trial may use quota or incur a charge."
+      },
+      {
+        "t": "Design and icon libraries on demand",
+        "d": "Both libraries are collapsed by default; style presets are recommended only for a new product with no visual direction yet."
+      }
+    ]
+  },
+  {
     "version": "1.0.15",
     "date": "2026-10-30",
     "name": "Clearer console settings",
