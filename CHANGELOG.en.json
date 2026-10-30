@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.0.15",
+    "date": "2026-10-30",
+    "name": "Clearer console settings",
+    "items": [
+      {
+        "t": "Software updates and history together",
+        "d": "Update controls and version history now share one card at the bottom of Settings. A small dot appears by the version number when a newer stable release is available."
+      },
+      {
+        "t": "A wider Bot & network card",
+        "d": "The card spans the full settings grid, with the bot name and proxy arranged side by side. Background proxy details can be expanded when needed."
+      }
+    ]
+  },
+  {
     "version": "1.0.14",
     "date": "2026-10-30",
     "name": "Steadier service installs and better console controls",

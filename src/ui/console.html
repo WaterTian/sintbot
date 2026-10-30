@@ -242,6 +242,18 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opac
 .mark .ver{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.3px;color:var(--ember-soft);
   border:1px solid rgba(var(--ember-rgb),.32);border-radius:6px;padding:1px 7px;align-self:center;white-space:nowrap}
 .mark .ver:empty{display:none}
+.mark .ver-update{appearance:none;display:inline-flex;align-items:center;justify-content:center;align-self:center;width:14px;height:16px;margin:0 -4px;padding:0;
+  border:0;border-radius:50%;background:transparent;cursor:pointer}
+.mark .ver-update[hidden]{display:none}
+.mark .ver-update:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.mark .update-dot{width:5px;height:5px;border-radius:50%;flex:none;background:var(--ember-soft);box-shadow:0 0 0 2px rgba(var(--ember-rgb),.13);
+  animation:update-dot-flash 1.4s steps(1,end) infinite;transition:transform .15s,box-shadow .15s}
+.mark .ver-update:hover .update-dot{transform:scale(1.25);box-shadow:0 0 0 3px rgba(var(--ember-rgb),.18)}
+@keyframes update-dot-flash{
+  0%,64%,100%{opacity:1;box-shadow:0 0 0 2px rgba(var(--ember-rgb),.13)}
+  65%,99%{opacity:.28;box-shadow:0 0 0 0 rgba(var(--ember-rgb),0)}
+}
+@media(prefers-reduced-motion:reduce){.mark .update-dot{animation:none}}
 .top .spacer{flex:1}
 .daemon{display:flex;align-items:center;gap:9px;font-family:var(--sans);font-size:12px;font-weight:500;color:var(--dim)}
 /* 顶栏服务器时钟:整体一枚 chip 胶囊(与全站 .chip 同语言)——「服务器 · 时区 · 时:分:秒」。
@@ -585,7 +597,22 @@ label.f{display:block;font-family:var(--sans);font-size:11.5px;font-weight:600;l
 
 h2.sec{font-family:var(--sans);font-size:14px;letter-spacing:.2px;color:var(--ink);margin:34px 2px 14px;font-weight:700}
 /* 版本历史(设置页):时间线式;当前版本行 ember 高亮 */
-#verhistBox{max-height:380px;overflow-y:auto}
+#verhistBox{max-height:240px;overflow-y:auto}
+.update-history{margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
+.update-history .subhead{font-size:12px;font-weight:650;color:var(--dim);margin-bottom:5px}
+#botNetCard{container-type:inline-size;align-self:start;grid-column:1/-1}
+#botNetCard .botnet-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#botNetCard .botnet-fields .field{min-width:0;margin:0}
+#botNetCard .botnet-extra{margin-top:11px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--inset-bg)}
+#botNetCard .botnet-extra>summary{list-style:none;cursor:pointer;color:var(--faint);font-size:11px;user-select:none}
+#botNetCard .botnet-extra>summary::-webkit-details-marker{display:none}
+#botNetCard .botnet-extra>summary::before{content:'›';display:inline-block;margin-right:7px;color:var(--ember);transition:transform .15s}
+#botNetCard .botnet-extra[open]>summary{color:var(--dim);margin-bottom:5px}
+#botNetCard .botnet-extra[open]>summary::before{transform:rotate(90deg)}
+#botNetCard .botnet-extra .hint{margin-top:3px;overflow-wrap:anywhere}
+#botNetCard .botnet-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+#botNetCard .botnet-actions .hint{flex:1 1 240px;min-width:0;margin:0}
+@container (max-width:440px){#botNetCard .botnet-fields{grid-template-columns:minmax(0,1fr)}}
 .vh-row{padding:12px 2px;border-bottom:1px solid var(--line)}
 .vh-row:last-child{border:none}
 .vh-head{display:flex;align-items:baseline;gap:10px}
@@ -783,6 +810,7 @@ button.btn.nsmini{padding:1px 9px;font-size:11px;font-weight:500;border-radius:7
 /* 超窄(手机竖屏):静态的版本徽章让位给动态的 daemon 状态文字 */
 @media(max-width:430px){
   .mark .ver{display:none}
+  .mark .ver-update:not([hidden]){width:12px;height:12px;margin-left:-2px;margin-right:-4px}
   .fxapp{display:none} /* 手机竖屏:顶栏只留运行状态 */
   /* nav → edge-to-edge scroll strip if it ever overflows; .navsp(flex:1) pins the 试跑 icon
      right while the text tabs fit (compact icon ⇒ they do at ≤500px), else it collapses and scrolls */
@@ -840,7 +868,7 @@ d.dataset.theme=t;if(l!=='en'&&l!=='zh')l=/^zh/i.test((navigator.language||''))?
   <div class="top">
     <!-- 品牌字标不进翻译层(data-i18n-skip):「Sint」「Bot」是两个文本节点,英文界面下翻译层会把恰好等于某条译文的
          英文反查回中文(i18nZhOrig),「机器人 → Bot」一加,切回中文时左上角就成了「Sint机器人」(10-24 发版前撞到)。 -->
-    <div class="mark"><a class="word" href="https://sintbot.com" target="_blank" rel="noopener" title="SintBot 官网" style="color:inherit;text-decoration:none"><span data-i18n-skip>Sint<i class="trace" aria-hidden="true"></i>Bot</span></a><span class="ver">__SBOT_VERSION__</span><small>控制台</small></div>
+    <div class="mark"><a class="word" href="https://sintbot.com" target="_blank" rel="noopener" title="SintBot 官网" style="color:inherit;text-decoration:none"><span data-i18n-skip>Sint<i class="trace" aria-hidden="true"></i>Bot</span></a><span class="ver">__SBOT_VERSION__</span><button class="ver-update" id="topUpdateBadge" type="button" hidden title="发现新版本，打开软件更新" aria-label="发现新版本，打开软件更新"><span class="update-dot" aria-hidden="true"></span></button><small>控制台</small></div>
     <div class="spacer"></div>
     <div class="topright">
       <!-- 当前连着的飞书应用(名称 + 图标)。左边 .mark 是产品品牌、固定不变;这块是「这台机器
@@ -1313,7 +1341,7 @@ async function autoRefresh(){
     if(sig!==lastStateSig){
       lastStateSig=sig;
       renderOverview(); tabSig.overview=sig;   // 纯展示,直接重画
-      updateDaemon();updateTopFxApp();         // 顶栏两块在页签之外,得跟 updateDaemon 一起显式更新
+      updateDaemon();updateTopFxApp();updateTopUpdateBadge(); // 顶栏状态在页签之外,得随状态一起显式更新
     }else{updateDaemon();updateOverviewLive();updateConnLive();}
   }catch{/* 断网/401 交给 SSE 那条自愈路径,这里静默 */}
 }
@@ -3261,17 +3289,19 @@ function renderSettings(){
   // 代理给连 Claude / ChatGPT 用,国内模型端点自动直连(服务端按已配的模型生成直连名单)
   const envPx=S.envProxy||'';
   const botCard=`<div class="card" id="botNetCard"><div class="lbl">机器人与网络</div>
-    <div class="field" style="max-width:320px"><label class="f">机器人名字</label><input id="bBrand" placeholder="SintBot" value="${esc(S.brand||'')}"/>
-      <div class="hint" style="margin-top:5px">自我介绍、升级播报里的自称 · 留空 = SintBot</div></div>
-    <div class="field" style="margin:12px 0 0;max-width:360px"><label class="f">网络代理</label><input id="pxHttp" placeholder="http://127.0.0.1:7890" value="${esc((px&&px.http)||'')}"/>
-      <div class="hint" style="margin-top:5px">连不上 Claude / ChatGPT 时填 · 国内模型端点自动直连 · 留空 = 不用代理</div>
-      ${envPx?`<div class="hint" style="margin-top:4px">后台服务的环境里已有代理:<span class="mono">${esc(envPx)}</span></div>`:''}
-      ${px&&px.noProxy?`<div class="hint" style="margin-top:4px">直连:<span class="mono">${esc(px.noProxy)}</span></div>`:''}</div>
-    <button class="btn primary" id="bSave" style="margin-top:14px">保存</button>
-    <div class="hint" style="margin-top:10px">代理第一次填,新的对话轮次就生效;改已有的地址要重启后台服务(sintbot service restart)。</div>
+    <div class="botnet-fields">
+      <div class="field"><label class="f">机器人名字</label><input id="bBrand" placeholder="SintBot" value="${esc(S.brand||'')}"/>
+        <div class="hint" style="margin-top:5px">自我介绍、升级播报里的自称 · 留空 = SintBot</div></div>
+      <div class="field"><label class="f">网络代理</label><input id="pxHttp" placeholder="http://127.0.0.1:7890" value="${esc((px&&px.http)||'')}"/>
+        <div class="hint" style="margin-top:5px">连不上 Claude / ChatGPT 时填 · 国内模型端点自动直连 · 留空 = 不用代理</div></div>
+    </div>
+    ${envPx||(px&&px.noProxy)?`<details class="botnet-extra"><summary>后台网络状态</summary>
+      ${envPx?`<div class="hint">后台服务的环境里已有代理:<span class="mono">${esc(envPx)}</span></div>`:''}
+      ${px&&px.noProxy?`<div class="hint">直连:<span class="mono">${esc(px.noProxy)}</span></div>`:''}
+    </details>`:''}
+    <div class="botnet-actions"><button class="btn primary" id="bSave">保存</button>
+      <div class="hint">代理第一次填,新的对话轮次就生效;改已有的地址要重启后台服务(sintbot service restart)。</div></div>
   </div>`;
-  const verhistCard=`<div class="card" style="grid-column:1/-1" id="verhistCard"><div class="lbl">版本历史</div>
-    <div id="verhistBox"><div class="empty">加载中…</div></div></div>`;
   const updateJob=upd&&upd.job;
   const updateBusy=!!(updateJob&&['queued','installing','restarting','restart-needed'].includes(updateJob.state));
   const updateText=!upd?'后台版本检查不可用':updateJob?esc(updateJob.message||updateJob.state):upd.available?`检测到新版本 v${esc(upd.latestVersion)} · 当前 v${esc(upd.currentVersion)}`:upd.checkedAt?`当前为最新版本 v${esc(upd.currentVersion)}`:'尚未检查新版';
@@ -3288,6 +3318,8 @@ function renderSettings(){
       <button class="btn" id="updIgnore" ${!upd||!upd.available?'disabled':''}>忽略此版本</button>
     </div>
     <div class="hint" style="margin-top:10px">只安装检测到的稳定版本;所有群任务与队列清空后才会安装。需要可写的全局安装目录,不会提权;后台服务会自动重启,前台运行需手动重启。</div>
+    <div class="update-history"><div class="subhead">版本历史</div>
+      <div id="verhistBox"><div class="empty">加载中…</div></div></div>
   </div>`;
   $('#settings').innerHTML=`<div class="grid cols2 stagger">
     ${netCard}
@@ -3311,10 +3343,10 @@ function renderSettings(){
     ${fxFeishuCard(fe)}
     ${fxSlackCard(S.slack||null)}
     ${fxWecomCard(S.wecom||null)}
-    ${updateCard}
     ${aboutCard}
-    ${verhistCard}
+    ${updateCard}
   </div>`;
+  updateTopUpdateBadge();
   loadChangelog();
   $('#bSave').onclick=async()=>{const brand=$('#bBrand').value.trim(),http=$('#pxHttp').value.trim();
     if(http&&!/^https?:\/\/\S+$/i.test(http)){toast('代理地址要像 http://127.0.0.1:7890','err');return;}
@@ -3704,6 +3736,16 @@ const splitList=s=>s.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);
 // 「开始使用」卡里的「去某页」按钮:委托到 document,重绘不用重新绑
 document.addEventListener('click',(e)=>{const b=e.target.closest&&e.target.closest('[data-gotab]');if(!b)return;const t=document.querySelector('[data-tab="'+b.dataset.gotab+'"]');if(t)t.click();});
 function renderAll(){renderOverview();renderProviders();renderGroups();renderPlayground();renderSettings();updateDaemon();updateTopFxApp();}
+function updateTopUpdateBadge(){
+  const badge=$('#topUpdateBadge');if(!badge)return;
+  badge.hidden=!(S&&S.update&&S.update.available);
+}
+(()=>{const badge=$('#topUpdateBadge');if(!badge)return;badge.onclick=()=>{
+  const nav=$('nav [data-tab="settings"]');if(nav)nav.click();
+  const card=$('#updateCard');if(!card)return;
+  requestAnimationFrame(()=>{card.scrollIntoView({behavior:'smooth',block:'start'});
+    card.style.boxShadow='0 0 0 2px rgba(var(--ember-rgb),.45)';setTimeout(()=>card.style.boxShadow='',1400);});
+};})();
 // 顶栏应用胶囊。数据同「设置」那张身份条(同一份落盘缓存),没取过就整块不显示 —— 顶栏不适合
 // 放「未获取」这类待办文案。头像 JS 注入并留 🤖 兜底(远端图,控制台可能开在断外网的机器上)。
 let topFxAvSrc='';
@@ -3826,6 +3868,7 @@ const I18N_EN=[
   ["机器人名字","Bot name"],
   ["自我介绍、升级播报里的自称 · 留空 = SintBot","How it refers to itself in introductions and upgrade notices · empty = SintBot"],
   ["网络代理","Network proxy"],
+  ["后台网络状态","Background network details"],
   ["连不上 Claude / ChatGPT 时填 · 国内模型端点自动直连 · 留空 = 不用代理","Set this if Claude / ChatGPT can't be reached · China model endpoints connect directly · empty = no proxy"],
   ["后台服务的环境里已有代理:","The background service already has a proxy in its environment: "],
   ["直连:","Direct: "],
@@ -4507,6 +4550,7 @@ const I18N_EN=[
   ["开关只控制本程序入口,不会改动反向代理或隧道。","These switches control this app only; they do not change the reverse proxy or tunnel."],
   ["局域网监听按当前端口即时切换;关闭后只允许本机访问。系统防火墙可能仍会拦截。","LAN binding changes immediately on the current port; when off, only this machine can connect. The system firewall may still block access."],
   ["软件更新","Software updates"],
+  ["发现新版本，打开软件更新","New version available; open software updates"],
   ["后台版本检查不可用","Version checks are unavailable in this console"],
   ["自动检查稳定版(启动时及每天)","Automatically checks for stable releases at startup and daily"],
   ["升级后向群里播报(记住选择)","Announce upgrades in groups (remember this choice)"],
@@ -5262,7 +5306,7 @@ updateLangBtn();applyI18n(document.body);   // 首屏静态 HTML 先翻一遍,�
 /* ══════════ 界面语言 · 完 ════════════════════════════════════════════════════ */
 
 /* 版本历史:CHANGELOG.json 经 /api/changelog 一次拉取;当前版本(=顶栏徽章)标「当前」。
-   顶栏版本徽章可点 → 跳设置页并滚动到卡片(短暂高亮指位)。
+   顶栏版本徽章可点 → 跳设置页并滚动到软件更新与版本历史卡片(短暂高亮指位)。
    英文界面另拉一份英文本(/api/changelog-en,按 version 对应):正文是数据不是界面文案,词典翻不了它
    ⇒ 有英文用英文、没有的版本(与条数对不上的条目)原样回退中文;日期与「当前」徽章两语言共用一套。 */
 let CHANGELOG=null,CHANGELOG_EN=null;
@@ -5283,7 +5327,7 @@ async function loadChangelog(){
   v.onclick=()=>{if(!S)return;
     $$('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab==='settings'));
     $$('.tab').forEach(t=>t.classList.toggle('on',t.id==='settings'));
-    const c=$('#verhistCard');if(c){c.scrollIntoView({behavior:'smooth',block:'start'});
+    const c=$('#updateCard');if(c){c.scrollIntoView({behavior:'smooth',block:'start'});
       c.style.boxShadow='0 0 0 2px rgba(var(--ember-rgb),.45)';setTimeout(()=>c.style.boxShadow='',1400);}};})();
 
 /* ── 自绘下拉组件(见 .csel CSS)：原生 <select> 的弹出列表是 OS 渲染、CSS 改不动 —— 保留 select
@@ -5381,7 +5425,7 @@ function startLive(){
     // recover whatever SSE dropped while we were away (SSE has no replay of its own);
     // 重连(非首连)还拉一次全量 state —— 断流期间的 live/conn 变化就地补齐,不整页重渲染。
     es.addEventListener('hello',()=>{$('#conn').classList.add('live');syncActivity(true);
-      if(++helloN>1)api('/api/state').then(r=>{S=r;updateDaemon();updateOverviewLive();updateConnLive();startClock();}).catch(()=>{});});
+      if(++helloN>1)api('/api/state').then(r=>{S=r;updateDaemon();updateTopUpdateBadge();updateOverviewLive();updateConnLive();startClock();}).catch(()=>{});});
     es.addEventListener('tick',ev=>{try{const d=JSON.parse(ev.data);if(S){if(d.live)S.live=d.live;if('conn' in d)S.conn=d.conn;}updateDaemon();updateOverviewLive();updateConnLive();}catch{}});
     startAutoRefresh();
     es.addEventListener('conn',ev=>{try{const c=JSON.parse(ev.data);if(S){S.conn=Object.assign({},connDict(S.conn),{[c.platform||'feishu']:c});updateConnLive();}}catch{}}); // 连接状态变化即时推(不等心跳);事件带 platform 名,落进字典对应槽
